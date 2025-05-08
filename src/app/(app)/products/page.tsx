@@ -45,6 +45,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { Card } from "@/components/ui/card"; // Added Card import
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 
 interface Product {
   id: string;
@@ -347,11 +350,16 @@ export default function ProductsPage() {
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-status" className="text-right">Status</Label>
-                <select id="edit-status" name="status" defaultValue={selectedProduct.status} className="col-span-3 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-                  <option value="Active">Active</option>
-                  <option value="Draft">Draft</option>
-                  <option value="Archived">Archived</option>
-                </select>
+                 <Select name="status" defaultValue={selectedProduct.status}>
+                  <SelectTrigger id="edit-status" className="col-span-3">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Draft">Draft</SelectItem>
+                    <SelectItem value="Archived">Archived</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <DialogFooter>
                 <Button type="submit">Save Changes</Button>
@@ -392,3 +400,4 @@ export default function ProductsPage() {
     </div>
   );
 }
+
