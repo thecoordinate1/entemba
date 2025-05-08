@@ -2,6 +2,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   Table,
   TableBody,
@@ -32,7 +33,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Filter } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Filter, Eye } from "lucide-react";
 import Image from "next/image";
 import {
   AlertDialog,
@@ -45,79 +46,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Card } from "@/components/ui/card"; // Added Card import
+import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { Product } from "@/lib/mockData";
+import { initialProducts } from "@/lib/mockData";
 
-
-interface Product {
-  id: string;
-  name: string;
-  image: string;
-  dataAiHint: string;
-  category: string;
-  price: number;
-  stock: number;
-  status: "Active" | "Draft" | "Archived";
-  createdAt: string;
-}
-
-const initialProducts: Product[] = [
-  {
-    id: "prod_1",
-    name: "Ergonomic Office Chair",
-    image: "https://picsum.photos/id/1025/80/80",
-    dataAiHint: "chair office",
-    category: "Furniture",
-    price: 299.99,
-    stock: 150,
-    status: "Active",
-    createdAt: "2023-01-15",
-  },
-  {
-    id: "prod_2",
-    name: "Wireless Noise-Cancelling Headphones",
-    image: "https://picsum.photos/id/1078/80/80",
-    dataAiHint: "headphones tech",
-    category: "Electronics",
-    price: 199.50,
-    stock: 85,
-    status: "Active",
-    createdAt: "2023-02-20",
-  },
-  {
-    id: "prod_3",
-    name: "Organic Cotton T-Shirt",
-    image: "https://picsum.photos/id/431/80/80",
-    dataAiHint: "shirt fashion",
-    category: "Apparel",
-    price: 25.00,
-    stock: 300,
-    status: "Draft",
-    createdAt: "2023-03-10",
-  },
-  {
-    id: "prod_4",
-    name: "Stainless Steel Water Bottle",
-    image: "https://picsum.photos/id/1072/80/80",
-    dataAiHint: "bottle lifestyle",
-    category: "Home Goods",
-    price: 18.75,
-    stock: 0,
-    status: "Archived",
-    createdAt: "2023-04-05",
-  },
-  {
-    id: "prod_5",
-    name: "Artisan Coffee Blend",
-    image: "https://picsum.photos/id/225/80/80",
-    dataAiHint: "coffee food",
-    category: "Groceries",
-    price: 15.99,
-    stock: 200,
-    status: "Active",
-    createdAt: "2023-05-01",
-  },
-];
 
 export default function ProductsPage() {
   const [products, setProducts] = React.useState<Product[]>(initialProducts);
@@ -141,6 +74,8 @@ export default function ProductsPage() {
       stock: parseInt(formData.get("stock") as string),
       status: "Draft",
       createdAt: new Date().toISOString().split("T")[0],
+      description: formData.get("description") as string,
+      fullDescription: formData.get("fullDescription") as string || formData.get("description") as string,
     };
     setProducts([newProduct, ...products]);
     setIsAddDialogOpen(false);
@@ -158,6 +93,8 @@ export default function ProductsPage() {
       price: parseFloat(formData.get("price") as string),
       stock: parseInt(formData.get("stock") as string),
       status: formData.get("status") as Product["status"],
+      description: formData.get("description") as string,
+      fullDescription: formData.get("fullDescription") as string || formData.get("description") as string,
     };
     setProducts(products.map(p => p.id === selectedProduct.id ? updatedProduct : p));
     setIsEditDialogOpen(false);
@@ -203,10 +140,11 @@ export default function ProductsPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+          {/* // TODO: Implement filter functionality
           <Button variant="outline" size="icon">
             <Filter className="h-4 w-4" />
             <span className="sr-only">Filter</span>
-          </Button>
+          </Button> */}
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
@@ -214,7 +152,7 @@ export default function ProductsPage() {
               <PlusCircle className="mr-2 h-4 w-4" /> Add Product
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Add New Product</DialogTitle>
               <DialogDescription>
@@ -222,21 +160,37 @@ export default function ProductsPage() {
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleAddProduct} className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="name" className="text-right">Name</Label>
-                <Input id="name" name="name" className="col-span-3" required />
+              <div className="grid gap-2">
+                <Label htmlFor="name">Name</Label>
+                <Input id="name" name="name" required />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="category" className="text-right">Category</Label>
-                <Input id="category" name="category" className="col-span-3" required />
+               <div className="grid gap-2">
+                <Label htmlFor="description">Short Description</Label>
+                <Textarea id="description" name="description" placeholder="A brief summary for product listings." />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="price" className="text-right">Price</Label>
-                <Input id="price" name="price" type="number" step="0.01" className="col-span-3" required />
+              <div className="grid gap-2">
+                <Label htmlFor="fullDescription">Full Description</Label>
+                <Textarea id="fullDescription" name="fullDescription" placeholder="Detailed product information for the product page." rows={5} />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="stock" className="text-right">Stock</Label>
-                <Input id="stock" name="stock" type="number" className="col-span-3" required />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="category">Category</Label>
+                  <Input id="category" name="category" required />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="price">Price</Label>
+                  <Input id="price" name="price" type="number" step="0.01" required />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="stock">Stock</Label>
+                  <Input id="stock" name="stock" type="number" required />
+                </div>
+                 <div className="grid gap-2">
+                  <Label htmlFor="sku">SKU (Optional)</Label>
+                  <Input id="sku" name="sku" />
+                </div>
               </div>
               {/* Image upload can be added here */}
               <DialogFooter>
@@ -270,7 +224,7 @@ export default function ProductsPage() {
                     alt={product.name}
                     className="aspect-square rounded-md object-cover"
                     height="64"
-                    src={product.image}
+                    src={product.image.replace("/400/300", "/80/80")} // Use smaller image for table
                     width="64"
                     data-ai-hint={product.dataAiHint}
                   />
@@ -282,14 +236,15 @@ export default function ProductsPage() {
                     product.status === "Draft" ? "secondary" : "outline"
                   } className={
                     product.status === "Active" ? "bg-emerald-500/20 text-emerald-700 dark:bg-emerald-500/30 dark:text-emerald-400 border-emerald-500/30" : 
-                    product.status === "Draft" ? "" : ""
+                     product.status === "Archived" ? "bg-slate-500/20 text-slate-700 dark:bg-slate-500/30 dark:text-slate-400 border-slate-500/30" :
+                    "" // Draft uses default secondary badge
                   }>
                     {product.status}
                   </Badge>
                 </TableCell>
                 <TableCell className="hidden md:table-cell">${product.price.toFixed(2)}</TableCell>
                 <TableCell className="hidden md:table-cell">
-                  {product.stock === 0 ? (
+                  {product.stock === 0 && product.status === "Active" ? (
                     <span className="text-destructive">Out of Stock</span>
                   ) : (
                     product.stock
@@ -306,6 +261,11 @@ export default function ProductsPage() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                      <DropdownMenuItem asChild>
+                        <Link href={`/products/${product.id}`}>
+                          <Eye className="mr-2 h-4 w-4" /> View Details
+                        </Link>
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => openEditDialog(product)}>
                         <Edit className="mr-2 h-4 w-4" /> Edit
                       </DropdownMenuItem>
@@ -323,7 +283,7 @@ export default function ProductsPage() {
 
       {/* Edit Product Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit Product</DialogTitle>
             <DialogDescription>
@@ -332,26 +292,42 @@ export default function ProductsPage() {
           </DialogHeader>
           {selectedProduct && (
             <form onSubmit={handleEditProduct} className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-name" className="text-right">Name</Label>
-                <Input id="edit-name" name="name" defaultValue={selectedProduct.name} className="col-span-3" required />
+              <div className="grid gap-2">
+                <Label htmlFor="edit-name">Name</Label>
+                <Input id="edit-name" name="name" defaultValue={selectedProduct.name} required />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-category" className="text-right">Category</Label>
-                <Input id="edit-category" name="category" defaultValue={selectedProduct.category} className="col-span-3" required />
+              <div className="grid gap-2">
+                <Label htmlFor="edit-description">Short Description</Label>
+                <Textarea id="edit-description" name="description" defaultValue={selectedProduct.description} placeholder="A brief summary for product listings." />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-price" className="text-right">Price</Label>
-                <Input id="edit-price" name="price" type="number" step="0.01" defaultValue={selectedProduct.price} className="col-span-3" required />
+              <div className="grid gap-2">
+                <Label htmlFor="edit-fullDescription">Full Description</Label>
+                <Textarea id="edit-fullDescription" name="fullDescription" defaultValue={selectedProduct.fullDescription} placeholder="Detailed product information for the product page." rows={5}/>
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-stock" className="text-right">Stock</Label>
-                <Input id="edit-stock" name="stock" type="number" defaultValue={selectedProduct.stock} className="col-span-3" required />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-category">Category</Label>
+                  <Input id="edit-category" name="category" defaultValue={selectedProduct.category} required />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-price">Price</Label>
+                  <Input id="edit-price" name="price" type="number" step="0.01" defaultValue={selectedProduct.price} required />
+                </div>
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-status" className="text-right">Status</Label>
+               <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-stock">Stock</Label>
+                  <Input id="edit-stock" name="stock" type="number" defaultValue={selectedProduct.stock} required />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-sku">SKU</Label>
+                  <Input id="edit-sku" name="sku" defaultValue={selectedProduct.sku || ""} />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-status">Status</Label>
                  <Select name="status" defaultValue={selectedProduct.status}>
-                  <SelectTrigger id="edit-status" className="col-span-3">
+                  <SelectTrigger id="edit-status">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -401,3 +377,4 @@ export default function ProductsPage() {
   );
 }
 
+    

@@ -21,6 +21,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import Image from "next/image"; // Import next/image
 
 const chartData = [
   { month: "January", sales: 186, orders: 80 },
@@ -79,13 +80,15 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, change, c
   </Card>
 );
 
+// Using a subset of initialProducts for dashboard display
 const topProducts = [
-  { id: 1, name: "Premium Wireless Headphones", sales: 1250, image: "https://picsum.photos/id/1078/50/50", dataAiHint: "headphones tech" },
-  { id: 2, name: "Organic Matcha Green Tea", sales: 980, image: "https://picsum.photos/id/219/50/50", dataAiHint: "tea food" },
-  { id: 3, name: "Handcrafted Leather Wallet", sales: 750, image: "https://picsum.photos/id/175/50/50", dataAiHint: "wallet fashion" },
-  { id: 4, name: "Smart Home Hub", sales: 620, image: "https://picsum.photos/id/579/50/50", dataAiHint: "smart home" },
-  { id: 5, name: "Artisan Coffee Beans", sales: 550, image: "https://picsum.photos/id/225/50/50", dataAiHint: "coffee beans" },
+  { id: "prod_2", name: "Wireless Noise-Cancelling Headphones", sales: 1250, image: "https://picsum.photos/id/1078/50/50", dataAiHint: "headphones tech" },
+  { id: "prod_5", name: "Artisan Coffee Blend", sales: 980, image: "https://picsum.photos/id/225/50/50", dataAiHint: "coffee food" },
+  { id: "prod_1", name: "Ergonomic Office Chair", sales: 750, image: "https://picsum.photos/id/1025/50/50", dataAiHint: "chair office" },
+  // { id: "prod_X", name: "Smart Home Hub", sales: 620, image: "https://picsum.photos/id/579/50/50", dataAiHint: "smart home" }, // Example, replace with actual ID if it exists
+  // { id: "prod_Y", name: "Handcrafted Leather Wallet", sales: 550, image: "https://picsum.photos/id/175/50/50", dataAiHint: "wallet fashion" },
 ];
+
 
 export default function DashboardPage() {
   return (
@@ -182,9 +185,11 @@ export default function DashboardPage() {
             <ul className="space-y-4">
               {topProducts.map((product) => (
                 <li key={product.id} className="flex items-center gap-4">
-                  <img 
+                  <Image // Use next/image
                     src={product.image} 
                     alt={product.name} 
+                    width={48} // Specify width
+                    height={48} // Specify height
                     className="h-12 w-12 rounded-md object-cover"
                     data-ai-hint={product.dataAiHint} 
                   />
@@ -204,3 +209,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    

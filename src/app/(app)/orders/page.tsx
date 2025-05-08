@@ -2,6 +2,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   Table,
   TableBody,
@@ -22,93 +23,11 @@ import {
   DropdownMenuCheckboxItem
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { MoreHorizontal, Search, Filter, PackageCheck, Printer, Truck, CheckCircle, XCircle, RefreshCw } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MoreHorizontal, Search, Filter, PackageCheck, Printer, Truck, CheckCircle, XCircle, RefreshCw, Eye } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
-type OrderStatus = "Pending" | "Processing" | "Shipped" | "Delivered" | "Cancelled";
-
-interface Order {
-  id: string;
-  customerName: string;
-  customerEmail: string;
-  date: string;
-  total: number;
-  status: OrderStatus;
-  items: number;
-}
-
-const initialOrders: Order[] = [
-  {
-    id: "ORD001",
-    customerName: "Alice Wonderland",
-    customerEmail: "alice@example.com",
-    date: "2023-05-01",
-    total: 125.50,
-    status: "Delivered",
-    items: 3,
-  },
-  {
-    id: "ORD002",
-    customerName: "Bob The Builder",
-    customerEmail: "bob@example.com",
-    date: "2023-05-03",
-    total: 75.20,
-    status: "Shipped",
-    items: 1,
-  },
-  {
-    id: "ORD003",
-    customerName: "Charlie Brown",
-    customerEmail: "charlie@example.com",
-    date: "2023-05-05",
-    total: 210.00,
-    status: "Processing",
-    items: 5,
-  },
-  {
-    id: "ORD004",
-    customerName: "Diana Prince",
-    customerEmail: "diana@example.com",
-    date: "2023-05-06",
-    total: 45.99,
-    status: "Pending",
-    items: 2,
-  },
-  {
-    id: "ORD005",
-    customerName: "Edward Scissorhands",
-    customerEmail: "edward@example.com",
-    date: "2023-05-02",
-    total: 99.00,
-    status: "Cancelled",
-    items: 1,
-  },
-];
-
-const statusColors: Record<OrderStatus, string> = {
-  Pending: "bg-yellow-500/20 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-400 border-yellow-500/30",
-  Processing: "bg-blue-500/20 text-blue-700 dark:bg-blue-500/30 dark:text-blue-400 border-blue-500/30",
-  Shipped: "bg-purple-500/20 text-purple-700 dark:bg-purple-500/30 dark:text-purple-400 border-purple-500/30",
-  Delivered: "bg-emerald-500/20 text-emerald-700 dark:bg-emerald-500/30 dark:text-emerald-400 border-emerald-500/30",
-  Cancelled: "bg-red-500/20 text-red-700 dark:bg-red-500/30 dark:text-red-400 border-red-500/30",
-};
-
-const statusIcons: Record<OrderStatus, React.ElementType> = {
-  Pending: RefreshCw,
-  Processing: PackageCheck,
-  Shipped: Truck,
-  Delivered: CheckCircle,
-  Cancelled: XCircle,
-};
-
+import type { Order, OrderStatus } from "@/lib/mockData";
+import { initialOrders, statusColors, statusIcons } from "@/lib/mockData";
 
 export default function OrdersPage() {
   const [orders, setOrders] = React.useState<Order[]>(initialOrders);
@@ -175,6 +94,7 @@ export default function OrdersPage() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+        {/* Add New Order Button can be added here if needed */}
       </div>
 
       <Card>
@@ -219,7 +139,11 @@ export default function OrdersPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>View Order Details</DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href={`/orders/${order.id}`}>
+                             <Eye className="mr-2 h-4 w-4" /> View Order Details
+                          </Link>
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => toast({title: "Label Printed", description: `Shipping label for ${order.id} sent to printer.`})}>
                           <Printer className="mr-2 h-4 w-4" /> Print Shipping Label
                         </DropdownMenuItem>
@@ -249,3 +173,5 @@ export default function OrdersPage() {
     </div>
   );
 }
+
+    
