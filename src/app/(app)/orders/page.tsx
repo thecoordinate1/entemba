@@ -23,11 +23,11 @@ import {
   DropdownMenuCheckboxItem
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { MoreHorizontal, Search, Filter, PackageCheck, Printer, Truck, CheckCircle, XCircle, RefreshCw, Eye } from "lucide-react";
+import { MoreHorizontal, Search, Filter, Eye, Printer } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import type { Order, OrderStatus } from "@/lib/mockData";
-import { initialOrders, statusColors, statusIcons } from "@/lib/mockData";
+import { initialOrders, orderStatusColors, orderStatusIcons } from "@/lib/mockData";
 
 export default function OrdersPage() {
   const [orders, setOrders] = React.useState<Order[]>(initialOrders);
@@ -36,11 +36,15 @@ export default function OrdersPage() {
   const { toast } = useToast();
 
   const handleUpdateStatus = (orderId: string, newStatus: OrderStatus) => {
-    setOrders(
-      orders.map((order) =>
-        order.id === orderId ? { ...order, status: newStatus } : order
-      )
+    const updatedOrders = orders.map((order) =>
+      order.id === orderId ? { ...order, status: newStatus } : order
     );
+    setOrders(updatedOrders);
+    // Also update initialOrders for persistence across navigations (demo only)
+    const orderIndex = initialOrders.findIndex(o => o.id === orderId);
+    if (orderIndex !== -1) {
+      initialOrders[orderIndex].status = newStatus;
+    }
     toast({ title: "Order Status Updated", description: `Order ${orderId} status changed to ${newStatus}.` });
   };
 
@@ -82,7 +86,7 @@ export default function OrdersPage() {
               >
                 All
               </DropdownMenuCheckboxItem>
-              {(Object.keys(statusIcons) as OrderStatus[]).map(status => (
+              {(Object.keys(orderStatusIcons) as OrderStatus[]).map(status => (
                 <DropdownMenuCheckboxItem
                   key={status}
                   checked={statusFilter === status}
@@ -113,7 +117,7 @@ export default function OrdersPage() {
           </TableHeader>
           <TableBody>
             {filteredOrders.map((order) => {
-              const Icon = statusIcons[order.status];
+              const Icon = orderStatusIcons[order.status];
               return (
                 <TableRow key={order.id}>
                   <TableCell className="font-medium">{order.id}</TableCell>
@@ -124,7 +128,7 @@ export default function OrdersPage() {
                   <TableCell className="hidden md:table-cell">{new Date(order.date).toLocaleDateString()}</TableCell>
                   <TableCell className="hidden md:table-cell text-right">${order.total.toFixed(2)}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={`${statusColors[order.status]} flex items-center gap-1.5 whitespace-nowrap`}>
+                    <Badge variant="outline" className={`${orderStatusColors[order.status]} flex items-center gap-1.5 whitespace-nowrap`}>
                       <Icon className="h-3.5 w-3.5" />
                       {order.status}
                     </Badge>
@@ -149,7 +153,7 @@ export default function OrdersPage() {
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuLabel>Update Status</DropdownMenuLabel>
-                        {(Object.keys(statusIcons) as OrderStatus[]).map(status => (
+                        {(Object.keys(orderStatusIcons) as OrderStatus[]).map(status => (
                           order.status !== status && (
                             <DropdownMenuItem key={status} onClick={() => handleUpdateStatus(order.id, status)}>
                               Mark as {status}

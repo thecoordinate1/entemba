@@ -45,68 +45,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import type { Store } from "@/lib/mockData";
+import { initialStores, storeStatusColors } from "@/lib/mockData";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import Link from "next/link";
 
-interface Store {
-  id: string;
-  name: string;
-  description: string;
-  logo: string;
-  dataAiHint: string;
-  status: "Active" | "Inactive" | "Maintenance";
-  domain?: string;
-  location?: string;
-  createdAt: string;
-}
-
-const initialStores: Store[] = [
-  {
-    id: "store_1",
-    name: "The Artisan Boutique",
-    description: "Curated handcrafted goods from around the world.",
-    logo: "https://picsum.photos/id/1011/200/100",
-    dataAiHint: "storefront boutique",
-    status: "Active",
-    domain: "artisanboutique.com",
-    location: "New York, NY",
-    createdAt: "2022-11-10",
-  },
-  {
-    id: "store_2",
-    name: "Tech Gadget Hub",
-    description: "Latest and greatest in tech and electronics.",
-    logo: "https://picsum.photos/id/56/200/100",
-    dataAiHint: "tech store",
-    status: "Active",
-    domain: "techgadgethub.store",
-    location: "San Francisco, CA",
-    createdAt: "2023-01-25",
-  },
-  {
-    id: "store_3",
-    name: "Green Thumb Nursery",
-    description: "Your one-stop shop for plants and gardening supplies.",
-    logo: "https://picsum.photos/id/106/200/100",
-    dataAiHint: "garden plants",
-    status: "Maintenance",
-    location: "Austin, TX",
-    createdAt: "2023-03-15",
-  },
-  {
-    id: "store_4",
-    name: "Vintage Finds Co.",
-    description: "Unique vintage clothing and collectibles.",
-    logo: "https://picsum.photos/id/102/200/100",
-    dataAiHint: "vintage shop",
-    status: "Inactive",
-    createdAt: "2022-09-01",
-  },
-];
-
-const statusColors: Record<Store["status"], string> = {
-  Active: "bg-emerald-500/20 text-emerald-700 dark:bg-emerald-500/30 dark:text-emerald-400 border-emerald-500/30",
-  Inactive: "bg-slate-500/20 text-slate-700 dark:bg-slate-500/30 dark:text-slate-400 border-slate-500/30",
-  Maintenance: "bg-amber-500/20 text-amber-700 dark:bg-amber-500/30 dark:text-amber-400 border-amber-500/30",
-};
 
 export default function StoresPage() {
   const [stores, setStores] = React.useState<Store[]>(initialStores);
@@ -148,6 +91,11 @@ export default function StoresPage() {
       status: formData.get("status") as Store["status"],
     };
     setStores(stores.map(s => s.id === selectedStore.id ? updatedStore : s));
+    // Also update initialStores for persistence across navigations (demo only)
+    const storeIndex = initialStores.findIndex(s => s.id === selectedStore.id);
+    if (storeIndex !== -1) {
+      initialStores[storeIndex] = updatedStore;
+    }
     setIsEditDialogOpen(false);
     setSelectedStore(null);
     toast({ title: "Store Updated", description: `${updatedStore.name} has been successfully updated.` });
@@ -156,6 +104,11 @@ export default function StoresPage() {
   const handleDeleteStore = () => {
     if (!selectedStore) return;
     setStores(stores.filter(s => s.id !== selectedStore.id));
+     // Also update initialStores (demo only)
+    const storeIndex = initialStores.findIndex(s => s.id === selectedStore.id);
+    if (storeIndex !== -1) {
+      initialStores.splice(storeIndex, 1);
+    }
     setIsDeleteDialogOpen(false);
     toast({ title: "Store Deleted", description: `${selectedStore.name} has been successfully deleted.`, variant: "destructive" });
     setSelectedStore(null);
@@ -245,8 +198,10 @@ export default function StoresPage() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                    <DropdownMenuItem onClick={() => { /* Logic to view store */ }}>
-                      <Eye className="mr-2 h-4 w-4" /> View Store
+                    <DropdownMenuItem asChild>
+                      <Link href={`/dashboard?storeId=${store.id}`}>
+                        <Eye className="mr-2 h-4 w-4" /> View Store Dashboard
+                      </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => openEditDialog(store)}>
                       <Edit className="mr-2 h-4 w-4" /> Edit Details
@@ -262,7 +217,7 @@ export default function StoresPage() {
             </CardHeader>
             <CardContent className="flex-grow space-y-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Badge variant="outline" className={`${statusColors[store.status]} text-xs`}>
+                <Badge variant="outline" className={`${storeStatusColors[store.status]} text-xs`}>
                   {store.status}
                 </Badge>
                 <span>· Created {new Date(store.createdAt).toLocaleDateString()}</span>
@@ -283,7 +238,9 @@ export default function StoresPage() {
               )}
             </CardContent>
             <CardFooter>
-              <Button variant="outline" className="w-full">Manage Store</Button>
+               <Button variant="outline" className="w-full" asChild>
+                <Link href={`/dashboard?storeId=${store.id}`}>Manage Store</Link>
+              </Button>
             </CardFooter>
           </Card>
         ))}
@@ -359,3 +316,4 @@ export default function StoresPage() {
     </div>
   );
 }
+

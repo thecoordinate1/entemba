@@ -5,7 +5,7 @@ import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { initialOrders, type Order, type OrderStatus, statusColors, statusIcons } from "@/lib/mockData";
+import { initialOrders, type Order, type OrderStatus, orderStatusColors, orderStatusIcons } from "@/lib/mockData";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,7 +62,7 @@ export default function OrderDetailPage() {
     );
   }
 
-  const CurrentStatusIcon = statusIcons[order.status];
+  const CurrentStatusIcon = orderStatusIcons[order.status];
 
   return (
     <div className="flex flex-col gap-6">
@@ -84,7 +84,7 @@ export default function OrderDetailPage() {
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Change Order Status</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {(Object.keys(statusIcons) as OrderStatus[]).map(status => (
+              {(Object.keys(orderStatusIcons) as OrderStatus[]).map(status => (
                 order.status !== status && (
                   <DropdownMenuItem key={status} onClick={() => handleUpdateStatus(status)}>
                     Mark as {status}
@@ -106,7 +106,7 @@ export default function OrderDetailPage() {
                 {new Date(order.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
               </CardDescription>
             </div>
-            <Badge variant="outline" className={`${statusColors[order.status]} text-base px-4 py-2 flex items-center gap-2`}>
+            <Badge variant="outline" className={`${orderStatusColors[order.status]} text-base px-4 py-2 flex items-center gap-2`}>
               <CurrentStatusIcon className="h-5 w-5" />
               {order.status}
             </Badge>

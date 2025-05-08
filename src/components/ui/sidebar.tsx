@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -759,5 +760,6 @@ export {
   SidebarRail,
   SidebarSeparator,
   SidebarTrigger,
-  useSidebar,
+  useSidebar, // Export useSidebar
 }
+

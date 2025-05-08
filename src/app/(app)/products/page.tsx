@@ -33,7 +33,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Filter, Eye } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Eye } from "lucide-react"; // Removed Filter
 import Image from "next/image";
 import {
   AlertDialog,
@@ -77,6 +77,8 @@ export default function ProductsPage() {
       description: formData.get("description") as string,
       fullDescription: formData.get("fullDescription") as string || formData.get("description") as string,
     };
+    // Update global state for demo purposes
+    initialProducts.unshift(newProduct);
     setProducts([newProduct, ...products]);
     setIsAddDialogOpen(false);
     toast({ title: "Product Added", description: `${newProduct.name} has been successfully added.` });
@@ -96,6 +98,11 @@ export default function ProductsPage() {
       description: formData.get("description") as string,
       fullDescription: formData.get("fullDescription") as string || formData.get("description") as string,
     };
+    // Update global state for demo purposes
+    const productIndex = initialProducts.findIndex(p => p.id === selectedProduct.id);
+    if (productIndex !== -1) {
+      initialProducts[productIndex] = updatedProduct;
+    }
     setProducts(products.map(p => p.id === selectedProduct.id ? updatedProduct : p));
     setIsEditDialogOpen(false);
     setSelectedProduct(null);
@@ -104,6 +111,11 @@ export default function ProductsPage() {
 
   const handleDeleteProduct = () => {
     if (!selectedProduct) return;
+    // Update global state for demo purposes
+    const productIndex = initialProducts.findIndex(p => p.id === selectedProduct.id);
+    if (productIndex !== -1) {
+      initialProducts.splice(productIndex, 1);
+    }
     setProducts(products.filter(p => p.id !== selectedProduct.id));
     setIsDeleteDialogOpen(false);
     toast({ title: "Product Deleted", description: `${selectedProduct.name} has been successfully deleted.`, variant: "destructive" });
@@ -140,11 +152,6 @@ export default function ProductsPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          {/* // TODO: Implement filter functionality
-          <Button variant="outline" size="icon">
-            <Filter className="h-4 w-4" />
-            <span className="sr-only">Filter</span>
-          </Button> */}
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
@@ -159,7 +166,7 @@ export default function ProductsPage() {
                 Fill in the details for your new product.
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleAddProduct} className="grid gap-4 py-4">
+            <form onSubmit={handleAddProduct} className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
               <div className="grid gap-2">
                 <Label htmlFor="name">Name</Label>
                 <Input id="name" name="name" required />
@@ -224,7 +231,7 @@ export default function ProductsPage() {
                     alt={product.name}
                     className="aspect-square rounded-md object-cover"
                     height="64"
-                    src={product.image.replace("/400/300", "/80/80")} // Use smaller image for table
+                    src={product.image.replace(/\/\d+\/\d+$/, "/80/80")} // Use smaller image for table
                     width="64"
                     data-ai-hint={product.dataAiHint}
                   />
@@ -291,7 +298,7 @@ export default function ProductsPage() {
             </DialogDescription>
           </DialogHeader>
           {selectedProduct && (
-            <form onSubmit={handleEditProduct} className="grid gap-4 py-4">
+            <form onSubmit={handleEditProduct} className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
               <div className="grid gap-2">
                 <Label htmlFor="edit-name">Name</Label>
                 <Input id="edit-name" name="name" defaultValue={selectedProduct.name} required />

@@ -47,6 +47,17 @@ export interface Order {
   trackingNumber?: string;
 }
 
+export interface Store {
+  id: string;
+  name: string;
+  description: string;
+  logo: string;
+  dataAiHint: string;
+  status: "Active" | "Inactive" | "Maintenance";
+  domain?: string;
+  location?: string;
+  createdAt: string;
+}
 
 export const initialProducts: Product[] = [
   {
@@ -220,7 +231,7 @@ export const initialOrders: Order[] = [
 ];
 
 
-export const statusColors: Record<OrderStatus, string> = {
+export const orderStatusColors: Record<OrderStatus, string> = {
   Pending: "bg-yellow-500/20 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-400 border-yellow-500/30",
   Processing: "bg-blue-500/20 text-blue-700 dark:bg-blue-500/30 dark:text-blue-400 border-blue-500/30",
   Shipped: "bg-purple-500/20 text-purple-700 dark:bg-purple-500/30 dark:text-purple-400 border-purple-500/30",
@@ -228,7 +239,7 @@ export const statusColors: Record<OrderStatus, string> = {
   Cancelled: "bg-red-500/20 text-red-700 dark:bg-red-500/30 dark:text-red-400 border-red-500/30",
 };
 
-export const statusIcons: Record<OrderStatus, LucideIcon> = {
+export const orderStatusIcons: Record<OrderStatus, LucideIcon> = {
   Pending: RefreshCw,
   Processing: PackageCheck,
   Shipped: Truck,
@@ -236,4 +247,54 @@ export const statusIcons: Record<OrderStatus, LucideIcon> = {
   Cancelled: XCircle,
 };
 
+
+export const initialStores: Store[] = [
+  {
+    id: "store_1",
+    name: "The Artisan Boutique",
+    description: "Curated handcrafted goods from around the world.",
+    logo: "https://picsum.photos/id/1011/200/100",
+    dataAiHint: "storefront boutique",
+    status: "Active",
+    domain: "artisanboutique.com",
+    location: "New York, NY",
+    createdAt: "2022-11-10",
+  },
+  {
+    id: "store_2",
+    name: "Tech Gadget Hub",
+    description: "Latest and greatest in tech and electronics.",
+    logo: "https://picsum.photos/id/56/200/100",
+    dataAiHint: "tech store",
+    status: "Active",
+    domain: "techgadgethub.store",
+    location: "San Francisco, CA",
+    createdAt: "2023-01-25",
+  },
+  {
+    id: "store_3",
+    name: "Green Thumb Nursery",
+    description: "Your one-stop shop for plants and gardening supplies.",
+    logo: "https://picsum.photos/id/106/200/100",
+    dataAiHint: "garden plants",
+    status: "Maintenance",
+    location: "Austin, TX",
+    createdAt: "2023-03-15",
+  },
+  {
+    id: "store_4",
+    name: "Vintage Finds Co.",
+    description: "Unique vintage clothing and collectibles.",
+    logo: "https://picsum.photos/id/102/200/100",
+    dataAiHint: "vintage shop",
+    status: "Inactive",
+    createdAt: "2022-09-01",
+  },
+];
+
+export const storeStatusColors: Record<Store["status"], string> = {
+  Active: "bg-emerald-500/20 text-emerald-700 dark:bg-emerald-500/30 dark:text-emerald-400 border-emerald-500/30",
+  Inactive: "bg-slate-500/20 text-slate-700 dark:bg-slate-500/30 dark:text-slate-400 border-slate-500/30",
+  Maintenance: "bg-amber-500/20 text-amber-700 dark:bg-amber-500/30 dark:text-amber-400 border-amber-500/30",
+};
     
