@@ -9,7 +9,8 @@ import {
   Users,
   TrendingUp,
   TrendingDown,
-  ArrowRight
+  ArrowRight,
+  Activity // Added Activity icon
 } from "lucide-react";
 import {
   ChartContainer,
@@ -21,7 +22,8 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import Image from "next/image"; // Import next/image
+import Image from "next/image";
+import { cn } from "@/lib/utils"; // Imported cn
 
 const chartData = [
   { month: "January", sales: 186, orders: 80 },
@@ -63,8 +65,14 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, change, c
     <CardContent>
       <div className="text-3xl font-bold">{value}</div>
       {change && (
-        <p className={`text-xs ${changeType === "positive" ? "text-emerald-500" : "text-red-500"} flex items-center`}>
-          {changeType === "positive" ? <TrendingUp className="mr-1 h-4 w-4" /> : <TrendingDown className="mr-1 h-4 w-4" />}
+        <p className={cn(
+          "text-xs flex items-center",
+          changeType === "positive" && "text-emerald-500",
+          changeType === "negative" && "text-red-500",
+          !changeType && "text-muted-foreground" // Default color if no type
+        )}>
+          {changeType === "positive" && <TrendingUp className="mr-1 h-4 w-4" />}
+          {changeType === "negative" && <TrendingDown className="mr-1 h-4 w-4" />}
           {change}
         </p>
       )}
@@ -85,8 +93,6 @@ const topProducts = [
   { id: "prod_2", name: "Wireless Noise-Cancelling Headphones", sales: 1250, image: "https://picsum.photos/id/1078/50/50", dataAiHint: "headphones tech" },
   { id: "prod_5", name: "Artisan Coffee Blend", sales: 980, image: "https://picsum.photos/id/225/50/50", dataAiHint: "coffee food" },
   { id: "prod_1", name: "Ergonomic Office Chair", sales: 750, image: "https://picsum.photos/id/1025/50/50", dataAiHint: "chair office" },
-  // { id: "prod_X", name: "Smart Home Hub", sales: 620, image: "https://picsum.photos/id/579/50/50", dataAiHint: "smart home" }, // Example, replace with actual ID if it exists
-  // { id: "prod_Y", name: "Handcrafted Leather Wallet", sales: 550, image: "https://picsum.photos/id/175/50/50", dataAiHint: "wallet fashion" },
 ];
 
 
@@ -98,39 +104,39 @@ export default function DashboardPage() {
           title="Total Revenue"
           value="$45,231.89"
           icon={DollarSign}
-          change="+20.1% from last month"
+          change="+$5,231 from last month"
           changeType="positive"
           description="Total earnings this period"
           ctaLink="/reports/revenue"
           ctaText="View Revenue Report"
         />
         <StatCard
-          title="Total Orders"
-          value="+2350"
-          icon={ShoppingCart}
-          change="+180.1% from last month"
-          changeType="positive"
-          description="New orders received"
+          title="Active Orders"
+          value="185"
+          icon={Activity} // Changed icon
+          change="65 completed in last 30d"
+          // changeType is undefined, will use muted foreground and no icon
+          description="35 new orders today"
           ctaLink="/orders"
           ctaText="Manage Orders"
         />
         <StatCard
           title="Products Sold"
-          value="+12,234"
+          value="12,234"
           icon={Package}
-          change="+19% from last month"
+          change="+1,200 this month"
           changeType="positive"
-          description="Total items sold"
+          description="Total items sold across all orders"
           ctaLink="/products"
           ctaText="Manage Products"
         />
         <StatCard
           title="New Customers"
-          value="+573"
+          value="573"
           icon={Users}
-          change="+21 since last hour"
+          change="+82 this week"
           changeType="positive"
-          description="Customers who signed up"
+          description="Customers who signed up recently"
           ctaLink="/customers"
           ctaText="View Customers"
         />
@@ -185,11 +191,11 @@ export default function DashboardPage() {
             <ul className="space-y-4">
               {topProducts.map((product) => (
                 <li key={product.id} className="flex items-center gap-4">
-                  <Image // Use next/image
+                  <Image
                     src={product.image} 
                     alt={product.name} 
-                    width={48} // Specify width
-                    height={48} // Specify height
+                    width={48}
+                    height={48}
                     className="h-12 w-12 rounded-md object-cover"
                     data-ai-hint={product.dataAiHint} 
                   />
@@ -209,5 +215,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
