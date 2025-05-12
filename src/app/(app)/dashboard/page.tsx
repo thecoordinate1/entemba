@@ -10,7 +10,8 @@ import {
   TrendingUp,
   TrendingDown,
   ArrowRight,
-  Activity // Added Activity icon
+  Activity,
+  LineChart // Added LineChart icon for Profit
 } from "lucide-react";
 import {
   ChartContainer,
@@ -23,7 +24,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
-import { cn } from "@/lib/utils"; // Imported cn
+import { cn } from "@/lib/utils";
 
 const chartData = [
   { month: "January", sales: 186, orders: 80 },
@@ -110,12 +111,21 @@ export default function DashboardPage() {
           ctaLink="/reports/revenue"
           ctaText="View Revenue Report"
         />
+         <StatCard
+          title="Profit"
+          value="$12,875.00"
+          icon={LineChart} 
+          change="+$1,200 from last month"
+          changeType="positive"
+          description="Total profit after all expenses"
+          ctaLink="/reports/profit"
+          ctaText="View Profit Details"
+        />
         <StatCard
           title="Active Orders"
           value="185"
-          icon={Activity} // Changed icon
+          icon={Activity} 
           change="65 completed in last 30d"
-          // changeType is undefined, will use muted foreground and no icon
           description="35 new orders today"
           ctaLink="/orders"
           ctaText="Manage Orders"
@@ -215,3 +225,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
