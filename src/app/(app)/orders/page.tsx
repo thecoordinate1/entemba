@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { Order, OrderItem, OrderStatus } from "@/lib/mockData";
@@ -231,8 +230,8 @@ export default function OrdersPage() {
               <PlusCircle className="mr-2 h-4 w-4" /> Add Order
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col">
-            <DialogHeader className="flex-shrink-0">
+          <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col p-0">
+            <DialogHeader className="p-6 pb-4 flex-shrink-0">
               <DialogTitle>Create New Order</DialogTitle>
               <DialogDescription>
                 Fill in the details to manually create a new order.
@@ -240,7 +239,7 @@ export default function OrdersPage() {
             </DialogHeader>
             <form onSubmit={handleCreateOrder} className="flex-1 flex flex-col min-h-0">
               <ScrollArea className="flex-1 min-h-0">
-                <div className="grid gap-6 pl-1 pt-4 pb-4 pr-3">
+                <div className="grid gap-6 p-6">
                   <Card>
                     <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="grid gap-2">
@@ -363,7 +362,7 @@ export default function OrdersPage() {
                   </Card>
                 </div>
               </ScrollArea>
-              <DialogFooter className="pt-4 border-t flex-shrink-0">
+              <DialogFooter className="p-6 pt-4 border-t flex-shrink-0">
                 <Button type="button" variant="outline" onClick={() => setIsAddOrderDialogOpen(false)}>Cancel</Button>
                 <Button type="submit">Create Order</Button>
               </DialogFooter>
@@ -448,5 +447,3 @@ export default function OrdersPage() {
     </div>
   );
 }
-
-    
