@@ -33,7 +33,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Eye, Image as ImageIcon, Info } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Eye, Image as ImageIcon, Info, DollarSign } from "lucide-react";
 import NextImage from "next/image"; // Renamed to avoid conflict with Lucide Icon
 import {
   AlertDialog,
@@ -79,12 +79,23 @@ export default function ProductsPage() {
         dataAiHints.push("product placeholder");
     }
 
+    const priceStr = formData.get("price") as string;
+    const price = parseFloat(priceStr);
+
+    const orderPriceStr = formData.get("orderPrice") as string;
+    let orderPrice: number | undefined = undefined;
+    if (orderPriceStr && orderPriceStr.trim() !== "" && !isNaN(parseFloat(orderPriceStr))) {
+        orderPrice = parseFloat(orderPriceStr);
+    }
+
+
     return {
       name: formData.get("name") as string,
       images,
       dataAiHints,
       category: formData.get("category") as string,
-      price: parseFloat(formData.get("price") as string),
+      price: price,
+      orderPrice: orderPrice,
       stock: parseInt(formData.get("stock") as string),
       status: (formData.get("status") as Product["status"]) || (currentProduct?.status || "Draft"),
       description: formData.get("description") as string,
@@ -174,41 +185,69 @@ export default function ProductsPage() {
         <Label htmlFor="fullDescription">Full Description</Label>
         <Textarea id="fullDescription" name="fullDescription" defaultValue={product?.fullDescription || ""} placeholder="Detailed product information for the product page." rows={3} />
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="grid gap-2">
           <Label htmlFor="category">Category</Label>
           <Input id="category" name="category" defaultValue={product?.category || ""} required />
         </div>
-        <div className="grid gap-2">
-          <Label htmlFor="price">Price</Label>
-          <Input id="price" name="price" type="number" step="0.01" defaultValue={product?.price || ""} required />
+         <div className="grid gap-2">
+          <Label htmlFor="price">Regular Price</Label>
+          <div className="relative">
+            <DollarSign className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input id="price" name="price" type="number" step="0.01" defaultValue={product?.price || ""} required className="pl-8" />
+          </div>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid gap-2">
+          <Label htmlFor="orderPrice">Order Price (Optional)</Label>
+          <div className="relative">
+             <DollarSign className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input id="orderPrice" name="orderPrice" type="number" step="0.01" defaultValue={product?.orderPrice !== undefined ? product.orderPrice : ""} placeholder="Defaults to regular price" className="pl-8" />
+          </div>
+        </div>
         <div className="grid gap-2">
           <Label htmlFor="stock">Stock</Label>
-          <Input id="stock" name="stock" type="number" defaultValue={product?.stock || ""} required />
+          <Input id="stock" name="stock" type="number" defaultValue={product?.stock ?? ""} required />
         </div>
+      </div>
+       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="grid gap-2">
           <Label htmlFor="sku">SKU (Optional)</Label>
           <Input id="sku" name="sku" defaultValue={product?.sku || ""} />
         </div>
+        {product && ( 
+            <div className="grid gap-2">
+                <Label htmlFor="status">Status</Label>
+                <Select name="status" defaultValue={product.status}>
+                <SelectTrigger id="status">
+                    <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Draft">Draft</SelectItem>
+                    <SelectItem value="Archived">Archived</SelectItem>
+                </SelectContent>
+                </Select>
+            </div>
+        )}
+         {!product && ( // For Add dialog, default status to Draft
+             <div className="grid gap-2">
+                <Label htmlFor="status_add">Status</Label>
+                <Select name="status" defaultValue="Draft">
+                <SelectTrigger id="status_add">
+                    <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Draft">Draft</SelectItem>
+                    <SelectItem value="Archived">Archived</SelectItem>
+                </SelectContent>
+                </Select>
+            </div>
+        )}
       </div>
-      {product && ( // Only show status for existing products in this simplified form version
-         <div className="grid gap-2">
-            <Label htmlFor="edit-status">Status</Label>
-            <Select name="status" defaultValue={product.status}>
-            <SelectTrigger id="edit-status">
-                <SelectValue placeholder="Select status" />
-            </SelectTrigger>
-            <SelectContent>
-                <SelectItem value="Active">Active</SelectItem>
-                <SelectItem value="Draft">Draft</SelectItem>
-                <SelectItem value="Archived">Archived</SelectItem>
-            </SelectContent>
-            </Select>
-        </div>
-      )}
+
 
       <Separator className="my-4"/>
       <h4 className="font-medium text-md col-span-full">Product Images (up to 5)</h4>
@@ -259,7 +298,7 @@ export default function ProductsPage() {
               <PlusCircle className="mr-2 h-4 w-4" /> Add Product
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-2xl"> {/* Increased width */}
+          <DialogContent className="sm:max-w-2xl"> 
             <DialogHeader>
               <DialogTitle>Add New Product</DialogTitle>
               <DialogDescription>
@@ -285,6 +324,7 @@ export default function ProductsPage() {
               <TableHead>Name</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="hidden md:table-cell">Price</TableHead>
+              <TableHead className="hidden md:table-cell">Order Price</TableHead>
               <TableHead className="hidden md:table-cell">Stock</TableHead>
               <TableHead className="hidden md:table-cell">Created at</TableHead>
               <TableHead>
@@ -301,7 +341,7 @@ export default function ProductsPage() {
                         alt={product.name}
                         className="aspect-square rounded-md object-cover"
                         height="64"
-                        src={product.images[0].replace(/\/\d+\/\d+$/, "/80/80")} // Use smaller image for table
+                        src={product.images[0].replace(/\/\d+\/\d+$/, "/80/80")} 
                         width="64"
                         data-ai-hint={product.dataAiHints[0] || 'product image'}
                     />
@@ -325,6 +365,9 @@ export default function ProductsPage() {
                   </Badge>
                 </TableCell>
                 <TableCell className="hidden md:table-cell">${product.price.toFixed(2)}</TableCell>
+                <TableCell className="hidden md:table-cell">
+                  {product.orderPrice !== undefined ? `$${product.orderPrice.toFixed(2)}` : "-"}
+                </TableCell>
                 <TableCell className="hidden md:table-cell">
                   {product.stock === 0 && product.status === "Active" ? (
                     <span className="text-destructive">Out of Stock</span>
@@ -365,7 +408,7 @@ export default function ProductsPage() {
 
       {/* Edit Product Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-2xl"> {/* Increased width */}
+        <DialogContent className="sm:max-w-2xl"> 
           <DialogHeader>
             <DialogTitle>Edit Product</DialogTitle>
             <DialogDescription>

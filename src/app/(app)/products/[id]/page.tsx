@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Edit, Star, Tag, Weight, Ruler, ShoppingCart } from "lucide-react";
+import { ArrowLeft, Edit, Star, Tag, Weight, Ruler, ShoppingCart, DollarSign } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -42,7 +42,7 @@ export default function ProductDetailPage() {
     const foundProduct = initialProducts.find((p) => p.id === productId);
     if (foundProduct) {
       setProduct(foundProduct);
-      setSelectedImageIndex(0); // Reset to first image on product change
+      setSelectedImageIndex(0); 
     } else {
       console.error("Product not found");
     }
@@ -64,18 +64,26 @@ export default function ProductDetailPage() {
         updatedDataAiHints.push(imageHint.trim() || `product image ${i + 1}`);
       }
     }
-    // Ensure at least one placeholder if all are empty
     if (updatedImages.length === 0) {
         updatedImages.push("https://picsum.photos/id/100/400/300"); 
         updatedDataAiHints.push("placeholder image");
     }
 
+    const priceStr = formData.get("price") as string;
+    const price = parseFloat(priceStr);
+
+    const orderPriceStr = formData.get("orderPrice") as string;
+    let orderPrice: number | undefined = undefined;
+    if (orderPriceStr && orderPriceStr.trim() !== "" && !isNaN(parseFloat(orderPriceStr))) {
+        orderPrice = parseFloat(orderPriceStr);
+    }
 
     const updatedProduct: Product = {
       ...product,
       name: formData.get("name") as string,
       category: formData.get("category") as string,
-      price: parseFloat(formData.get("price") as string),
+      price: price,
+      orderPrice: orderPrice,
       stock: parseInt(formData.get("stock") as string),
       status: formData.get("status") as Product["status"],
       description: formData.get("description") as string,
@@ -90,7 +98,7 @@ export default function ProductDetailPage() {
       initialProducts[productIndex] = updatedProduct;
     }
     setProduct(updatedProduct);
-    setSelectedImageIndex(0); // Reset to first image after edit
+    setSelectedImageIndex(0); 
     setIsEditDialogOpen(false);
     toast({ title: "Product Updated", description: `${updatedProduct.name} has been successfully updated.` });
   };
@@ -149,38 +157,50 @@ export default function ProductDetailPage() {
                 <Label htmlFor="edit-fullDescription">Full Description</Label>
                 <Textarea id="edit-fullDescription" name="fullDescription" defaultValue={product.fullDescription} placeholder="Detailed product information for the product page." rows={5}/>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="edit-category">Category</Label>
                   <Input id="edit-category" name="category" defaultValue={product.category} required />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="edit-price">Price</Label>
-                  <Input id="edit-price" name="price" type="number" step="0.01" defaultValue={product.price} required />
+                  <Label htmlFor="edit-price">Regular Price</Label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input id="edit-price" name="price" type="number" step="0.01" defaultValue={product.price} required className="pl-8" />
+                  </div>
                 </div>
               </div>
-               <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div className="grid gap-2">
+                  <Label htmlFor="edit-orderPrice">Order Price (Optional)</Label>
+                  <div className="relative">
+                     <DollarSign className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input id="edit-orderPrice" name="orderPrice" type="number" step="0.01" defaultValue={product.orderPrice !== undefined ? product.orderPrice : ""} placeholder="Defaults to regular price" className="pl-8" />
+                  </div>
+                </div>
                 <div className="grid gap-2">
                   <Label htmlFor="edit-stock">Stock</Label>
                   <Input id="edit-stock" name="stock" type="number" defaultValue={product.stock} required />
                 </div>
+              </div>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="edit-sku">SKU</Label>
                   <Input id="edit-sku" name="sku" defaultValue={product.sku || ""} />
                 </div>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-status">Status</Label>
-                 <Select name="status" defaultValue={product.status}>
-                  <SelectTrigger id="edit-status">
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Active">Active</SelectItem>
-                    <SelectItem value="Draft">Draft</SelectItem>
-                    <SelectItem value="Archived">Archived</SelectItem>
-                  </SelectContent>
-                </Select>
+                 <div className="grid gap-2">
+                    <Label htmlFor="edit-status">Status</Label>
+                    <Select name="status" defaultValue={product.status}>
+                    <SelectTrigger id="edit-status">
+                        <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="Active">Active</SelectItem>
+                        <SelectItem value="Draft">Draft</SelectItem>
+                        <SelectItem value="Archived">Archived</SelectItem>
+                    </SelectContent>
+                    </Select>
+                </div>
               </div>
 
               <Separator />
@@ -265,7 +285,15 @@ export default function ProductDetailPage() {
                   </Badge>
               </div>
               <CardDescription className="text-base">{product.description}</CardDescription>
-              <div className="text-3xl font-bold text-primary">${product.price.toFixed(2)}</div>
+              
+              <div>
+                <div className="text-3xl font-bold text-primary">${product.price.toFixed(2)}</div>
+                {product.orderPrice !== undefined && product.orderPrice !== product.price && (
+                  <div className="text-xl font-semibold text-muted-foreground">
+                    Order Price: <span className="text-accent">${product.orderPrice.toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
               
               <div className="flex items-center gap-2">
                 <ShoppingCart className="h-5 w-5 text-muted-foreground" />

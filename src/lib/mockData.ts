@@ -5,19 +5,20 @@ import { PackageCheck, Truck, CheckCircle, XCircle, RefreshCw } from "lucide-rea
 export interface Product {
   id: string;
   name: string;
-  images: string[]; // Changed from image: string
-  dataAiHints: string[]; // Changed from dataAiHint: string, corresponds to images array
+  images: string[];
+  dataAiHints: string[];
   category: string;
   price: number;
+  orderPrice?: number; // Price specifically for orders, if different from regular price
   stock: number;
   status: "Active" | "Draft" | "Archived";
   createdAt: string;
-  description?: string; // Short description for list views
-  fullDescription: string; // Detailed description for product page
+  description?: string;
+  fullDescription: string;
   sku?: string;
   tags?: string[];
-  weight?: number; // in kg
-  dimensions?: { length: number; width: number; height: number }; // in cm
+  weight?: number;
+  dimensions?: { length: number; width: number; height: number };
 }
 
 export type OrderStatus = "Pending" | "Processing" | "Shipped" | "Delivered" | "Cancelled";
@@ -27,8 +28,8 @@ export interface OrderItem {
   name: string;
   quantity: number;
   price: number; // price per unit at the time of order
-  image: string; // Keep as single image for order item snapshot
-  dataAiHint: string; // Keep as single hint for order item snapshot
+  image: string;
+  dataAiHint: string;
 }
 
 export interface Order {
@@ -38,7 +39,7 @@ export interface Order {
   date: string;
   total: number;
   status: OrderStatus;
-  itemsCount: number; // Renamed from 'items' to avoid confusion with detailedItems
+  itemsCount: number;
   detailedItems: OrderItem[];
   shippingAddress: string;
   billingAddress: string;
@@ -71,6 +72,7 @@ export const initialProducts: Product[] = [
     dataAiHints: ["chair office", "office furniture", "ergonomic chair"],
     category: "Furniture",
     price: 299.99,
+    orderPrice: 279.99, // Special order price
     stock: 150,
     status: "Active",
     createdAt: "2023-01-15",
@@ -78,8 +80,8 @@ export const initialProducts: Product[] = [
     fullDescription: "Experience ultimate comfort and support with our Ergonomic Office Chair. Designed for long hours of work, it features a breathable mesh back, adjustable lumbar support, customizable armrests, and a smooth swivel and tilt mechanism. Perfect for home offices and professional workspaces. Comes with a 5-year warranty.",
     sku: "FURN-CHR-001",
     tags: ["office", "ergonomic", "chair", "furniture"],
-    weight: 15, // kg
-    dimensions: { length: 60, width: 60, height: 120 }, // cm
+    weight: 15,
+    dimensions: { length: 60, width: 60, height: 120 },
   },
   {
     id: "prod_2",
@@ -91,6 +93,7 @@ export const initialProducts: Product[] = [
     dataAiHints: ["headphones tech", "audio gear"],
     category: "Electronics",
     price: 199.50,
+    // orderPrice is undefined, so regular price applies
     stock: 85,
     status: "Active",
     createdAt: "2023-02-20",
@@ -108,6 +111,7 @@ export const initialProducts: Product[] = [
     dataAiHints: ["shirt fashion"],
     category: "Apparel",
     price: 25.00,
+    orderPrice: 22.50, // Special order price
     stock: 300,
     status: "Draft",
     createdAt: "2023-03-10",
@@ -129,6 +133,7 @@ export const initialProducts: Product[] = [
     dataAiHints: ["bottle lifestyle", "hydration metal", "reusable drinkware", "steel bottle"],
     category: "Home Goods",
     price: 18.75,
+    // orderPrice is undefined
     stock: 0,
     status: "Archived",
     createdAt: "2023-04-05",
@@ -151,6 +156,7 @@ export const initialProducts: Product[] = [
     dataAiHints: ["coffee food", "beans roast", "morning brew", "gourmet coffee", "fresh beans"],
     category: "Groceries",
     price: 15.99,
+    orderPrice: 14.99, // Special order price
     stock: 200,
     status: "Active",
     createdAt: "2023-05-01",
@@ -169,13 +175,13 @@ export const initialOrders: Order[] = [
     customerName: "Alice Wonderland",
     customerEmail: "alice@example.com",
     date: "2023-05-01",
-    total: 125.50,
+    total: 120.24, // Updated total based on potential order prices
     status: "Delivered",
     itemsCount: 3,
     detailedItems: [
-      { productId: "prod_3", name: "Organic Cotton T-Shirt", quantity: 2, price: 25.00, image: "https://picsum.photos/id/431/50/50", dataAiHint: "shirt fashion" },
-      { productId: "prod_4", name: "Stainless Steel Water Bottle", quantity: 1, price: 18.75, image: "https://picsum.photos/id/1072/50/50", dataAiHint: "bottle lifestyle" },
-      { productId: "prod_5", name: "Artisan Coffee Blend", quantity: 1, price: 15.99, image: "https://picsum.photos/id/225/50/50", dataAiHint: "coffee food" },
+      { productId: "prod_3", name: "Organic Cotton T-Shirt", quantity: 2, price: 22.50, image: "https://picsum.photos/id/431/50/50", dataAiHint: "shirt fashion" }, // Used orderPrice
+      { productId: "prod_4", name: "Stainless Steel Water Bottle", quantity: 1, price: 18.75, image: "https://picsum.photos/id/1072/50/50", dataAiHint: "bottle lifestyle" }, // Used regular price
+      { productId: "prod_5", name: "Artisan Coffee Blend", quantity: 1, price: 14.99, image: "https://picsum.photos/id/225/50/50", dataAiHint: "coffee food" }, // Used orderPrice
     ],
     shippingAddress: "123 Rabbit Hole Lane, Wonderland, WN 456",
     billingAddress: "123 Rabbit Hole Lane, Wonderland, WN 456",
@@ -192,7 +198,7 @@ export const initialOrders: Order[] = [
     status: "Shipped",
     itemsCount: 1,
     detailedItems: [
-      { productId: "prod_2", name: "Wireless Noise-Cancelling Headphones", quantity: 1, price: 199.50, image: "https://picsum.photos/id/1078/50/50", dataAiHint: "headphones tech" },
+      { productId: "prod_2", name: "Wireless Noise-Cancelling Headphones", quantity: 1, price: 199.50, image: "https://picsum.photos/id/1078/50/50", dataAiHint: "headphones tech" }, // Used regular price
     ],
     shippingAddress: "456 Fixit Avenue, Builderville, BV 789",
     billingAddress: "456 Fixit Avenue, Builderville, BV 789",
@@ -205,11 +211,11 @@ export const initialOrders: Order[] = [
     customerName: "Charlie Brown",
     customerEmail: "charlie@example.com",
     date: "2023-05-05",
-    total: 299.99,
+    total: 279.99, // Updated total
     status: "Processing",
     itemsCount: 1,
     detailedItems: [
-      { productId: "prod_1", name: "Ergonomic Office Chair", quantity: 1, price: 299.99, image: "https://picsum.photos/id/1025/50/50", dataAiHint: "chair office" },
+      { productId: "prod_1", name: "Ergonomic Office Chair", quantity: 1, price: 279.99, image: "https://picsum.photos/id/1025/50/50", dataAiHint: "chair office" }, // Used orderPrice
     ],
     shippingAddress: "789 Good Grief Street, Peanuts Town, PT 101",
     billingAddress: "789 Good Grief Street, Peanuts Town, PT 101",
@@ -221,12 +227,12 @@ export const initialOrders: Order[] = [
     customerName: "Diana Prince",
     customerEmail: "diana@example.com",
     date: "2023-05-06",
-    total: 43.74,
+    total: 37.49, // Updated total
     status: "Pending",
     itemsCount: 2,
      detailedItems: [
-      { productId: "prod_3", name: "Organic Cotton T-Shirt", quantity: 1, price: 25.00, image: "https://picsum.photos/id/431/50/50", dataAiHint: "shirt fashion" },
-      { productId: "prod_5", name: "Artisan Coffee Blend", quantity: 1, price: 15.99, image: "https://picsum.photos/id/225/50/50", dataAiHint: "coffee food" },
+      { productId: "prod_3", name: "Organic Cotton T-Shirt", quantity: 1, price: 22.50, image: "https://picsum.photos/id/431/50/50", dataAiHint: "shirt fashion" }, // Used orderPrice
+      { productId: "prod_5", name: "Artisan Coffee Blend", quantity: 1, price: 14.99, image: "https://picsum.photos/id/225/50/50", dataAiHint: "coffee food" }, // Used orderPrice
     ],
     shippingAddress: "1 Wonder Woman Way, Themyscira, TH 202",
     billingAddress: "1 Wonder Woman Way, Themyscira, TH 202",
@@ -241,7 +247,7 @@ export const initialOrders: Order[] = [
     status: "Cancelled",
     itemsCount: 1,
     detailedItems: [
-      { productId: "prod_4", name: "Stainless Steel Water Bottle", quantity: 1, price: 18.75, image: "https://picsum.photos/id/1072/50/50", dataAiHint: "bottle lifestyle" },
+      { productId: "prod_4", name: "Stainless Steel Water Bottle", quantity: 1, price: 18.75, image: "https://picsum.photos/id/1072/50/50", dataAiHint: "bottle lifestyle" }, // Used regular price
     ],
     shippingAddress: "Suburban Castle, Dark Town, DT 303",
     billingAddress: "Suburban Castle, Dark Town, DT 303",
