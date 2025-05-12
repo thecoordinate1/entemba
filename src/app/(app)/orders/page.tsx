@@ -39,7 +39,7 @@ import { MoreHorizontal, Search, Filter, Eye, Printer, PlusCircle, Trash2, Shopp
 import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import type { Order, OrderStatus, OrderItem, Product } from "@/lib/mockData";
+import type { Order, OrderStatus, OrderItem } from "@/lib/mockData";
 import { initialOrders, orderStatusColors, orderStatusIcons, initialProducts } from "@/lib/mockData";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -179,12 +179,11 @@ export default function OrdersPage() {
       total: calculateNewOrderTotal,
       itemsCount: newOrderItems.reduce((sum, item) => sum + item.quantity, 0),
       detailedItems: finalOrderItems,
-      // Billing address can be same as shipping or different
       billingAddress: newOrderData.billingAddress || newOrderData.shippingAddress,
     };
 
-    initialOrders.unshift(newOrder); // Add to the beginning of the "database"
-    setOrders([newOrder, ...orders]); // Update local state
+    initialOrders.unshift(newOrder); 
+    setOrders([newOrder, ...orders]); 
     setIsAddOrderDialogOpen(false);
     toast({ title: "Order Created", description: `Order ${newOrder.id} has been successfully created.` });
     resetAddOrderForm();
@@ -249,7 +248,6 @@ export default function OrdersPage() {
             <form onSubmit={handleCreateOrder}>
               <ScrollArea className="max-h-[70vh] p-1 pr-3">
                 <div className="grid gap-6 py-4">
-                  {/* Customer Details */}
                   <Card>
                     <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="grid gap-2">
@@ -263,7 +261,6 @@ export default function OrdersPage() {
                     </CardContent>
                   </Card>
 
-                  {/* Shipping & Billing */}
                    <Card>
                     <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="grid gap-2">
@@ -285,7 +282,6 @@ export default function OrdersPage() {
                     </CardContent>
                    </Card>
 
-                  {/* Order Items */}
                   <Card>
                     <CardContent className="pt-6 space-y-4">
                       <h4 className="font-medium text-lg flex items-center gap-2"><ShoppingCart className="h-5 w-5 text-primary"/>Order Items</h4>
@@ -357,7 +353,6 @@ export default function OrdersPage() {
                     </CardContent>
                   </Card>
 
-                  {/* Order Status */}
                   <Card>
                     <CardContent className="pt-6 grid gap-2">
                       <Label htmlFor="orderStatus">Order Status</Label>
