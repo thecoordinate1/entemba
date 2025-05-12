@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Edit, Star, Tag, Weight, Ruler, ShoppingCart, Image as ImageIcon, Info } from "lucide-react";
+import { ArrowLeft, Edit, Star, Tag, Weight, Ruler, ShoppingCart } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -64,9 +64,9 @@ export default function ProductDetailPage() {
         updatedDataAiHints.push(imageHint.trim() || `product image ${i + 1}`);
       }
     }
-    // Ensure at least one placeholder if all are empty, or handle as error
+    // Ensure at least one placeholder if all are empty
     if (updatedImages.length === 0) {
-        updatedImages.push("https://picsum.photos/id/100/400/300"); // Default placeholder
+        updatedImages.push("https://picsum.photos/id/100/400/300"); 
         updatedDataAiHints.push("placeholder image");
     }
 
@@ -113,7 +113,7 @@ export default function ProductDetailPage() {
     product.status === "Archived" ? "bg-slate-500/20 text-slate-700 dark:bg-slate-500/30 dark:text-slate-400 border-slate-500/30" :
     ""; 
 
-  const currentImage = product.images[selectedImageIndex] || "https://picsum.photos/400/300?grayscale";
+  const currentImage = product.images[selectedImageIndex] || "https://picsum.photos/id/101/600/450?grayscale";
   const currentDataAiHint = product.dataAiHints[selectedImageIndex] || "product image";
 
   return (
@@ -129,7 +129,7 @@ export default function ProductDetailPage() {
               <Edit className="mr-2 h-4 w-4" /> Edit Product
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-3xl"> {/* Increased width for more fields */}
+          <DialogContent className="sm:max-w-3xl">
             <DialogHeader>
               <DialogTitle>Edit {product.name}</DialogTitle>
               <DialogDescription>
@@ -220,7 +220,7 @@ export default function ProductDetailPage() {
       <Card>
         <CardHeader>
           <div className="flex flex-col md:flex-row gap-6">
-            <div className="md:w-2/5"> {/* Adjusted width for image gallery */}
+            <div className="md:w-2/5">
               <Image
                 src={currentImage}
                 alt={`${product.name} - image ${selectedImageIndex + 1}`}
@@ -228,19 +228,20 @@ export default function ProductDetailPage() {
                 height={450}
                 className="rounded-lg object-cover aspect-[4/3] w-full border"
                 data-ai-hint={currentDataAiHint}
-                priority={selectedImageIndex === 0} // Prioritize loading the first image
+                priority={selectedImageIndex === 0} 
               />
               {product.images && product.images.length > 1 && (
                 <div className="mt-4 grid grid-cols-5 gap-2">
                   {product.images.map((imgUrl, index) => (
-                    imgUrl && ( // Ensure imgUrl is not empty
+                    imgUrl && ( 
                        <button
                         key={index}
                         onClick={() => setSelectedImageIndex(index)}
                         className={cn(
-                          "rounded-md overflow-hidden border-2 focus:outline-none focus:ring-2 focus:ring-primary",
-                          selectedImageIndex === index ? "border-primary ring-2 ring-primary" : "border-transparent hover:border-muted-foreground"
+                          "rounded-md overflow-hidden border-2 focus:outline-none focus:ring-2 focus:ring-primary transition-all",
+                          selectedImageIndex === index ? "border-primary ring-2 ring-primary" : "border-transparent hover:border-muted-foreground/50"
                         )}
+                        aria-label={`View image ${index + 1} for ${product.name}`}
                       >
                         <Image
                           src={imgUrl}
@@ -256,26 +257,26 @@ export default function ProductDetailPage() {
                 </div>
               )}
             </div>
-            <div className="md:w-3/5 space-y-3"> {/* Adjusted width */}
+            <div className="md:w-3/5 space-y-3">
               <div className="flex items-start justify-between">
                 <CardTitle className="text-3xl">{product.name}</CardTitle>
-                 <Badge variant={statusBadgeVariant} className={statusBadgeClass}>
+                 <Badge variant={statusBadgeVariant} className={cn(statusBadgeClass, "text-sm px-3 py-1")}>
                     {product.status}
                   </Badge>
               </div>
-              <CardDescription className="text-lg">{product.description}</CardDescription>
+              <CardDescription className="text-base">{product.description}</CardDescription>
               <div className="text-3xl font-bold text-primary">${product.price.toFixed(2)}</div>
               
               <div className="flex items-center gap-2">
                 <ShoppingCart className="h-5 w-5 text-muted-foreground" />
-                <span className={product.stock > 0 ? "" : "text-destructive"}>
+                <span className={cn("text-sm", product.stock > 0 ? "text-foreground" : "text-destructive font-semibold")}>
                   {product.stock > 0 ? `${product.stock} in stock` : "Out of Stock"}
                 </span>
               </div>
              
               <div className="flex items-center gap-1">
                 {[...Array(5)].map((_, i) => (
-                  <Star key={i} className={`h-5 w-5 ${i < 4 ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground"}`} />
+                  <Star key={i} className={`h-5 w-5 ${i < 4 ? "text-yellow-400 fill-current" : "text-muted-foreground"}`} />
                 ))}
                 <span className="text-sm text-muted-foreground ml-1">(123 Reviews)</span>
               </div>
@@ -283,7 +284,7 @@ export default function ProductDetailPage() {
                 <div className="text-sm text-muted-foreground">SKU: {product.sku}</div>
               )}
                <div className="pt-2">
-                <Button size="lg">Add to Cart (Placeholder)</Button>
+                <Button size="lg" className="w-full sm:w-auto">Add to Cart (Placeholder)</Button>
               </div>
             </div>
           </div>
@@ -292,17 +293,17 @@ export default function ProductDetailPage() {
           <Separator className="my-6" />
           
           <h3 className="text-xl font-semibold mb-3">Product Details</h3>
-          <p className="text-muted-foreground whitespace-pre-wrap">{product.fullDescription}</p>
+          <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed">{product.fullDescription}</p>
 
-          {(product.tags || product.weight || product.dimensions) && <Separator className="my-6" />}
+          {(product.tags && product.tags.length > 0 || product.weight || product.dimensions) && <Separator className="my-6" />}
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
             {product.tags && product.tags.length > 0 && (
               <div>
                 <h4 className="font-semibold mb-2 flex items-center"><Tag className="mr-2 h-5 w-5 text-primary"/> Tags</h4>
                 <div className="flex flex-wrap gap-2">
                   {product.tags.map(tag => (
-                    <Badge key={tag} variant="secondary">{tag}</Badge>
+                    <Badge key={tag} variant="secondary" className="font-normal">{tag}</Badge>
                   ))}
                 </div>
               </div>
@@ -311,18 +312,18 @@ export default function ProductDetailPage() {
             {(product.weight || product.dimensions) && (
                <div>
                 <h4 className="font-semibold mb-2">Specifications</h4>
-                <Table>
+                <Table className="mt-1">
                   <TableBody>
                     {product.weight && (
                       <TableRow>
-                        <TableCell className="font-medium flex items-center"><Weight className="mr-2 h-4 w-4 text-muted-foreground"/> Weight</TableCell>
-                        <TableCell>{product.weight} kg</TableCell>
+                        <TableCell className="font-medium w-1/3 py-2 px-0"><Weight className="inline mr-2 h-4 w-4 text-muted-foreground"/> Weight</TableCell>
+                        <TableCell className="py-2 px-0">{product.weight} kg</TableCell>
                       </TableRow>
                     )}
                     {product.dimensions && (
                        <TableRow>
-                        <TableCell className="font-medium flex items-center"><Ruler className="mr-2 h-4 w-4 text-muted-foreground"/> Dimensions</TableCell>
-                        <TableCell>{product.dimensions.length} x {product.dimensions.width} x {product.dimensions.height} cm</TableCell>
+                        <TableCell className="font-medium w-1/3 py-2 px-0"><Ruler className="inline mr-2 h-4 w-4 text-muted-foreground"/> Dimensions</TableCell>
+                        <TableCell className="py-2 px-0">{product.dimensions.length} x {product.dimensions.width} x {product.dimensions.height} cm</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
@@ -331,8 +332,8 @@ export default function ProductDetailPage() {
             )}
           </div>
         </CardContent>
-        <CardFooter className="text-xs text-muted-foreground">
-          Product created on: {new Date(product.createdAt).toLocaleDateString()}
+        <CardFooter className="text-xs text-muted-foreground border-t pt-4 mt-6">
+          Product ID: {product.id} &nbsp;&middot;&nbsp; Created on: {new Date(product.createdAt).toLocaleDateString()}
         </CardFooter>
       </Card>
 
@@ -347,3 +348,4 @@ export default function ProductDetailPage() {
     </div>
   );
 }
+
