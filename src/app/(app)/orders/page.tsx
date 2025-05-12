@@ -238,15 +238,15 @@ export default function OrdersPage() {
               <PlusCircle className="mr-2 h-4 w-4" /> Add Order
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-3xl">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col">
+            <DialogHeader className="flex-shrink-0">
               <DialogTitle>Create New Order</DialogTitle>
               <DialogDescription>
                 Fill in the details to manually create a new order.
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleCreateOrder}>
-              <ScrollArea className="max-h-[70vh] p-1 pr-3">
+            <form onSubmit={handleCreateOrder} className="flex flex-col flex-grow overflow-hidden">
+              <ScrollArea className="flex-grow p-1 pr-3">
                 <div className="grid gap-6 py-4">
                   <Card>
                     <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -370,7 +370,7 @@ export default function OrdersPage() {
                   </Card>
                 </div>
               </ScrollArea>
-              <DialogFooter className="pt-4 border-t">
+              <DialogFooter className="pt-4 border-t flex-shrink-0">
                 <Button type="button" variant="outline" onClick={() => setIsAddOrderDialogOpen(false)}>Cancel</Button>
                 <Button type="submit">Create Order</Button>
               </DialogFooter>
