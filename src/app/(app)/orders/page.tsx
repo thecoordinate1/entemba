@@ -22,12 +22,48 @@ import {
   DropdownMenuTrigger,
   DropdownMenuCheckboxItem
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { MoreHorizontal, Search, Filter, Eye, Printer } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MoreHorizontal, Search, Filter, Eye, Printer, PlusCircle, Trash2, ShoppingCart, DollarSign } from "lucide-react";
+import Image from "next/image";
+import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import type { Order, OrderStatus } from "@/lib/mockData";
-import { initialOrders, orderStatusColors, orderStatusIcons } from "@/lib/mockData";
+import type { Order, OrderStatus, OrderItem, Product } from "@/lib/mockData";
+import { initialOrders, orderStatusColors, orderStatusIcons, initialProducts } from "@/lib/mockData";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
+
+interface NewOrderItemEntry {
+  productId: string;
+  productName: string;
+  productImage: string;
+  productDataAiHint: string;
+  unitPrice: number;
+  quantity: number;
+}
+
+const defaultNewOrderData = {
+  customerName: "",
+  customerEmail: "",
+  shippingAddress: "",
+  billingAddress: "",
+  shippingMethod: "",
+  paymentMethod: "",
+  status: "Pending" as OrderStatus,
+};
+
 
 export default function OrdersPage() {
   const [orders, setOrders] = React.useState<Order[]>(initialOrders);
@@ -35,12 +71,17 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = React.useState<OrderStatus | "All">("All");
   const { toast } = useToast();
 
+  const [isAddOrderDialogOpen, setIsAddOrderDialogOpen] = React.useState(false);
+  const [newOrderData, setNewOrderData] = React.useState(defaultNewOrderData);
+  const [newOrderItems, setNewOrderItems] = React.useState<NewOrderItemEntry[]>([]);
+  const [selectedProductIdToAdd, setSelectedProductIdToAdd] = React.useState<string>("");
+  const [quantityToAdd, setQuantityToAdd] = React.useState<number>(1);
+
   const handleUpdateStatus = (orderId: string, newStatus: OrderStatus) => {
     const updatedOrders = orders.map((order) =>
       order.id === orderId ? { ...order, status: newStatus } : order
     );
     setOrders(updatedOrders);
-    // Also update initialOrders for persistence across navigations (demo only)
     const orderIndex = initialOrders.findIndex(o => o.id === orderId);
     if (orderIndex !== -1) {
       initialOrders[orderIndex].status = newStatus;
@@ -54,7 +95,101 @@ export default function OrdersPage() {
                           order.customerEmail.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "All" || order.status === statusFilter;
     return matchesSearch && matchesStatus;
-  });
+  }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+
+  const resetAddOrderForm = () => {
+    setNewOrderData(defaultNewOrderData);
+    setNewOrderItems([]);
+    setSelectedProductIdToAdd("");
+    setQuantityToAdd(1);
+  };
+
+  const handleAddProductToOrder = () => {
+    if (!selectedProductIdToAdd || quantityToAdd <= 0) {
+      toast({ title: "Invalid Input", description: "Please select a product and specify a valid quantity.", variant: "destructive" });
+      return;
+    }
+    const product = initialProducts.find(p => p.id === selectedProductIdToAdd);
+    if (!product) {
+      toast({ title: "Product Not Found", variant: "destructive" });
+      return;
+    }
+
+    const existingItemIndex = newOrderItems.findIndex(item => item.productId === product.id);
+    if (existingItemIndex > -1) {
+      const updatedItems = [...newOrderItems];
+      updatedItems[existingItemIndex].quantity += quantityToAdd;
+      setNewOrderItems(updatedItems);
+    } else {
+      setNewOrderItems(prevItems => [
+        ...prevItems,
+        {
+          productId: product.id,
+          productName: product.name,
+          productImage: product.images[0] || "https://picsum.photos/50/50?grayscale",
+          productDataAiHint: product.dataAiHints[0] || "product",
+          unitPrice: product.orderPrice !== undefined ? product.orderPrice : product.price,
+          quantity: quantityToAdd,
+        }
+      ]);
+    }
+    setSelectedProductIdToAdd(""); // Reset product selection
+    setQuantityToAdd(1); // Reset quantity
+  };
+
+  const handleRemoveProductFromOrder = (productId: string) => {
+    setNewOrderItems(prevItems => prevItems.filter(item => item.productId !== productId));
+  };
+  
+  const handleNewOrderInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setNewOrderData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleNewOrderStatusChange = (value: OrderStatus) => {
+    setNewOrderData(prev => ({ ...prev, status: value }));
+  };
+
+  const calculateNewOrderTotal = React.useMemo(() => {
+    return newOrderItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+  }, [newOrderItems]);
+
+
+  const handleCreateOrder = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (newOrderItems.length === 0) {
+      toast({ title: "No Items", description: "Please add at least one product to the order.", variant: "destructive" });
+      return;
+    }
+
+    const finalOrderItems: OrderItem[] = newOrderItems.map(item => ({
+      productId: item.productId,
+      name: item.productName,
+      quantity: item.quantity,
+      price: item.unitPrice,
+      image: item.productImage,
+      dataAiHint: item.productDataAiHint,
+    }));
+
+    const newOrder: Order = {
+      id: `ORD_${Date.now()}`,
+      ...newOrderData,
+      date: new Date().toISOString().split("T")[0],
+      total: calculateNewOrderTotal,
+      itemsCount: newOrderItems.reduce((sum, item) => sum + item.quantity, 0),
+      detailedItems: finalOrderItems,
+      // Billing address can be same as shipping or different
+      billingAddress: newOrderData.billingAddress || newOrderData.shippingAddress,
+    };
+
+    initialOrders.unshift(newOrder); // Add to the beginning of the "database"
+    setOrders([newOrder, ...orders]); // Update local state
+    setIsAddOrderDialogOpen(false);
+    toast({ title: "Order Created", description: `Order ${newOrder.id} has been successfully created.` });
+    resetAddOrderForm();
+  };
+
 
   return (
     <div className="flex flex-col gap-6">
@@ -98,7 +233,155 @@ export default function OrdersPage() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        {/* Add New Order Button can be added here if needed */}
+        <Dialog open={isAddOrderDialogOpen} onOpenChange={(isOpen) => { setIsAddOrderDialogOpen(isOpen); if (!isOpen) resetAddOrderForm(); }}>
+          <DialogTrigger asChild>
+            <Button>
+              <PlusCircle className="mr-2 h-4 w-4" /> Add Order
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Create New Order</DialogTitle>
+              <DialogDescription>
+                Fill in the details to manually create a new order.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleCreateOrder}>
+              <ScrollArea className="max-h-[70vh] p-1 pr-3">
+                <div className="grid gap-6 py-4">
+                  {/* Customer Details */}
+                  <Card>
+                    <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="customerName">Customer Name</Label>
+                        <Input id="customerName" name="customerName" value={newOrderData.customerName} onChange={handleNewOrderInputChange} required />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="customerEmail">Customer Email</Label>
+                        <Input id="customerEmail" name="customerEmail" type="email" value={newOrderData.customerEmail} onChange={handleNewOrderInputChange} required />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Shipping & Billing */}
+                   <Card>
+                    <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="shippingAddress">Shipping Address</Label>
+                            <Textarea id="shippingAddress" name="shippingAddress" value={newOrderData.shippingAddress} onChange={handleNewOrderInputChange} required rows={3}/>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="billingAddress">Billing Address (Optional)</Label>
+                            <Textarea id="billingAddress" name="billingAddress" value={newOrderData.billingAddress} onChange={handleNewOrderInputChange} placeholder="Leave blank if same as shipping" rows={3}/>
+                        </div>
+                         <div className="grid gap-2">
+                            <Label htmlFor="shippingMethod">Shipping Method</Label>
+                            <Input id="shippingMethod" name="shippingMethod" value={newOrderData.shippingMethod} onChange={handleNewOrderInputChange} />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="paymentMethod">Payment Method</Label>
+                            <Input id="paymentMethod" name="paymentMethod" value={newOrderData.paymentMethod} onChange={handleNewOrderInputChange} />
+                        </div>
+                    </CardContent>
+                   </Card>
+
+                  {/* Order Items */}
+                  <Card>
+                    <CardContent className="pt-6 space-y-4">
+                      <h4 className="font-medium text-lg flex items-center gap-2"><ShoppingCart className="h-5 w-5 text-primary"/>Order Items</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_auto] gap-3 items-end p-3 border rounded-md">
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="productToAdd">Select Product</Label>
+                          <Select value={selectedProductIdToAdd} onValueChange={setSelectedProductIdToAdd}>
+                            <SelectTrigger id="productToAdd">
+                              <SelectValue placeholder="Choose a product..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {initialProducts.filter(p => p.status === 'Active').map(product => (
+                                <SelectItem key={product.id} value={product.id}>
+                                  {product.name} (${product.orderPrice !== undefined ? product.orderPrice.toFixed(2) : product.price.toFixed(2)})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="quantityToAdd">Quantity</Label>
+                          <Input id="quantityToAdd" type="number" min="1" value={quantityToAdd} onChange={(e) => setQuantityToAdd(parseInt(e.target.value) || 1)} />
+                        </div>
+                        <Button type="button" onClick={handleAddProductToOrder} className="self-end">Add Item</Button>
+                      </div>
+
+                      {newOrderItems.length > 0 && (
+                        <div className="space-y-2">
+                          <Label>Current Items in Order:</Label>
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-[60px] hidden sm:table-cell">Image</TableHead>
+                                <TableHead>Product</TableHead>
+                                <TableHead className="text-right">Qty</TableHead>
+                                <TableHead className="text-right">Unit Price</TableHead>
+                                <TableHead className="text-right">Total</TableHead>
+                                <TableHead className="w-[50px]"></TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {newOrderItems.map(item => (
+                                <TableRow key={item.productId}>
+                                  <TableCell className="hidden sm:table-cell">
+                                    <Image src={item.productImage} alt={item.productName} width={40} height={40} className="rounded-md object-cover" data-ai-hint={item.productDataAiHint}/>
+                                  </TableCell>
+                                  <TableCell className="font-medium">{item.productName}</TableCell>
+                                  <TableCell className="text-right">{item.quantity}</TableCell>
+                                  <TableCell className="text-right">${item.unitPrice.toFixed(2)}</TableCell>
+                                  <TableCell className="text-right">${(item.unitPrice * item.quantity).toFixed(2)}</TableCell>
+                                  <TableCell>
+                                    <Button type="button" variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleRemoveProductFromOrder(item.productId)}>
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                       <Separator />
+                       <div className="flex justify-end items-center gap-4">
+                            <Label className="text-lg font-semibold">Order Total:</Label>
+                            <div className="text-xl font-bold flex items-center">
+                                <DollarSign className="h-5 w-5 mr-1 text-primary"/> {calculateNewOrderTotal.toFixed(2)}
+                            </div>
+                       </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Order Status */}
+                  <Card>
+                    <CardContent className="pt-6 grid gap-2">
+                      <Label htmlFor="orderStatus">Order Status</Label>
+                      <Select name="status" value={newOrderData.status} onValueChange={handleNewOrderStatusChange}>
+                        <SelectTrigger id="orderStatus">
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(Object.keys(orderStatusIcons) as OrderStatus[]).map(status => (
+                            <SelectItem key={status} value={status}>{status}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </CardContent>
+                  </Card>
+                </div>
+              </ScrollArea>
+              <DialogFooter className="pt-4 border-t">
+                <Button type="button" variant="outline" onClick={() => setIsAddOrderDialogOpen(false)}>Cancel</Button>
+                <Button type="submit">Create Order</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Card>
@@ -128,7 +411,7 @@ export default function OrdersPage() {
                   <TableCell className="hidden md:table-cell">{new Date(order.date).toLocaleDateString()}</TableCell>
                   <TableCell className="hidden md:table-cell text-right">${order.total.toFixed(2)}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={`${orderStatusColors[order.status]} flex items-center gap-1.5 whitespace-nowrap`}>
+                    <Badge variant="outline" className={cn(orderStatusColors[order.status], "flex items-center gap-1.5 whitespace-nowrap")}>
                       <Icon className="h-3.5 w-3.5" />
                       {order.status}
                     </Badge>
