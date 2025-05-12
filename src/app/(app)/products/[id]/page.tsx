@@ -4,14 +4,13 @@
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
-import Link from "next/link";
 import { initialProducts, type Product } from "@/lib/mockData";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableRow, TableHead, TableHeader } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Edit, Star, Tag, Weight, Ruler, ShoppingCart } from "lucide-react";
+import { ArrowLeft, Edit, Star, Tag, Weight, Ruler, ShoppingCart, Image as ImageIcon, Info } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -26,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 
 export default function ProductDetailPage() {
@@ -34,27 +34,43 @@ export default function ProductDetailPage() {
   const { toast } = useToast();
   const productId = params.id as string;
 
-  // In a real app, you'd fetch this data. Here we simulate it.
-  // Also, manage product state locally for edits on this page.
   const [product, setProduct] = React.useState<Product | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = React.useState(0);
 
   React.useEffect(() => {
     const foundProduct = initialProducts.find((p) => p.id === productId);
     if (foundProduct) {
       setProduct(foundProduct);
+      setSelectedImageIndex(0); // Reset to first image on product change
     } else {
-      // Handle product not found, e.g., redirect or show error
-      // For now, log and potentially redirect or show a message
       console.error("Product not found");
-      // router.push('/products'); // Example redirect
     }
-  }, [productId, router]);
+  }, [productId]);
 
   const handleEditProduct = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!product) return;
     const formData = new FormData(event.currentTarget);
+    
+    const updatedImages: string[] = [];
+    const updatedDataAiHints: string[] = [];
+
+    for (let i = 0; i < 5; i++) {
+      const imageUrl = formData.get(`image_url_${i}`) as string;
+      const imageHint = formData.get(`image_hint_${i}`) as string;
+      if (imageUrl && imageUrl.trim() !== "") {
+        updatedImages.push(imageUrl.trim());
+        updatedDataAiHints.push(imageHint.trim() || `product image ${i + 1}`);
+      }
+    }
+    // Ensure at least one placeholder if all are empty, or handle as error
+    if (updatedImages.length === 0) {
+        updatedImages.push("https://picsum.photos/id/100/400/300"); // Default placeholder
+        updatedDataAiHints.push("placeholder image");
+    }
+
+
     const updatedProduct: Product = {
       ...product,
       name: formData.get("name") as string,
@@ -65,13 +81,16 @@ export default function ProductDetailPage() {
       description: formData.get("description") as string,
       fullDescription: formData.get("fullDescription") as string,
       sku: formData.get("sku") as string || undefined,
+      images: updatedImages,
+      dataAiHints: updatedDataAiHints,
     };
-    // Update product in our "global" state (initialProducts array) for demo purposes
+    
     const productIndex = initialProducts.findIndex(p => p.id === product.id);
     if (productIndex !== -1) {
       initialProducts[productIndex] = updatedProduct;
     }
-    setProduct(updatedProduct); // Update local state
+    setProduct(updatedProduct);
+    setSelectedImageIndex(0); // Reset to first image after edit
     setIsEditDialogOpen(false);
     toast({ title: "Product Updated", description: `${updatedProduct.name} has been successfully updated.` });
   };
@@ -92,7 +111,10 @@ export default function ProductDetailPage() {
   const statusBadgeClass =
     product.status === "Active" ? "bg-emerald-500/20 text-emerald-700 dark:bg-emerald-500/30 dark:text-emerald-400 border-emerald-500/30" :
     product.status === "Archived" ? "bg-slate-500/20 text-slate-700 dark:bg-slate-500/30 dark:text-slate-400 border-slate-500/30" :
-    ""; // Draft uses default secondary badge
+    ""; 
+
+  const currentImage = product.images[selectedImageIndex] || "https://picsum.photos/400/300?grayscale";
+  const currentDataAiHint = product.dataAiHints[selectedImageIndex] || "product image";
 
   return (
     <div className="flex flex-col gap-6">
@@ -107,11 +129,11 @@ export default function ProductDetailPage() {
               <Edit className="mr-2 h-4 w-4" /> Edit Product
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-2xl">
+          <DialogContent className="sm:max-w-3xl"> {/* Increased width for more fields */}
             <DialogHeader>
               <DialogTitle>Edit {product.name}</DialogTitle>
               <DialogDescription>
-                Update the details for this product.
+                Update the details for this product. You can add up to 5 images.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleEditProduct} className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
@@ -160,8 +182,34 @@ export default function ProductDetailPage() {
                   </SelectContent>
                 </Select>
               </div>
-              {/* Consider adding fields for weight, dimensions, tags if editable */}
+
+              <Separator />
+              <h4 className="font-medium text-lg">Product Images (up to 5)</h4>
+              {[...Array(5)].map((_, index) => (
+                <div key={`image-edit-${index}`} className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end border-b pb-4 mb-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor={`edit-image_url_${index}`}>Image URL {index + 1}</Label>
+                    <Input 
+                      id={`edit-image_url_${index}`} 
+                      name={`image_url_${index}`} 
+                      defaultValue={product.images[index] || ""}
+                      placeholder="https://example.com/image.jpg"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor={`edit-image_hint_${index}`}>AI Hint {index + 1} (for image search)</Label>
+                    <Input 
+                      id={`edit-image_hint_${index}`} 
+                      name={`image_hint_${index}`} 
+                      defaultValue={product.dataAiHints[index] || ""}
+                      placeholder="e.g., 'red car' or 'landscape mountain'"
+                    />
+                  </div>
+                </div>
+              ))}
+              
               <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
                 <Button type="submit">Save Changes</Button>
               </DialogFooter>
             </form>
@@ -172,17 +220,43 @@ export default function ProductDetailPage() {
       <Card>
         <CardHeader>
           <div className="flex flex-col md:flex-row gap-6">
-            <div className="md:w-1/3">
+            <div className="md:w-2/5"> {/* Adjusted width for image gallery */}
               <Image
-                src={product.image}
-                alt={product.name}
-                width={400}
-                height={300}
-                className="rounded-lg object-cover aspect-[4/3]"
-                data-ai-hint={product.dataAiHint}
+                src={currentImage}
+                alt={`${product.name} - image ${selectedImageIndex + 1}`}
+                width={600}
+                height={450}
+                className="rounded-lg object-cover aspect-[4/3] w-full border"
+                data-ai-hint={currentDataAiHint}
+                priority={selectedImageIndex === 0} // Prioritize loading the first image
               />
+              {product.images && product.images.length > 1 && (
+                <div className="mt-4 grid grid-cols-5 gap-2">
+                  {product.images.map((imgUrl, index) => (
+                    imgUrl && ( // Ensure imgUrl is not empty
+                       <button
+                        key={index}
+                        onClick={() => setSelectedImageIndex(index)}
+                        className={cn(
+                          "rounded-md overflow-hidden border-2 focus:outline-none focus:ring-2 focus:ring-primary",
+                          selectedImageIndex === index ? "border-primary ring-2 ring-primary" : "border-transparent hover:border-muted-foreground"
+                        )}
+                      >
+                        <Image
+                          src={imgUrl}
+                          alt={`${product.name} thumbnail ${index + 1}`}
+                          width={100}
+                          height={75}
+                          className="object-cover aspect-[4/3] w-full h-full"
+                          data-ai-hint={product.dataAiHints[index] || `thumbnail ${index + 1}`}
+                        />
+                      </button>
+                    )
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="md:w-2/3 space-y-3">
+            <div className="md:w-3/5 space-y-3"> {/* Adjusted width */}
               <div className="flex items-start justify-between">
                 <CardTitle className="text-3xl">{product.name}</CardTitle>
                  <Badge variant={statusBadgeVariant} className={statusBadgeClass}>
@@ -262,7 +336,6 @@ export default function ProductDetailPage() {
         </CardFooter>
       </Card>
 
-      {/* Placeholder for Related Products or Reviews section */}
       <Card>
         <CardHeader>
           <CardTitle>Customer Reviews (Placeholder)</CardTitle>
@@ -274,5 +347,3 @@ export default function ProductDetailPage() {
     </div>
   );
 }
-
-    

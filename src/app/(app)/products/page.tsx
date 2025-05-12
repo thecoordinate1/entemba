@@ -33,8 +33,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Eye } from "lucide-react"; // Removed Filter
-import Image from "next/image";
+import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Eye, Image as ImageIcon, Info } from "lucide-react";
+import NextImage from "next/image"; // Renamed to avoid conflict with Lucide Icon
 import {
   AlertDialog,
   AlertDialogAction,
@@ -50,6 +50,7 @@ import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Product } from "@/lib/mockData";
 import { initialProducts } from "@/lib/mockData";
+import { Separator } from "@/components/ui/separator";
 
 
 export default function ProductsPage() {
@@ -61,23 +62,50 @@ export default function ProductsPage() {
   const [searchTerm, setSearchTerm] = React.useState("");
   const { toast } = useToast();
 
-  const handleAddProduct = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const newProduct: Product = {
-      id: `prod_${Date.now()}`,
+  const processProductFormData = (formData: FormData, currentProduct?: Product): Omit<Product, "id" | "createdAt"> => {
+    const images: string[] = [];
+    const dataAiHints: string[] = [];
+
+    for (let i = 0; i < 5; i++) {
+      const imageUrl = formData.get(`image_url_${i}`) as string;
+      const imageHint = formData.get(`image_hint_${i}`) as string;
+      if (imageUrl && imageUrl.trim() !== "") {
+        images.push(imageUrl.trim());
+        dataAiHints.push(imageHint.trim() || `product image ${i + 1}`);
+      }
+    }
+    if (images.length === 0) {
+        images.push("https://picsum.photos/id/103/80/80"); // Default placeholder
+        dataAiHints.push("product placeholder");
+    }
+
+    return {
       name: formData.get("name") as string,
-      image: "https://picsum.photos/id/103/80/80", // Placeholder
-      dataAiHint: "product placeholder",
+      images,
+      dataAiHints,
       category: formData.get("category") as string,
       price: parseFloat(formData.get("price") as string),
       stock: parseInt(formData.get("stock") as string),
-      status: "Draft",
-      createdAt: new Date().toISOString().split("T")[0],
+      status: (formData.get("status") as Product["status"]) || (currentProduct?.status || "Draft"),
       description: formData.get("description") as string,
       fullDescription: formData.get("fullDescription") as string || formData.get("description") as string,
+      sku: formData.get("sku") as string || undefined,
+      // tags, weight, dimensions can be added if needed in form
     };
-    // Update global state for demo purposes
+  };
+
+
+  const handleAddProduct = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const productData = processProductFormData(formData);
+    
+    const newProduct: Product = {
+      id: `prod_${Date.now()}`,
+      ...productData,
+      createdAt: new Date().toISOString().split("T")[0],
+    };
+
     initialProducts.unshift(newProduct);
     setProducts([newProduct, ...products]);
     setIsAddDialogOpen(false);
@@ -88,17 +116,13 @@ export default function ProductsPage() {
     event.preventDefault();
     if (!selectedProduct) return;
     const formData = new FormData(event.currentTarget);
+    const productData = processProductFormData(formData, selectedProduct);
+
     const updatedProduct: Product = {
       ...selectedProduct,
-      name: formData.get("name") as string,
-      category: formData.get("category") as string,
-      price: parseFloat(formData.get("price") as string),
-      stock: parseInt(formData.get("stock") as string),
-      status: formData.get("status") as Product["status"],
-      description: formData.get("description") as string,
-      fullDescription: formData.get("fullDescription") as string || formData.get("description") as string,
+      ...productData,
     };
-    // Update global state for demo purposes
+    
     const productIndex = initialProducts.findIndex(p => p.id === selectedProduct.id);
     if (productIndex !== -1) {
       initialProducts[productIndex] = updatedProduct;
@@ -111,7 +135,6 @@ export default function ProductsPage() {
 
   const handleDeleteProduct = () => {
     if (!selectedProduct) return;
-    // Update global state for demo purposes
     const productIndex = initialProducts.findIndex(p => p.id === selectedProduct.id);
     if (productIndex !== -1) {
       initialProducts.splice(productIndex, 1);
@@ -137,6 +160,83 @@ export default function ProductsPage() {
     product.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const renderProductFormFields = (product?: Product) => (
+    <>
+      <div className="grid gap-2">
+        <Label htmlFor="name">Name</Label>
+        <Input id="name" name="name" defaultValue={product?.name || ""} required />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="description">Short Description</Label>
+        <Textarea id="description" name="description" defaultValue={product?.description || ""} placeholder="A brief summary for product listings." />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="fullDescription">Full Description</Label>
+        <Textarea id="fullDescription" name="fullDescription" defaultValue={product?.fullDescription || ""} placeholder="Detailed product information for the product page." rows={3} />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-2">
+          <Label htmlFor="category">Category</Label>
+          <Input id="category" name="category" defaultValue={product?.category || ""} required />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="price">Price</Label>
+          <Input id="price" name="price" type="number" step="0.01" defaultValue={product?.price || ""} required />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-2">
+          <Label htmlFor="stock">Stock</Label>
+          <Input id="stock" name="stock" type="number" defaultValue={product?.stock || ""} required />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="sku">SKU (Optional)</Label>
+          <Input id="sku" name="sku" defaultValue={product?.sku || ""} />
+        </div>
+      </div>
+      {product && ( // Only show status for existing products in this simplified form version
+         <div className="grid gap-2">
+            <Label htmlFor="edit-status">Status</Label>
+            <Select name="status" defaultValue={product.status}>
+            <SelectTrigger id="edit-status">
+                <SelectValue placeholder="Select status" />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="Active">Active</SelectItem>
+                <SelectItem value="Draft">Draft</SelectItem>
+                <SelectItem value="Archived">Archived</SelectItem>
+            </SelectContent>
+            </Select>
+        </div>
+      )}
+
+      <Separator className="my-4"/>
+      <h4 className="font-medium text-md col-span-full">Product Images (up to 5)</h4>
+      {[...Array(5)].map((_, index) => (
+        <div key={`image-form-${index}`} className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end border-b pb-3 mb-1">
+          <div className="grid gap-2">
+            <Label htmlFor={`image_url_${index}`}>Image URL {index + 1}</Label>
+            <Input 
+              id={`image_url_${index}`} 
+              name={`image_url_${index}`} 
+              defaultValue={product?.images?.[index] || ""}
+              placeholder="https://example.com/image.jpg"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor={`image_hint_${index}`}>AI Hint {index + 1}</Label>
+            <Input 
+              id={`image_hint_${index}`} 
+              name={`image_hint_${index}`} 
+              defaultValue={product?.dataAiHints?.[index] || ""}
+              placeholder="e.g., 'red car'"
+            />
+          </div>
+        </div>
+      ))}
+    </>
+  );
+
 
   return (
     <div className="flex flex-col gap-6">
@@ -159,48 +259,17 @@ export default function ProductsPage() {
               <PlusCircle className="mr-2 h-4 w-4" /> Add Product
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="sm:max-w-2xl"> {/* Increased width */}
             <DialogHeader>
               <DialogTitle>Add New Product</DialogTitle>
               <DialogDescription>
-                Fill in the details for your new product.
+                Fill in the details for your new product. Add up to 5 images.
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleAddProduct} className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
-              <div className="grid gap-2">
-                <Label htmlFor="name">Name</Label>
-                <Input id="name" name="name" required />
-              </div>
-               <div className="grid gap-2">
-                <Label htmlFor="description">Short Description</Label>
-                <Textarea id="description" name="description" placeholder="A brief summary for product listings." />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="fullDescription">Full Description</Label>
-                <Textarea id="fullDescription" name="fullDescription" placeholder="Detailed product information for the product page." rows={5} />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="category">Category</Label>
-                  <Input id="category" name="category" required />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="price">Price</Label>
-                  <Input id="price" name="price" type="number" step="0.01" required />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="stock">Stock</Label>
-                  <Input id="stock" name="stock" type="number" required />
-                </div>
-                 <div className="grid gap-2">
-                  <Label htmlFor="sku">SKU (Optional)</Label>
-                  <Input id="sku" name="sku" />
-                </div>
-              </div>
-              {/* Image upload can be added here */}
+            <form onSubmit={handleAddProduct} className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-3">
+              {renderProductFormFields()}
               <DialogFooter>
+                 <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
                 <Button type="submit">Add Product</Button>
               </DialogFooter>
             </form>
@@ -227,14 +296,20 @@ export default function ProductsPage() {
             {filteredProducts.map((product) => (
               <TableRow key={product.id}>
                 <TableCell className="hidden sm:table-cell">
-                  <Image
-                    alt={product.name}
-                    className="aspect-square rounded-md object-cover"
-                    height="64"
-                    src={product.image.replace(/\/\d+\/\d+$/, "/80/80")} // Use smaller image for table
-                    width="64"
-                    data-ai-hint={product.dataAiHint}
-                  />
+                  {product.images && product.images.length > 0 ? (
+                    <NextImage
+                        alt={product.name}
+                        className="aspect-square rounded-md object-cover"
+                        height="64"
+                        src={product.images[0].replace(/\/\d+\/\d+$/, "/80/80")} // Use smaller image for table
+                        width="64"
+                        data-ai-hint={product.dataAiHints[0] || 'product image'}
+                    />
+                  ) : (
+                    <div className="aspect-square w-16 h-16 bg-muted rounded-md flex items-center justify-center">
+                        <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                  )}
                 </TableCell>
                 <TableCell className="font-medium">{product.name}</TableCell>
                 <TableCell>
@@ -244,7 +319,7 @@ export default function ProductsPage() {
                   } className={
                     product.status === "Active" ? "bg-emerald-500/20 text-emerald-700 dark:bg-emerald-500/30 dark:text-emerald-400 border-emerald-500/30" : 
                      product.status === "Archived" ? "bg-slate-500/20 text-slate-700 dark:bg-slate-500/30 dark:text-slate-400 border-slate-500/30" :
-                    "" // Draft uses default secondary badge
+                    "" 
                   }>
                     {product.status}
                   </Badge>
@@ -290,61 +365,18 @@ export default function ProductsPage() {
 
       {/* Edit Product Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl"> {/* Increased width */}
           <DialogHeader>
             <DialogTitle>Edit Product</DialogTitle>
             <DialogDescription>
-              Update the details for {selectedProduct?.name}.
+              Update the details for {selectedProduct?.name}. Add up to 5 images.
             </DialogDescription>
           </DialogHeader>
           {selectedProduct && (
-            <form onSubmit={handleEditProduct} className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
-              <div className="grid gap-2">
-                <Label htmlFor="edit-name">Name</Label>
-                <Input id="edit-name" name="name" defaultValue={selectedProduct.name} required />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-description">Short Description</Label>
-                <Textarea id="edit-description" name="description" defaultValue={selectedProduct.description} placeholder="A brief summary for product listings." />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-fullDescription">Full Description</Label>
-                <Textarea id="edit-fullDescription" name="fullDescription" defaultValue={selectedProduct.fullDescription} placeholder="Detailed product information for the product page." rows={5}/>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-category">Category</Label>
-                  <Input id="edit-category" name="category" defaultValue={selectedProduct.category} required />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-price">Price</Label>
-                  <Input id="edit-price" name="price" type="number" step="0.01" defaultValue={selectedProduct.price} required />
-                </div>
-              </div>
-               <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-stock">Stock</Label>
-                  <Input id="edit-stock" name="stock" type="number" defaultValue={selectedProduct.stock} required />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-sku">SKU</Label>
-                  <Input id="edit-sku" name="sku" defaultValue={selectedProduct.sku || ""} />
-                </div>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-status">Status</Label>
-                 <Select name="status" defaultValue={selectedProduct.status}>
-                  <SelectTrigger id="edit-status">
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Active">Active</SelectItem>
-                    <SelectItem value="Draft">Draft</SelectItem>
-                    <SelectItem value="Archived">Archived</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <form onSubmit={handleEditProduct} className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-3">
+              {renderProductFormFields(selectedProduct)}
               <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
                 <Button type="submit">Save Changes</Button>
               </DialogFooter>
             </form>
@@ -352,7 +384,6 @@ export default function ProductsPage() {
         </DialogContent>
       </Dialog>
       
-      {/* Delete Product Alert Dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -375,7 +406,7 @@ export default function ProductsPage() {
           No products found matching "{searchTerm}".
         </div>
       )}
-       {filteredProducts.length === 0 && !searchTerm && (
+       {filteredProducts.length === 0 && !searchTerm && products.length === 0 && (
         <div className="text-center text-muted-foreground py-10">
           No products yet. Click "Add Product" to get started.
         </div>
@@ -383,5 +414,3 @@ export default function ProductsPage() {
     </div>
   );
 }
-
-    

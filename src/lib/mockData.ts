@@ -5,8 +5,8 @@ import { PackageCheck, Truck, CheckCircle, XCircle, RefreshCw } from "lucide-rea
 export interface Product {
   id: string;
   name: string;
-  image: string;
-  dataAiHint: string;
+  images: string[]; // Changed from image: string
+  dataAiHints: string[]; // Changed from dataAiHint: string, corresponds to images array
   category: string;
   price: number;
   stock: number;
@@ -27,8 +27,8 @@ export interface OrderItem {
   name: string;
   quantity: number;
   price: number; // price per unit at the time of order
-  image: string;
-  dataAiHint: string;
+  image: string; // Keep as single image for order item snapshot
+  dataAiHint: string; // Keep as single hint for order item snapshot
 }
 
 export interface Order {
@@ -63,8 +63,12 @@ export const initialProducts: Product[] = [
   {
     id: "prod_1",
     name: "Ergonomic Office Chair",
-    image: "https://picsum.photos/id/1025/400/300",
-    dataAiHint: "chair office",
+    images: [
+        "https://picsum.photos/id/1025/400/300",
+        "https://picsum.photos/id/1026/400/300",
+        "https://picsum.photos/id/1027/400/300",
+    ],
+    dataAiHints: ["chair office", "office furniture", "ergonomic chair"],
     category: "Furniture",
     price: 299.99,
     stock: 150,
@@ -80,8 +84,11 @@ export const initialProducts: Product[] = [
   {
     id: "prod_2",
     name: "Wireless Noise-Cancelling Headphones",
-    image: "https://picsum.photos/id/1078/400/300",
-    dataAiHint: "headphones tech",
+    images: [
+        "https://picsum.photos/id/1078/400/300",
+        "https://picsum.photos/id/1079/400/300",
+    ],
+    dataAiHints: ["headphones tech", "audio gear"],
     category: "Electronics",
     price: 199.50,
     stock: 85,
@@ -97,8 +104,8 @@ export const initialProducts: Product[] = [
   {
     id: "prod_3",
     name: "Organic Cotton T-Shirt",
-    image: "https://picsum.photos/id/431/400/300",
-    dataAiHint: "shirt fashion",
+    images: ["https://picsum.photos/id/431/400/300"],
+    dataAiHints: ["shirt fashion"],
     category: "Apparel",
     price: 25.00,
     stock: 300,
@@ -113,8 +120,13 @@ export const initialProducts: Product[] = [
   {
     id: "prod_4",
     name: "Stainless Steel Water Bottle",
-    image: "https://picsum.photos/id/1072/400/300",
-    dataAiHint: "bottle lifestyle",
+    images: [
+        "https://picsum.photos/id/1072/400/300",
+        "https://picsum.photos/id/1073/400/300",
+        "https://picsum.photos/id/1074/400/300",
+        "https://picsum.photos/id/1075/400/300",
+    ],
+    dataAiHints: ["bottle lifestyle", "hydration metal", "reusable drinkware", "steel bottle"],
     category: "Home Goods",
     price: 18.75,
     stock: 0,
@@ -129,8 +141,14 @@ export const initialProducts: Product[] = [
   {
     id: "prod_5",
     name: "Artisan Coffee Blend",
-    image: "https://picsum.photos/id/225/400/300",
-    dataAiHint: "coffee food",
+    images: [
+        "https://picsum.photos/id/225/400/300",
+        "https://picsum.photos/id/226/400/300",
+        "https://picsum.photos/id/227/400/300",
+        "https://picsum.photos/id/228/400/300",
+        "https://picsum.photos/id/229/400/300",
+    ],
+    dataAiHints: ["coffee food", "beans roast", "morning brew", "gourmet coffee", "fresh beans"],
     category: "Groceries",
     price: 15.99,
     stock: 200,

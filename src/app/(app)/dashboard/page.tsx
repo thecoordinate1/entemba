@@ -11,7 +11,7 @@ import {
   TrendingDown,
   ArrowRight,
   Activity,
-  LineChart // Added LineChart icon for Profit
+  LineChart 
 } from "lucide-react";
 import {
   ChartContainer,
@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { initialProducts } from "@/lib/mockData"; // Import initialProducts to get updated image structure
 
 const chartData = [
   { month: "January", sales: 186, orders: 80 },
@@ -70,7 +71,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, change, c
           "text-xs flex items-center",
           changeType === "positive" && "text-emerald-500",
           changeType === "negative" && "text-red-500",
-          !changeType && "text-muted-foreground" // Default color if no type
+          !changeType && "text-muted-foreground" 
         )}>
           {changeType === "positive" && <TrendingUp className="mr-1 h-4 w-4" />}
           {changeType === "negative" && <TrendingDown className="mr-1 h-4 w-4" />}
@@ -90,11 +91,15 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, change, c
 );
 
 // Using a subset of initialProducts for dashboard display
-const topProducts = [
-  { id: "prod_2", name: "Wireless Noise-Cancelling Headphones", sales: 1250, image: "https://picsum.photos/id/1078/50/50", dataAiHint: "headphones tech" },
-  { id: "prod_5", name: "Artisan Coffee Blend", sales: 980, image: "https://picsum.photos/id/225/50/50", dataAiHint: "coffee food" },
-  { id: "prod_1", name: "Ergonomic Office Chair", sales: 750, image: "https://picsum.photos/id/1025/50/50", dataAiHint: "chair office" },
-];
+// Assuming sales data for these products would come from an API or calculations
+const topProductsToDisplay = initialProducts.slice(0, 3).map(p => ({
+  id: p.id,
+  name: p.name,
+  // Simulate sales numbers for demonstration
+  sales: p.id === "prod_2" ? 1250 : p.id === "prod_5" ? 980 : 750, 
+  image: p.images[0] || "https://picsum.photos/50/50?grayscale", // Use primary image
+  dataAiHint: p.dataAiHints[0] || "product", // Use hint for primary image
+}));
 
 
 export default function DashboardPage() {
@@ -199,7 +204,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <ul className="space-y-4">
-              {topProducts.map((product) => (
+              {topProductsToDisplay.map((product) => (
                 <li key={product.id} className="flex items-center gap-4">
                   <Image
                     src={product.image} 
@@ -225,4 +230,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
