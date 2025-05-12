@@ -1,27 +1,13 @@
 
 "use client";
 
-import * as React from "react";
-import Link from "next/link";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import type { Order, OrderItem, OrderStatus } from "@/lib/mockData";
+import { initialOrders, initialProducts, orderStatusColors, orderStatusIcons } from "@/lib/mockData";
+import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  DropdownMenuCheckboxItem
-} from "@/components/ui/dropdown-menu";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -31,19 +17,26 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MoreHorizontal, Search, Filter, Eye, Printer, PlusCircle, Trash2, ShoppingCart, DollarSign } from "lucide-react";
-import Image from "next/image";
-import { Card, CardContent } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
-import type { Order, OrderStatus, OrderItem } from "@/lib/mockData";
-import { initialOrders, orderStatusColors, orderStatusIcons, initialProducts } from "@/lib/mockData";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { cn } from "@/lib/utils";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
+import { DollarSign, Eye, Filter, MoreHorizontal, PlusCircle, Printer, Search, ShoppingCart, Trash2 } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import * as React from "react";
 
 interface NewOrderItemEntry {
   productId: string;
@@ -245,9 +238,9 @@ export default function OrdersPage() {
                 Fill in the details to manually create a new order.
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleCreateOrder} className="flex flex-col flex-grow overflow-hidden">
-              <ScrollArea className="flex-grow p-1 pr-3">
-                <div className="grid gap-6 py-4">
+            <form onSubmit={handleCreateOrder} className="flex-1 flex flex-col min-h-0">
+              <ScrollArea className="flex-1 min-h-0">
+                <div className="grid gap-6 pl-1 pt-4 pb-4 pr-3">
                   <Card>
                     <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="grid gap-2">
