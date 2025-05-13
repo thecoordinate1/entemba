@@ -48,6 +48,10 @@ export interface Order {
   trackingNumber?: string;
 }
 
+export interface SocialLink {
+  platform: "Instagram" | "Facebook" | "Twitter" | "TikTok" | "LinkedIn" | "Other";
+  url: string;
+}
 export interface Store {
   id: string;
   name: string;
@@ -55,7 +59,8 @@ export interface Store {
   logo: string;
   dataAiHint: string;
   status: "Active" | "Inactive" | "Maintenance";
-  domain?: string;
+  category: string;
+  socialLinks?: SocialLink[];
   location?: string;
   createdAt: string;
 }
@@ -280,7 +285,11 @@ export const initialStores: Store[] = [
     logo: "https://picsum.photos/id/1011/200/100",
     dataAiHint: "storefront boutique",
     status: "Active",
-    domain: "artisanboutique.com",
+    category: "Handmade & Craft",
+    socialLinks: [
+      { platform: "Instagram", url: "https://instagram.com/artisanboutique" },
+      { platform: "Facebook", url: "https://facebook.com/artisanboutique" },
+    ],
     location: "New York, NY",
     createdAt: "2022-11-10",
   },
@@ -291,7 +300,10 @@ export const initialStores: Store[] = [
     logo: "https://picsum.photos/id/56/200/100",
     dataAiHint: "tech store",
     status: "Active",
-    domain: "techgadgethub.store",
+    category: "Electronics",
+    socialLinks: [
+      { platform: "Twitter", url: "https://twitter.com/techgadgethub" },
+    ],
     location: "San Francisco, CA",
     createdAt: "2023-01-25",
   },
@@ -302,6 +314,11 @@ export const initialStores: Store[] = [
     logo: "https://picsum.photos/id/106/200/100",
     dataAiHint: "garden plants",
     status: "Maintenance",
+    category: "Home & Garden",
+    socialLinks: [
+        { platform: "Facebook", url: "https://facebook.com/greenthumbnursery" },
+        { platform: "Instagram", url: "https://instagram.com/greenthumb"}
+    ],
     location: "Austin, TX",
     createdAt: "2023-03-15",
   },
@@ -312,6 +329,8 @@ export const initialStores: Store[] = [
     logo: "https://picsum.photos/id/102/200/100",
     dataAiHint: "vintage shop",
     status: "Inactive",
+    category: "Fashion & Apparel",
+    // No social links
     createdAt: "2022-09-01",
   },
 ];
@@ -322,3 +341,4 @@ export const storeStatusColors: Record<Store["status"], string> = {
   Maintenance: "bg-amber-500/20 text-amber-700 dark:bg-amber-500/30 dark:text-amber-400 border-amber-500/30",
 };
     
+
