@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { LayoutDashboard, Package, ShoppingCart, Store, Settings } from "lucide-react";
+import { LayoutDashboard, Package, ShoppingCart, Store } from "lucide-react"; // Removed Settings icon
 
 export interface NavItem {
   title: string;
@@ -31,9 +31,9 @@ export const navItems: NavItem[] = [
     href: "/stores",
     icon: Store,
   },
-  {
-    title: "Settings",
-    href: "/settings",
-    icon: Settings,
-  },
+  // { // Removed Settings from here
+  //   title: "Settings",
+  //   href: "/settings",
+  //   icon: Settings,
+  // },
 ];

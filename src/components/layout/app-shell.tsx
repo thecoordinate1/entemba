@@ -15,13 +15,13 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  useSidebar, // Imported useSidebar
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { NavItem } from "@/config/nav";
 import { navItems } from "@/config/nav";
-import { LogOut, Settings, Gem, UserCircle, ChevronsUpDown, Store as StoreIcon } from "lucide-react";
+import { LogOut, Settings, Gem, Store as StoreIcon } from "lucide-react"; // Removed UserCircle, ChevronsUpDown
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Select,
@@ -36,13 +36,13 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip"; // Imported Tooltip components
+} from "@/components/ui/tooltip";
 
 
 const UserDisplay = () => (
   <div className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center">
-    <Avatar className="h-10 w-10"> {/* Increased size */}
-      <AvatarImage src="https://picsum.photos/40/40" alt="Vendor Avatar" data-ai-hint="person portrait" />
+    <Avatar className="h-10 w-10">
+      <AvatarImage src="https://picsum.photos/seed/user-avatar/40/40" alt="Vendor Avatar" data-ai-hint="person portrait" />
       <AvatarFallback>VD</AvatarFallback>
     </Avatar>
     <div className="flex flex-col group-data-[collapsible=icon]:hidden">
@@ -53,7 +53,7 @@ const UserDisplay = () => (
 );
 
 const StoreSelector = ({ stores, selectedStoreId, onStoreChange }: { stores: Store[], selectedStoreId: string | null, onStoreChange: (storeId: string) => void }) => {
-  const { state: sidebarState } = useSidebar(); // Access sidebar state for conditional rendering
+  const { state: sidebarState } = useSidebar();
 
   if (sidebarState === "collapsed") {
     return (
@@ -86,6 +86,7 @@ const StoreSelector = ({ stores, selectedStoreId, onStoreChange }: { stores: Sto
             {store.name}
           </SelectItem>
         ))}
+         {stores.length === 0 && <SelectItem value="" disabled>No stores available</SelectItem>}
       </SelectContent>
     </Select>
   );
@@ -100,7 +101,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [availableStores, setAvailableStores] = React.useState<Store[]>([]);
   
 
-  // Read sidebar state from cookie
   const [defaultOpen, setDefaultOpen] = React.useState(true);
   React.useEffect(() => {
     const cookieValue = document.cookie
@@ -110,36 +110,46 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (cookieValue) {
       setDefaultOpen(cookieValue === "true");
     }
-    // Load stores (simulating API call)
+    
     setAvailableStores(initialStores);
-    const currentStoreId = searchParams.get("storeId");
-    if (currentStoreId && initialStores.some(s => s.id === currentStoreId)) {
-        setSelectedStoreId(currentStoreId);
+    const currentStoreIdFromUrl = searchParams.get("storeId");
+
+    if (currentStoreIdFromUrl && initialStores.some(s => s.id === currentStoreIdFromUrl)) {
+        setSelectedStoreId(currentStoreIdFromUrl);
     } else if (initialStores.length > 0) {
-        setSelectedStoreId(initialStores[0].id);
-         // Update URL if no storeId or invalid storeId is present
+        const firstStoreId = initialStores[0].id;
+        setSelectedStoreId(firstStoreId);
         const newParams = new URLSearchParams(searchParams.toString());
-        newParams.set("storeId", initialStores[0].id);
+        newParams.set("storeId", firstStoreId);
         router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
+    } else {
+      // No stores available, ensure storeId is not in URL or set to empty
+      setSelectedStoreId(null);
+      const newParams = new URLSearchParams(searchParams.toString());
+      if (newParams.has("storeId")) {
+        newParams.delete("storeId");
+        router.replace(newParams.toString() ? `${pathname}?${newParams.toString()}` : pathname, { scroll: false });
+      }
     }
-
-
   }, [searchParams, pathname, router]);
 
   const handleStoreChange = (storeId: string) => {
     setSelectedStoreId(storeId);
     const newParams = new URLSearchParams(searchParams.toString());
     newParams.set("storeId", storeId);
-    // Navigate to dashboard of the selected store, or current page if not dashboard
-    const targetPath = pathname.startsWith("/dashboard") ? "/dashboard" : pathname;
+    const targetPath = pathname.startsWith("/dashboard") ? "/dashboard" : pathname; // Keep current page or go to dashboard
     router.push(`${targetPath}?${newParams.toString()}`);
   };
   
   const getHrefWithStoreId = (href: string) => {
-    if (!selectedStoreId) return href;
-    const newParams = new URLSearchParams(searchParams.toString());
-    newParams.set("storeId", selectedStoreId);
-    return `${href}?${newParams.toString()}`;
+    const currentParams = new URLSearchParams(searchParams.toString());
+    if (selectedStoreId) {
+      currentParams.set("storeId", selectedStoreId);
+    } else {
+      currentParams.delete("storeId"); // Remove if no store is selected
+    }
+    const queryString = currentParams.toString();
+    return queryString ? `${href}?${queryString}` : href;
   }
 
   const pageTitle = navItems.find((item) => {
@@ -156,29 +166,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <SidebarProvider defaultOpen={defaultOpen} collapsible="icon">
       <Sidebar>
         <SidebarHeader className="p-4">
-          <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-            <Gem className="h-8 w-8 text-accent" /> {/* Increased size */}
-            <span className="text-xl font-semibold group-data-[collapsible=icon]:hidden"> {/* Increased size */}
+          <Link href={getHrefWithStoreId("/dashboard")} className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
+            <Gem className="h-8 w-8 text-accent" />
+            <span className="text-xl font-semibold group-data-[collapsible=icon]:hidden">
               E-Ntemba
             </span>
-          </div>
+          </Link>
         </SidebarHeader>
 
-        <SidebarContent className="p-3 space-y-1"> {/* Increased padding and spacing */}
+        <SidebarContent className="p-3 space-y-1">
           <StoreSelector stores={availableStores} selectedStoreId={selectedStoreId} onStoreChange={handleStoreChange} />
           <ScrollArea className="h-full">
-            <SidebarMenu className="space-y-1"> {/* Added spacing between menu items */}
+            <SidebarMenu className="space-y-1">
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     asChild
-                    size="lg" // Make buttons larger
-                    isActive={pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/')}
+                    size="lg"
+                    isActive={pathname === item.href.split("?")[0] || (pathname.startsWith(item.href.split("?")[0]) && item.href !== '/')}
                     tooltip={{children: item.title, className:"bg-sidebar-accent text-sidebar-accent-foreground"}}
-                    className="h-12 text-base" // Custom height and text size
+                    className="h-12 text-base"
                   >
                     <Link href={getHrefWithStoreId(item.href)}>
-                      <item.icon className="h-5 w-5" /> {/* Ensure icons are appropriately sized */}
+                      <item.icon className="h-5 w-5" />
                       <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
@@ -190,18 +200,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         
         <SidebarFooter className="p-4 space-y-2">
           <UserDisplay />
-          <Button variant="ghost" className="w-full justify-start h-11 text-base group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:aspect-square group-data-[collapsible=icon]:h-11"> {/* Increased size */}
-            <Settings className="mr-2 group-data-[collapsible=icon]:mr-0 h-5 w-5" /> <span className="group-data-[collapsible=icon]:hidden">Settings</span>
+          <Button variant="ghost" asChild className="w-full justify-start h-11 text-base group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:aspect-square group-data-[collapsible=icon]:h-11">
+            <Link href={getHrefWithStoreId("/settings")}>
+              <Settings className="mr-2 group-data-[collapsible=icon]:mr-0 h-5 w-5" /> <span className="group-data-[collapsible=icon]:hidden">Settings</span>
+            </Link>
           </Button>
-          <Button variant="ghost" className="w-full justify-start h-11 text-base group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:aspect-square group-data-[collapsible=icon]:h-11"> {/* Increased size */}
+          <Button variant="ghost" className="w-full justify-start h-11 text-base group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:aspect-square group-data-[collapsible=icon]:h-11">
             <LogOut className="mr-2 group-data-[collapsible=icon]:mr-0 h-5 w-5" /> <span className="group-data-[collapsible=icon]:hidden">Logout</span>
           </Button>
         </SidebarFooter>
       </Sidebar>
       <SidebarInset className="flex flex-col">
-        <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm sm:h-20 sm:px-6"> {/* Increased height */}
+        <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm sm:h-20 sm:px-6">
           <SidebarTrigger className="md:hidden" />
-           <h1 className="text-xl font-semibold sm:text-2xl"> {/* Increased size */}
+           <h1 className="text-xl font-semibold sm:text-2xl">
             {displayTitle}
           </h1>
         </header>
