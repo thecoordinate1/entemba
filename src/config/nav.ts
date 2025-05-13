@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { LayoutDashboard, Package, ShoppingCart, Store } from "lucide-react";
+import { LayoutDashboard, Package, ShoppingCart, Store, Settings } from "lucide-react";
 
 export interface NavItem {
   title: string;
@@ -30,5 +30,10 @@ export const navItems: NavItem[] = [
     title: "Stores",
     href: "/stores",
     icon: Store,
+  },
+  {
+    title: "Settings",
+    href: "/settings",
+    icon: Settings,
   },
 ];
