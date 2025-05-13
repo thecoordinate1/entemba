@@ -3,6 +3,7 @@
 
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
+import NextImage from "next/image"; // Renamed to avoid conflict
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,11 +14,11 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { initialStores, type Store, type SocialLink, storeStatusColors } from "@/lib/mockData";
+import { initialStores, type Store, type SocialLink } from "@/lib/mockData"; // Removed storeStatusColors as it's not used here
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
-import { Instagram, Facebook, Twitter, Link as LinkIcon, Palette, User, Shield, CreditCard, Building } from "lucide-react"; // Added Building icon
+import { Instagram, Facebook, Twitter, Link as LinkIcon, Palette, User, Shield, CreditCard, Building, UploadCloud } from "lucide-react";
 
 const socialIconMap: Record<SocialLink["platform"], React.ElementType> = {
   Instagram: Instagram,
@@ -28,17 +29,27 @@ const socialIconMap: Record<SocialLink["platform"], React.ElementType> = {
   Other: LinkIcon,
 };
 
+const fileToDataUri = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
 
 export default function SettingsPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const storeId = searchParams.get("storeId");
+  const storeIdFromUrl = searchParams.get("storeId"); // Renamed to avoid conflict
 
   // Mock user data
   const [userName, setUserName] = React.useState("Vendor Name");
   const [userEmail, setUserEmail] = React.useState("vendor@example.com");
-  const [userAvatar, setUserAvatar] = React.useState("https://picsum.photos/seed/user1/100/100");
-  const [newAvatarUrl, setNewAvatarUrl] = React.useState("");
+  const [userAvatar, setUserAvatar] = React.useState("https://picsum.photos/seed/user1/100/100"); // Stores final data URI or URL
+  const [avatarFile, setAvatarFile] = React.useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = React.useState<string | null>(userAvatar);
+
 
   // Store settings state
   const [selectedStore, setSelectedStore] = React.useState<Store | null>(null);
@@ -48,8 +59,11 @@ export default function SettingsPage() {
   const [storeLocation, setStoreLocation] = React.useState("");
   const [storeStatus, setStoreStatus] = React.useState<Store["status"]>("Inactive");
   const [storeSocialLinks, setStoreSocialLinks] = React.useState<SocialLink[]>([]);
-  const [storeLogoUrl, setStoreLogoUrl] = React.useState("");
-  const [newStoreLogoUrl, setNewStoreLogoUrl] = React.useState("");
+  
+  const [storeLogo, setStoreLogo] = React.useState<string>(""); // Stores final data URI or URL for logo
+  const [logoFile, setLogoFile] = React.useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = React.useState<string | null>(null);
+  const [storeDataAiHint, setStoreDataAiHint] = React.useState<string>("");
 
 
   // Theme state
@@ -58,12 +72,12 @@ export default function SettingsPage() {
   React.useEffect(() => {
     const storedTheme = localStorage.getItem('theme') || 'system';
     setCurrentTheme(storedTheme);
-    applyTheme(storedTheme, false); // Apply without toast on initial load
+    applyTheme(storedTheme, false); 
   }, []);
   
   React.useEffect(() => {
-    if (storeId) {
-      const foundStore = initialStores.find(s => s.id === storeId);
+    if (storeIdFromUrl) {
+      const foundStore = initialStores.find(s => s.id === storeIdFromUrl);
       if (foundStore) {
         setSelectedStore(foundStore);
         setStoreName(foundStore.name);
@@ -72,14 +86,16 @@ export default function SettingsPage() {
         setStoreLocation(foundStore.location || "");
         setStoreStatus(foundStore.status);
         setStoreSocialLinks(foundStore.socialLinks || []);
-        setStoreLogoUrl(foundStore.logo);
+        setStoreLogo(foundStore.logo);
+        setLogoPreview(foundStore.logo);
+        setStoreDataAiHint(foundStore.dataAiHint || "store logo");
       } else {
         setSelectedStore(null);
       }
     } else {
       setSelectedStore(null);
     }
-  }, [storeId]);
+  }, [storeIdFromUrl]);
 
   const applyTheme = (themeValue: string, showToast: boolean = true) => {
     localStorage.setItem('theme', themeValue);
@@ -89,7 +105,7 @@ export default function SettingsPage() {
     } else {
       newClassName = themeValue;
     }
-    document.documentElement.className = newClassName; // Directly set className to override
+    document.documentElement.className = newClassName;
     if (showToast) {
       toast({ title: "Theme Updated", description: `Theme set to ${themeValue}.` });
     }
@@ -100,15 +116,67 @@ export default function SettingsPage() {
     applyTheme(value);
   };
 
-  const handleProfileUpdate = (e: React.FormEvent) => {
+  const handleAvatarFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setAvatarFile(file);
+      if (avatarPreview && avatarFile) URL.revokeObjectURL(avatarPreview); // Revoke old object URL
+      setAvatarPreview(URL.createObjectURL(file));
+    } else {
+      setAvatarFile(null);
+      if (avatarPreview && avatarFile) URL.revokeObjectURL(avatarPreview);
+      setAvatarPreview(userAvatar); // Revert to original/saved avatar
+    }
+  };
+
+  const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newAvatarUrl) setUserAvatar(newAvatarUrl);
+    let finalAvatar = userAvatar;
+    if (avatarFile) {
+      try {
+        finalAvatar = await fileToDataUri(avatarFile);
+        setUserAvatar(finalAvatar);
+        if (avatarPreview && avatarFile) URL.revokeObjectURL(avatarPreview); // Clean up object URL
+        setAvatarPreview(finalAvatar); // Show the new data URI
+        setAvatarFile(null); // Reset file input state
+      } catch (error) {
+        toast({ variant: "destructive", title: "Avatar Upload Failed", description: "Could not process the image." });
+        return;
+      }
+    }
+    // Update name, email etc.
     toast({ title: "Profile Updated", description: "Your profile information has been saved." });
   };
   
-  const handleStoreSettingsUpdate = (e: React.FormEvent) => {
+  const handleLogoFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setLogoFile(file);
+      if (logoPreview && logoFile) URL.revokeObjectURL(logoPreview);
+      setLogoPreview(URL.createObjectURL(file));
+    } else {
+      setLogoFile(null);
+      if (logoPreview && logoFile) URL.revokeObjectURL(logoPreview);
+      setLogoPreview(storeLogo); 
+    }
+  };
+
+  const handleStoreSettingsUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStore) return;
+
+    let finalLogo = storeLogo;
+    if (logoFile) {
+        try {
+            finalLogo = await fileToDataUri(logoFile);
+            if (logoPreview && logoFile) URL.revokeObjectURL(logoPreview);
+            setLogoPreview(finalLogo);
+            setLogoFile(null);
+        } catch (error) {
+            toast({ variant: "destructive", title: "Logo Upload Failed", description: "Could not process the logo image." });
+            return;
+        }
+    }
 
     const updatedStoreData: Partial<Store> = {
         name: storeName,
@@ -117,44 +185,49 @@ export default function SettingsPage() {
         location: storeLocation || undefined,
         status: storeStatus,
         socialLinks: storeSocialLinks.filter(link => link.url.trim() !== ''),
-        logo: newStoreLogoUrl || storeLogoUrl,
+        logo: finalLogo,
+        dataAiHint: storeDataAiHint,
     };
     
-    // Update in mock data source
     const storeIndex = initialStores.findIndex(s => s.id === selectedStore.id);
     if (storeIndex !== -1) {
         initialStores[storeIndex] = { ...initialStores[storeIndex], ...updatedStoreData } as Store;
     }
     setSelectedStore(prev => prev ? ({...prev, ...updatedStoreData} as Store) : null);
+    setStoreLogo(finalLogo); // Update the main logo state as well
 
     toast({ title: "Store Settings Updated", description: `${storeName} settings have been saved.` });
   };
 
   const handleSocialLinkChange = (index: number, platform: SocialLink["platform"], url: string) => {
     const newLinks = [...storeSocialLinks];
-    // Ensure the link object exists
-    while (newLinks.length <= index) {
-        // This logic might need adjustment if platforms are dynamic. For fixed platforms, this is okay.
-        // For this example, we assume a fixed set of platforms or one by one addition.
-        // A better way would be to have an "Add social link" button.
-        // For simplicity, let's find by platform or add if not exists.
-        const existingPlatformIndex = newLinks.findIndex(l => l.platform === platform);
-        if(existingPlatformIndex > -1) {
-             newLinks[existingPlatformIndex].url = url;
-        } else {
-            newLinks.push({ platform, url }); // This line will likely not be hit with current UI
+    const existingLinkIndex = newLinks.findIndex(link => link.platform === platform);
+
+    if (url.trim() === "") { // If URL is empty, remove the link if it exists
+        if (existingLinkIndex > -1) {
+            newLinks.splice(existingLinkIndex, 1);
         }
-        setStoreSocialLinks(newLinks.filter(link => link.url.trim() !== '' || link.platform === platform)); // Keep the one being edited
-        return; // exit early
+    } else { // If URL is not empty
+        if (existingLinkIndex > -1) { // Update existing link
+            newLinks[existingLinkIndex].url = url;
+        } else { // Add new link if it doesn't exist
+             // This path is less likely with the current fixed UI, but good for robustness
+             // For fixed inputs, usually only existing links are modified or created if empty initially.
+             // Let's ensure we target the correct one via index if it's for a pre-defined slot.
+            if(newLinks[index] && newLinks[index].platform === platform) {
+                 newLinks[index].url = url;
+            } else {
+                 // This case handles if we're adding a new platform not initially in the array,
+                 // or if the index mapping is complex. For this UI, direct indexing is simpler.
+                 // Let's assume the UI provides a fixed set of platform inputs.
+                 // We find or create the specific platform.
+                 let targetLink = newLinks.find(l => l.platform === platform);
+                 if(targetLink) targetLink.url = url;
+                 else newLinks.push({ platform, url });
+            }
+        }
     }
-    
-    // This part handles editing existing links based on UI structure:
-    if(newLinks[index]) {
-        newLinks[index] = { ...newLinks[index], url };
-    } else { // If trying to edit a non-existent indexed link (should not happen with current static UI)
-        newLinks[index] = { platform, url };
-    }
-    setStoreSocialLinks(newLinks.filter(link => link.url.trim() !== ''));
+    setStoreSocialLinks(newLinks);
   };
   
   const getSocialUrl = (platform: SocialLink["platform"]) => storeSocialLinks.find(link => link.platform === platform)?.url || "";
@@ -163,9 +236,16 @@ export default function SettingsPage() {
   const handlePasswordChange = (e: React.FormEvent) => {
     e.preventDefault();
     toast({ title: "Password Changed", description: "Your password has been successfully updated." });
-    // Reset form fields if needed
     (e.target as HTMLFormElement).reset();
   };
+
+  React.useEffect(() => {
+    return () => { // Cleanup object URLs on unmount
+      if (avatarPreview && avatarFile) URL.revokeObjectURL(avatarPreview);
+      if (logoPreview && logoFile) URL.revokeObjectURL(logoPreview);
+    };
+  }, [avatarPreview, avatarFile, logoPreview, logoFile]);
+
 
   return (
     <div className="container mx-auto py-8">
@@ -189,12 +269,12 @@ export default function SettingsPage() {
               <form onSubmit={handleProfileUpdate} className="space-y-6">
                 <div className="flex flex-col items-center space-y-4">
                   <Avatar className="h-32 w-32">
-                    <AvatarImage src={userAvatar} alt={userName} data-ai-hint="person portrait" />
+                    <AvatarImage src={avatarPreview || undefined} alt={userName} data-ai-hint="person portrait" />
                     <AvatarFallback>{userName.substring(0, 2).toUpperCase()}</AvatarFallback>
                   </Avatar>
                    <div className="grid w-full max-w-sm items-center gap-1.5">
-                    <Label htmlFor="avatarUrl">Avatar Image URL</Label>
-                    <Input id="avatarUrl" type="url" placeholder="https://example.com/avatar.png" value={newAvatarUrl} onChange={(e) => setNewAvatarUrl(e.target.value)} />
+                    <Label htmlFor="avatarFile">Upload Avatar</Label>
+                    <Input id="avatarFile" type="file" accept="image/*" onChange={handleAvatarFileChange} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90" />
                   </div>
                 </div>
                 <div className="grid gap-2">
@@ -224,13 +304,20 @@ export default function SettingsPage() {
               <CardContent>
                 <form onSubmit={handleStoreSettingsUpdate} className="space-y-6">
                   <div className="flex flex-col items-center space-y-4">
-                    <Avatar className="h-32 w-32 rounded-md"> {/* Store logos often square/rectangular */}
-                        <AvatarImage src={newStoreLogoUrl || storeLogoUrl} alt={storeName} data-ai-hint={selectedStore.dataAiHint || "store logo"} className="object-contain" />
-                        <AvatarFallback>{storeName.substring(0,2).toUpperCase()}</AvatarFallback>
-                    </Avatar>
+                     {logoPreview ? (
+                        <NextImage src={logoPreview} alt={`${storeName} logo preview`} width={128} height={128} className="rounded-md object-contain h-32 w-32 border" data-ai-hint={storeDataAiHint || "store logo"} />
+                      ) : (
+                        <div className="h-32 w-32 rounded-md border bg-muted flex items-center justify-center">
+                          <UploadCloud className="h-12 w-12 text-muted-foreground" />
+                        </div>
+                      )}
                     <div className="grid w-full max-w-sm items-center gap-1.5">
-                        <Label htmlFor="storeLogoUrl">Store Logo URL</Label>
-                        <Input id="storeLogoUrl" type="url" placeholder="https://example.com/logo.png" value={newStoreLogoUrl} onChange={e => setNewStoreLogoUrl(e.target.value)} />
+                        <Label htmlFor="storeLogoFile">Upload Store Logo</Label>
+                        <Input id="storeLogoFile" type="file" accept="image/*" onChange={handleLogoFileChange} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"/>
+                    </div>
+                    <div className="grid w-full max-w-sm items-center gap-1.5">
+                        <Label htmlFor="storeDataAiHint">Logo AI Hint</Label>
+                        <Input id="storeDataAiHint" value={storeDataAiHint} onChange={(e) => setStoreDataAiHint(e.target.value)} placeholder="e.g. 'modern shop'"/>
                     </div>
                   </div>
 
@@ -268,7 +355,7 @@ export default function SettingsPage() {
 
                     <Separator />
                     <h4 className="text-md font-medium">Social Links</h4>
-                    {(["Instagram", "Facebook", "Twitter"] as SocialLink["platform"][]).map((platform, index) => {
+                    {(["Instagram", "Facebook", "Twitter"] as const).map((platform, index) => {
                        const IconComp = socialIconMap[platform];
                        return (
                         <div key={platform} className="grid gap-2">
@@ -276,7 +363,7 @@ export default function SettingsPage() {
                             <Input 
                                 id={`social${platform}`} 
                                 value={getSocialUrl(platform)} 
-                                onChange={(e) => handleSocialLinkChange(index, platform, e.target.value)} // Index might not be ideal here if links are dynamic
+                                onChange={(e) => handleSocialLinkChange(index, platform, e.target.value)}
                                 placeholder={`https://${platform.toLowerCase()}.com/yourstore`}
                             />
                         </div>

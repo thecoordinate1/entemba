@@ -33,8 +33,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Eye, Image as ImageIcon, Info, DollarSign } from "lucide-react";
-import NextImage from "next/image"; // Renamed to avoid conflict with Lucide Icon
+import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Eye, Image as ImageIconLucide, Info, DollarSign, UploadCloud } from "lucide-react";
+import NextImage from "next/image"; 
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,12 +46,39 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Product } from "@/lib/mockData";
 import { initialProducts } from "@/lib/mockData";
 import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 
+const MAX_IMAGES = 5;
+
+interface ImageSlot {
+  file: File | null;
+  previewUrl: string | null; // For object URLs or existing http URLs
+  dataUri: string | null; // For submitted data URIs
+  hint: string;
+}
+
+const initialImageSlots = (): ImageSlot[] => Array(MAX_IMAGES).fill(null).map(() => ({
+  file: null,
+  previewUrl: null,
+  dataUri: null,
+  hint: "",
+}));
+
+
+const fileToDataUri = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
 
 export default function ProductsPage() {
   const [products, setProducts] = React.useState<Product[]>(initialProducts);
@@ -62,21 +89,83 @@ export default function ProductsPage() {
   const [searchTerm, setSearchTerm] = React.useState("");
   const { toast } = useToast();
 
-  const processProductFormData = (formData: FormData, currentProduct?: Product): Omit<Product, "id" | "createdAt"> => {
-    const images: string[] = [];
-    const dataAiHints: string[] = [];
+  const [formImageSlots, setFormImageSlots] = React.useState<ImageSlot[]>(initialImageSlots());
 
-    for (let i = 0; i < 5; i++) {
-      const imageUrl = formData.get(`image_url_${i}`) as string;
-      const imageHint = formData.get(`image_hint_${i}`) as string;
-      if (imageUrl && imageUrl.trim() !== "") {
-        images.push(imageUrl.trim());
-        dataAiHints.push(imageHint.trim() || `product image ${i + 1}`);
+  const resetImageSlots = () => {
+    formImageSlots.forEach(slot => {
+      if (slot.previewUrl && slot.file) URL.revokeObjectURL(slot.previewUrl);
+    });
+    setFormImageSlots(initialImageSlots());
+  };
+
+  const handleImageFileChange = (index: number, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    setFormImageSlots(prevSlots => {
+      const newSlots = [...prevSlots];
+      const oldSlot = newSlots[index];
+
+      // Revoke old object URL if it was from a File object
+      if (oldSlot.previewUrl && oldSlot.file) {
+        URL.revokeObjectURL(oldSlot.previewUrl);
+      }
+
+      if (file) {
+        newSlots[index] = { ...oldSlot, file: file, previewUrl: URL.createObjectURL(file), dataUri: null };
+      } else {
+        // If file is removed, keep existing http URL (if editing) or clear
+        newSlots[index] = { ...oldSlot, file: null, previewUrl: oldSlot.dataUri ? oldSlot.dataUri : null };
+      }
+      return newSlots;
+    });
+  };
+  
+  const handleImageHintChange = (index: number, hint: string) => {
+    setFormImageSlots(prevSlots => {
+      const newSlots = [...prevSlots];
+      newSlots[index] = { ...newSlots[index], hint: hint };
+      return newSlots;
+    });
+  };
+
+  const prepareImageSlotsForEdit = (product: Product) => {
+    const slotsToEdit = initialImageSlots().map((slot, i) => {
+      if (product.images && product.images[i]) {
+        return {
+          file: null, // No file initially for existing images
+          previewUrl: product.images[i], // This is a dataURI or http URL
+          dataUri: product.images[i], // Store it as dataUri as it's the source
+          hint: product.dataAiHints[i] || "",
+        };
+      }
+      return slot;
+    });
+    setFormImageSlots(slotsToEdit);
+  };
+  
+  const processProductForm = async (formData: FormData, currentProduct?: Product): Promise<Omit<Product, "id" | "createdAt">> => {
+    const imageUris: string[] = [];
+    const imageDataAiHints: string[] = [];
+
+    for (const slot of formImageSlots) {
+      if (slot.file) {
+        try {
+          const dataUri = await fileToDataUri(slot.file);
+          imageUris.push(dataUri);
+          imageDataAiHints.push(slot.hint || `product image ${imageUris.length}`);
+        } catch (error) {
+          console.error("Error converting file to data URI:", error);
+          toast({ variant: "destructive", title: "Image Processing Error", description: "Could not process one of the images."});
+          // Decide error handling: throw or continue with fewer images?
+        }
+      } else if (slot.dataUri) { // Existing image (dataUri or http URL)
+        imageUris.push(slot.dataUri);
+        imageDataAiHints.push(slot.hint || `product image ${imageUris.length}`);
       }
     }
-    if (images.length === 0) {
-        images.push("https://picsum.photos/id/103/80/80"); // Default placeholder
-        dataAiHints.push("product placeholder");
+    
+    if (imageUris.length === 0) {
+        imageUris.push("https://picsum.photos/id/103/400/300"); 
+        imageDataAiHints.push("product placeholder");
     }
 
     const priceStr = formData.get("price") as string;
@@ -88,11 +177,10 @@ export default function ProductsPage() {
         orderPrice = parseFloat(orderPriceStr);
     }
 
-
     return {
       name: formData.get("name") as string,
-      images,
-      dataAiHints,
+      images: imageUris,
+      dataAiHints: imageDataAiHints,
       category: formData.get("category") as string,
       price: price,
       orderPrice: orderPrice,
@@ -101,47 +189,56 @@ export default function ProductsPage() {
       description: formData.get("description") as string,
       fullDescription: formData.get("fullDescription") as string || formData.get("description") as string,
       sku: formData.get("sku") as string || undefined,
-      // tags, weight, dimensions can be added if needed in form
     };
   };
 
 
-  const handleAddProduct = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleAddProduct = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    const productData = processProductFormData(formData);
-    
-    const newProduct: Product = {
-      id: `prod_${Date.now()}`,
-      ...productData,
-      createdAt: new Date().toISOString().split("T")[0],
-    };
+    try {
+      const productData = await processProductForm(formData);
+      
+      const newProduct: Product = {
+        id: `prod_${Date.now()}`,
+        ...productData,
+        createdAt: new Date().toISOString().split("T")[0],
+      };
 
-    initialProducts.unshift(newProduct);
-    setProducts([newProduct, ...products]);
-    setIsAddDialogOpen(false);
-    toast({ title: "Product Added", description: `${newProduct.name} has been successfully added.` });
+      initialProducts.unshift(newProduct);
+      setProducts([newProduct, ...products]);
+      setIsAddDialogOpen(false);
+      resetImageSlots();
+      toast({ title: "Product Added", description: `${newProduct.name} has been successfully added.` });
+    } catch (error) {
+      // Error already toasted in processProductForm or fileToDataUri
+    }
   };
 
-  const handleEditProduct = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleEditProduct = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedProduct) return;
     const formData = new FormData(event.currentTarget);
-    const productData = processProductFormData(formData, selectedProduct);
+    try {
+      const productData = await processProductForm(formData, selectedProduct);
 
-    const updatedProduct: Product = {
-      ...selectedProduct,
-      ...productData,
-    };
-    
-    const productIndex = initialProducts.findIndex(p => p.id === selectedProduct.id);
-    if (productIndex !== -1) {
-      initialProducts[productIndex] = updatedProduct;
+      const updatedProduct: Product = {
+        ...selectedProduct,
+        ...productData,
+      };
+      
+      const productIndex = initialProducts.findIndex(p => p.id === selectedProduct.id);
+      if (productIndex !== -1) {
+        initialProducts[productIndex] = updatedProduct;
+      }
+      setProducts(products.map(p => p.id === selectedProduct.id ? updatedProduct : p));
+      setIsEditDialogOpen(false);
+      setSelectedProduct(null);
+      resetImageSlots();
+      toast({ title: "Product Updated", description: `${updatedProduct.name} has been successfully updated.` });
+    } catch (error) {
+      // Error handling
     }
-    setProducts(products.map(p => p.id === selectedProduct.id ? updatedProduct : p));
-    setIsEditDialogOpen(false);
-    setSelectedProduct(null);
-    toast({ title: "Product Updated", description: `${updatedProduct.name} has been successfully updated.` });
   };
 
   const handleDeleteProduct = () => {
@@ -158,6 +255,7 @@ export default function ProductsPage() {
   
   const openEditDialog = (product: Product) => {
     setSelectedProduct(product);
+    prepareImageSlotsForEdit(product);
     setIsEditDialogOpen(true);
   };
 
@@ -216,50 +314,34 @@ export default function ProductsPage() {
           <Label htmlFor="sku">SKU (Optional)</Label>
           <Input id="sku" name="sku" defaultValue={product?.sku || ""} />
         </div>
-        {product && ( 
-            <div className="grid gap-2">
-                <Label htmlFor="status">Status</Label>
-                <Select name="status" defaultValue={product.status}>
-                <SelectTrigger id="status">
-                    <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="Active">Active</SelectItem>
-                    <SelectItem value="Draft">Draft</SelectItem>
-                    <SelectItem value="Archived">Archived</SelectItem>
-                </SelectContent>
-                </Select>
-            </div>
-        )}
-         {!product && ( // For Add dialog, default status to Draft
-             <div className="grid gap-2">
-                <Label htmlFor="status_add">Status</Label>
-                <Select name="status" defaultValue="Draft">
-                <SelectTrigger id="status_add">
-                    <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="Active">Active</SelectItem>
-                    <SelectItem value="Draft">Draft</SelectItem>
-                    <SelectItem value="Archived">Archived</SelectItem>
-                </SelectContent>
-                </Select>
-            </div>
-        )}
+        <div className="grid gap-2">
+            <Label htmlFor="status">Status</Label>
+            <Select name="status" defaultValue={product?.status || "Draft"}>
+            <SelectTrigger id="status">
+                <SelectValue placeholder="Select status" />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="Active">Active</SelectItem>
+                <SelectItem value="Draft">Draft</SelectItem>
+                <SelectItem value="Archived">Archived</SelectItem>
+            </SelectContent>
+            </Select>
+        </div>
       </div>
 
-
       <Separator className="my-4"/>
-      <h4 className="font-medium text-md col-span-full">Product Images (up to 5)</h4>
-      {[...Array(5)].map((_, index) => (
-        <div key={`image-form-${index}`} className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end border-b pb-3 mb-1">
+      <h4 className="font-medium text-md col-span-full">Product Images (up to {MAX_IMAGES})</h4>
+      {formImageSlots.map((slot, index) => (
+        <div key={`image-form-${index}`} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-4 items-center border-b pb-3 mb-1">
           <div className="grid gap-2">
-            <Label htmlFor={`image_url_${index}`}>Image URL {index + 1}</Label>
+            <Label htmlFor={`image_file_${index}`}>Image {index + 1}</Label>
             <Input 
-              id={`image_url_${index}`} 
-              name={`image_url_${index}`} 
-              defaultValue={product?.images?.[index] || ""}
-              placeholder="https://example.com/image.jpg"
+              id={`image_file_${index}`} 
+              name={`image_file_${index}`} 
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleImageFileChange(index, e)}
+              className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
             />
           </div>
           <div className="grid gap-2">
@@ -267,10 +349,27 @@ export default function ProductsPage() {
             <Input 
               id={`image_hint_${index}`} 
               name={`image_hint_${index}`} 
-              defaultValue={product?.dataAiHints?.[index] || ""}
+              value={slot.hint}
+              onChange={(e) => handleImageHintChange(index, e.target.value)}
               placeholder="e.g., 'red car'"
             />
           </div>
+          {slot.previewUrl && (
+            <div className="mt-2 md:mt-0 md:self-end">
+              <NextImage
+                src={slot.previewUrl}
+                alt={`Preview ${index + 1}`}
+                width={64}
+                height={64}
+                className="rounded-md object-cover h-16 w-16 border"
+              />
+            </div>
+          )}
+          {!slot.previewUrl && (
+             <div className="mt-2 md:mt-0 md:self-end flex items-center justify-center h-16 w-16 rounded-md border bg-muted">
+                <UploadCloud className="h-8 w-8 text-muted-foreground" />
+            </div>
+          )}
         </div>
       ))}
     </>
@@ -292,23 +391,27 @@ export default function ProductsPage() {
             />
           </div>
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <Dialog open={isAddDialogOpen} onOpenChange={(isOpen) => { setIsAddDialogOpen(isOpen); if (!isOpen) resetImageSlots(); }}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={() => { setSelectedProduct(null); resetImageSlots(); setIsAddDialogOpen(true); }}>
               <PlusCircle className="mr-2 h-4 w-4" /> Add Product
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-2xl"> 
+          <DialogContent className="sm:max-w-3xl"> 
             <DialogHeader>
               <DialogTitle>Add New Product</DialogTitle>
               <DialogDescription>
-                Fill in the details for your new product. Add up to 5 images.
+                Fill in the details for your new product. Add up to {MAX_IMAGES} images.
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleAddProduct} className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-3">
-              {renderProductFormFields()}
-              <DialogFooter>
-                 <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
+            <form onSubmit={handleAddProduct}>
+              <ScrollArea className="h-[70vh] pr-6">
+                <div className="grid gap-4 py-4">
+                 {renderProductFormFields()}
+                </div>
+              </ScrollArea>
+              <DialogFooter className="pt-4 border-t">
+                 <Button type="button" variant="outline" onClick={() => {setIsAddDialogOpen(false); resetImageSlots();}}>Cancel</Button>
                 <Button type="submit">Add Product</Button>
               </DialogFooter>
             </form>
@@ -317,6 +420,7 @@ export default function ProductsPage() {
       </div>
 
       <Card>
+       <CardContent className="pt-6">
         <Table>
           <TableHeader>
             <TableRow>
@@ -341,13 +445,13 @@ export default function ProductsPage() {
                         alt={product.name}
                         className="aspect-square rounded-md object-cover"
                         height="64"
-                        src={product.images[0].replace(/\/\d+\/\d+$/, "/80/80")} 
+                        src={product.images[0].startsWith('data:') ? product.images[0] : product.images[0].replace(/\/\d+\/\d+$/, "/80/80")} 
                         width="64"
                         data-ai-hint={product.dataAiHints[0] || 'product image'}
                     />
                   ) : (
                     <div className="aspect-square w-16 h-16 bg-muted rounded-md flex items-center justify-center">
-                        <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                        <ImageIconLucide className="h-8 w-8 text-muted-foreground" />
                     </div>
                   )}
                 </TableCell>
@@ -356,11 +460,11 @@ export default function ProductsPage() {
                   <Badge variant={
                     product.status === "Active" ? "default" : 
                     product.status === "Draft" ? "secondary" : "outline"
-                  } className={
+                  } className={cn(
                     product.status === "Active" ? "bg-emerald-500/20 text-emerald-700 dark:bg-emerald-500/30 dark:text-emerald-400 border-emerald-500/30" : 
                      product.status === "Archived" ? "bg-slate-500/20 text-slate-700 dark:bg-slate-500/30 dark:text-slate-400 border-slate-500/30" :
                     "" 
-                  }>
+                  )}>
                     {product.status}
                   </Badge>
                 </TableCell>
@@ -404,22 +508,27 @@ export default function ProductsPage() {
             ))}
           </TableBody>
         </Table>
+       </CardContent>
       </Card>
 
       {/* Edit Product Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-2xl"> 
+      <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => { setIsEditDialogOpen(isOpen); if(!isOpen) resetImageSlots(); }}>
+        <DialogContent className="sm:max-w-3xl"> 
           <DialogHeader>
             <DialogTitle>Edit Product</DialogTitle>
             <DialogDescription>
-              Update the details for {selectedProduct?.name}. Add up to 5 images.
+              Update the details for {selectedProduct?.name}. Add up to {MAX_IMAGES} images.
             </DialogDescription>
           </DialogHeader>
           {selectedProduct && (
-            <form onSubmit={handleEditProduct} className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-3">
-              {renderProductFormFields(selectedProduct)}
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+            <form onSubmit={handleEditProduct}>
+              <ScrollArea className="h-[70vh] pr-6">
+                <div className="grid gap-4 py-4">
+                {renderProductFormFields(selectedProduct)}
+                </div>
+              </ScrollArea>
+              <DialogFooter className="pt-4 border-t">
+                <Button type="button" variant="outline" onClick={() => {setIsEditDialogOpen(false); resetImageSlots();}}>Cancel</Button>
                 <Button type="submit">Save Changes</Button>
               </DialogFooter>
             </form>
@@ -450,7 +559,7 @@ export default function ProductsPage() {
         </div>
       )}
        {filteredProducts.length === 0 && !searchTerm && products.length === 0 && (
-        <div className="text-center text-muted-foreground py-10">
+        <div className="text-center text-muted-foreground py-10 col-span-full">
           No products yet. Click "Add Product" to get started.
         </div>
       )}
