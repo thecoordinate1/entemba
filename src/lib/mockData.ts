@@ -65,14 +65,39 @@ export interface Store {
   createdAt: string;
 }
 
+export type CustomerStatus = 'Active' | 'Inactive' | 'Blocked';
+
+export interface Customer {
+  id: string;
+  name: string;
+  email: string;
+  avatar: string;
+  dataAiHintAvatar: string;
+  totalSpent: number;
+  totalOrders: number;
+  joinedDate: string;
+  lastOrderDate?: string;
+  status: CustomerStatus;
+  tags?: string[];
+  phone?: string;
+  address?: {
+    street: string;
+    city: string;
+    state?: string;
+    zip: string;
+    country: string;
+  };
+}
+
+
 export const initialProducts: Product[] = [
   {
     id: "prod_1",
     name: "Ergonomic Office Chair",
     images: [
-        "https://picsum.photos/id/1025/400/300",
-        "https://picsum.photos/id/1026/400/300",
-        "https://picsum.photos/id/1027/400/300",
+        "https://placehold.co/400x300.png",
+        "https://placehold.co/400x300.png",
+        "https://placehold.co/400x300.png",
     ],
     dataAiHints: ["chair office", "office furniture", "ergonomic chair"],
     category: "Furniture",
@@ -92,8 +117,8 @@ export const initialProducts: Product[] = [
     id: "prod_2",
     name: "Wireless Noise-Cancelling Headphones",
     images: [
-        "https://picsum.photos/id/1078/400/300",
-        "https://picsum.photos/id/1079/400/300",
+        "https://placehold.co/400x300.png",
+        "https://placehold.co/400x300.png",
     ],
     dataAiHints: ["headphones tech", "audio gear"],
     category: "Electronics",
@@ -112,7 +137,7 @@ export const initialProducts: Product[] = [
   {
     id: "prod_3",
     name: "Organic Cotton T-Shirt",
-    images: ["https://picsum.photos/id/431/400/300"],
+    images: ["https://placehold.co/400x300.png"],
     dataAiHints: ["shirt fashion"],
     category: "Apparel",
     price: 25.00,
@@ -130,10 +155,10 @@ export const initialProducts: Product[] = [
     id: "prod_4",
     name: "Stainless Steel Water Bottle",
     images: [
-        "https://picsum.photos/id/1072/400/300",
-        "https://picsum.photos/id/1073/400/300",
-        "https://picsum.photos/id/1074/400/300",
-        "https://picsum.photos/id/1075/400/300",
+        "https://placehold.co/400x300.png",
+        "https://placehold.co/400x300.png",
+        "https://placehold.co/400x300.png",
+        "https://placehold.co/400x300.png",
     ],
     dataAiHints: ["bottle lifestyle", "hydration metal", "reusable drinkware", "steel bottle"],
     category: "Home Goods",
@@ -152,11 +177,11 @@ export const initialProducts: Product[] = [
     id: "prod_5",
     name: "Artisan Coffee Blend",
     images: [
-        "https://picsum.photos/id/225/400/300",
-        "https://picsum.photos/id/226/400/300",
-        "https://picsum.photos/id/227/400/300",
-        "https://picsum.photos/id/228/400/300",
-        "https://picsum.photos/id/229/400/300",
+        "https://placehold.co/400x300.png",
+        "https://placehold.co/400x300.png",
+        "https://placehold.co/400x300.png",
+        "https://placehold.co/400x300.png",
+        "https://placehold.co/400x300.png",
     ],
     dataAiHints: ["coffee food", "beans roast", "morning brew", "gourmet coffee", "fresh beans"],
     category: "Groceries",
@@ -184,9 +209,9 @@ export const initialOrders: Order[] = [
     status: "Delivered",
     itemsCount: 3,
     detailedItems: [
-      { productId: "prod_3", name: "Organic Cotton T-Shirt", quantity: 2, price: 22.50, image: "https://picsum.photos/id/431/50/50", dataAiHint: "shirt fashion" }, // Used orderPrice
-      { productId: "prod_4", name: "Stainless Steel Water Bottle", quantity: 1, price: 18.75, image: "https://picsum.photos/id/1072/50/50", dataAiHint: "bottle lifestyle" }, // Used regular price
-      { productId: "prod_5", name: "Artisan Coffee Blend", quantity: 1, price: 14.99, image: "https://picsum.photos/id/225/50/50", dataAiHint: "coffee food" }, // Used orderPrice
+      { productId: "prod_3", name: "Organic Cotton T-Shirt", quantity: 2, price: 22.50, image: "https://placehold.co/50x50.png", dataAiHint: "shirt fashion" }, // Used orderPrice
+      { productId: "prod_4", name: "Stainless Steel Water Bottle", quantity: 1, price: 18.75, image: "https://placehold.co/50x50.png", dataAiHint: "bottle lifestyle" }, // Used regular price
+      { productId: "prod_5", name: "Artisan Coffee Blend", quantity: 1, price: 14.99, image: "https://placehold.co/50x50.png", dataAiHint: "coffee food" }, // Used orderPrice
     ],
     shippingAddress: "123 Rabbit Hole Lane, Wonderland, WN 456",
     billingAddress: "123 Rabbit Hole Lane, Wonderland, WN 456",
@@ -203,7 +228,7 @@ export const initialOrders: Order[] = [
     status: "Shipped",
     itemsCount: 1,
     detailedItems: [
-      { productId: "prod_2", name: "Wireless Noise-Cancelling Headphones", quantity: 1, price: 199.50, image: "https://picsum.photos/id/1078/50/50", dataAiHint: "headphones tech" }, // Used regular price
+      { productId: "prod_2", name: "Wireless Noise-Cancelling Headphones", quantity: 1, price: 199.50, image: "https://placehold.co/50x50.png", dataAiHint: "headphones tech" }, // Used regular price
     ],
     shippingAddress: "456 Fixit Avenue, Builderville, BV 789",
     billingAddress: "456 Fixit Avenue, Builderville, BV 789",
@@ -220,7 +245,7 @@ export const initialOrders: Order[] = [
     status: "Processing",
     itemsCount: 1,
     detailedItems: [
-      { productId: "prod_1", name: "Ergonomic Office Chair", quantity: 1, price: 279.99, image: "https://picsum.photos/id/1025/50/50", dataAiHint: "chair office" }, // Used orderPrice
+      { productId: "prod_1", name: "Ergonomic Office Chair", quantity: 1, price: 279.99, image: "https://placehold.co/50x50.png", dataAiHint: "chair office" }, // Used orderPrice
     ],
     shippingAddress: "789 Good Grief Street, Peanuts Town, PT 101",
     billingAddress: "789 Good Grief Street, Peanuts Town, PT 101",
@@ -236,8 +261,8 @@ export const initialOrders: Order[] = [
     status: "Pending",
     itemsCount: 2,
      detailedItems: [
-      { productId: "prod_3", name: "Organic Cotton T-Shirt", quantity: 1, price: 22.50, image: "https://picsum.photos/id/431/50/50", dataAiHint: "shirt fashion" }, // Used orderPrice
-      { productId: "prod_5", name: "Artisan Coffee Blend", quantity: 1, price: 14.99, image: "https://picsum.photos/id/225/50/50", dataAiHint: "coffee food" }, // Used orderPrice
+      { productId: "prod_3", name: "Organic Cotton T-Shirt", quantity: 1, price: 22.50, image: "https://placehold.co/50x50.png", dataAiHint: "shirt fashion" }, // Used orderPrice
+      { productId: "prod_5", name: "Artisan Coffee Blend", quantity: 1, price: 14.99, image: "https://placehold.co/50x50.png", dataAiHint: "coffee food" }, // Used orderPrice
     ],
     shippingAddress: "1 Wonder Woman Way, Themyscira, TH 202",
     billingAddress: "1 Wonder Woman Way, Themyscira, TH 202",
@@ -252,7 +277,7 @@ export const initialOrders: Order[] = [
     status: "Cancelled",
     itemsCount: 1,
     detailedItems: [
-      { productId: "prod_4", name: "Stainless Steel Water Bottle", quantity: 1, price: 18.75, image: "https://picsum.photos/id/1072/50/50", dataAiHint: "bottle lifestyle" }, // Used regular price
+      { productId: "prod_4", name: "Stainless Steel Water Bottle", quantity: 1, price: 18.75, image: "https://placehold.co/50x50.png", dataAiHint: "bottle lifestyle" }, // Used regular price
     ],
     shippingAddress: "Suburban Castle, Dark Town, DT 303",
     billingAddress: "Suburban Castle, Dark Town, DT 303",
@@ -282,7 +307,7 @@ export const initialStores: Store[] = [
     id: "store_1",
     name: "The Artisan Boutique",
     description: "Curated handcrafted goods from around the world.",
-    logo: "https://picsum.photos/id/1011/200/100",
+    logo: "https://placehold.co/200x100.png",
     dataAiHint: "storefront boutique",
     status: "Active",
     category: "Handmade & Craft",
@@ -297,7 +322,7 @@ export const initialStores: Store[] = [
     id: "store_2",
     name: "Tech Gadget Hub",
     description: "Latest and greatest in tech and electronics.",
-    logo: "https://picsum.photos/id/56/200/100",
+    logo: "https://placehold.co/200x100.png",
     dataAiHint: "tech store",
     status: "Active",
     category: "Electronics",
@@ -311,7 +336,7 @@ export const initialStores: Store[] = [
     id: "store_3",
     name: "Green Thumb Nursery",
     description: "Your one-stop shop for plants and gardening supplies.",
-    logo: "https://picsum.photos/id/106/200/100",
+    logo: "https://placehold.co/200x100.png",
     dataAiHint: "garden plants",
     status: "Maintenance",
     category: "Home & Garden",
@@ -326,7 +351,7 @@ export const initialStores: Store[] = [
     id: "store_4",
     name: "Vintage Finds Co.",
     description: "Unique vintage clothing and collectibles.",
-    logo: "https://picsum.photos/id/102/200/100",
+    logo: "https://placehold.co/200x100.png",
     dataAiHint: "vintage shop",
     status: "Inactive",
     category: "Fashion & Apparel",
@@ -340,5 +365,87 @@ export const storeStatusColors: Record<Store["status"], string> = {
   Inactive: "bg-slate-500/20 text-slate-700 dark:bg-slate-500/30 dark:text-slate-400 border-slate-500/30",
   Maintenance: "bg-amber-500/20 text-amber-700 dark:bg-amber-500/30 dark:text-amber-400 border-amber-500/30",
 };
-    
 
+export const initialCustomers: Customer[] = [
+  {
+    id: "cust_1",
+    name: "Liam Gallagher",
+    email: "liam.g@example.com",
+    avatar: "https://placehold.co/40x40.png",
+    dataAiHintAvatar: "man portrait",
+    totalSpent: 1250.75,
+    totalOrders: 5,
+    joinedDate: "2023-01-15",
+    lastOrderDate: "2023-10-22",
+    status: "Active",
+    tags: ["VIP", "Music Lover"],
+    phone: "+1-202-555-0101",
+    address: { street: "1 Abbey Road", city: "London", zip: "NW8 9AY", country: "UK" }
+  },
+  {
+    id: "cust_2",
+    name: "Noel Gallagher",
+    email: "noel.g@example.com",
+    avatar: "https://placehold.co/40x40.png",
+    dataAiHintAvatar: "man sunglasses",
+    totalSpent: 875.50,
+    totalOrders: 3,
+    joinedDate: "2023-02-20",
+    lastOrderDate: "2023-11-05",
+    status: "Active",
+    tags: ["Guitarist"],
+    phone: "+1-202-555-0102",
+    address: { street: "2 Maine Road", city: "Manchester", zip: "M14 7PA", country: "UK" }
+  },
+  {
+    id: "cust_3",
+    name: "Olivia Rodrigo",
+    email: "olivia.r@example.com",
+    avatar: "https://placehold.co/40x40.png",
+    dataAiHintAvatar: "woman singer",
+    totalSpent: 2300.00,
+    totalOrders: 12,
+    joinedDate: "2022-11-01",
+    lastOrderDate: "2023-11-15",
+    status: "Active",
+    tags: ["Pop Star", "Gen Z"],
+    phone: "+1-202-555-0103",
+    address: { street: "3 Drivers License St", city: "Los Angeles", state: "CA", zip: "90001", country: "USA" }
+  },
+  {
+    id: "cust_4",
+    name: "Billie Eilish",
+    email: "billie.e@example.com",
+    avatar: "https://placehold.co/40x40.png",
+    dataAiHintAvatar: "woman green hair",
+    totalSpent: 150.25,
+    totalOrders: 1,
+    joinedDate: "2023-05-10",
+    status: "Inactive",
+    tags: ["Alternative"],
+    phone: "+1-202-555-0104",
+    address: { street: "4 Bad Guy Ave", city: "Los Angeles", state: "CA", zip: "90002", country: "USA" }
+  },
+  {
+    id: "cust_5",
+    name: "Axl Rose",
+    email: "axl.r@example.com",
+    avatar: "https://placehold.co/40x40.png",
+    dataAiHintAvatar: "man bandana",
+    totalSpent: 0,
+    totalOrders: 0,
+    joinedDate: "2023-08-01",
+    status: "Blocked",
+    tags: ["Rock Legend", "Difficult"],
+    phone: "+1-202-555-0105",
+    address: { street: "5 Paradise City", city: "Los Angeles", state: "CA", zip: "90003", country: "USA" }
+  },
+];
+
+
+export const customerStatusColors: Record<CustomerStatus, string> = {
+  Active: "bg-emerald-500/20 text-emerald-700 dark:bg-emerald-500/30 dark:text-emerald-400 border-emerald-500/30",
+  Inactive: "bg-slate-500/20 text-slate-700 dark:bg-slate-500/30 dark:text-slate-400 border-slate-500/30",
+  Blocked: "bg-red-500/20 text-red-700 dark:bg-red-500/30 dark:text-red-400 border-red-500/30",
+};
+    
