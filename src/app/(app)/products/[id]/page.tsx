@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { initialProducts, type Product } from "@/lib/mockData";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +56,7 @@ const fileToDataUri = (file: File): Promise<string> => {
 export default function ProductDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const productId = params.id as string;
 
@@ -70,12 +71,11 @@ export default function ProductDetailPage() {
     if (foundProduct) {
       setProduct(foundProduct);
       setSelectedImageIndex(0);
-      // Prepare image slots when product is loaded for the edit dialog
       const slots = initialImageSlots().map((slot, i) => {
         if (foundProduct.images && foundProduct.images[i]) {
           return {
             file: null,
-            previewUrl: foundProduct.images[i], // dataURI or http URL
+            previewUrl: foundProduct.images[i],
             dataUri: foundProduct.images[i],
             hint: foundProduct.dataAiHints[i] || "",
           };
@@ -92,13 +92,10 @@ export default function ProductDetailPage() {
     editFormImageSlots.forEach(slot => {
       if (slot.previewUrl && slot.file) URL.revokeObjectURL(slot.previewUrl);
     });
-    // Re-initialize from current product or completely reset if needed
     if (product) {
         const slots = initialImageSlots().map((slot, i) => {
             if (product.images && product.images[i]) {
-              return {
-                file: null, previewUrl: product.images[i], dataUri: product.images[i], hint: product.dataAiHints[i] || "",
-              };
+              return { file: null, previewUrl: product.images[i], dataUri: product.images[i], hint: product.dataAiHints[i] || "" };
             }
             return slot;
           });
@@ -152,24 +149,37 @@ export default function ProductDetailPage() {
           toast({ variant: "destructive", title: "Image Error", description: "Failed to process an image."});
           return; 
         }
-      } else if (slot.dataUri) { // Existing image (dataUri or http URL)
+      } else if (slot.dataUri) { 
         updatedImageUris.push(slot.dataUri);
         updatedDataAiHints.push(slot.hint || `product image ${updatedImageUris.length}`);
       }
     }
-     if (updatedImageUris.length === 0) { // Ensure at least one placeholder if all removed
-        updatedImageUris.push("https://picsum.photos/id/100/400/300"); 
+     if (updatedImageUris.length === 0) { 
+        updatedImageUris.push("https://placehold.co/400x300.png"); 
         updatedDataAiHints.push("placeholder image");
     }
 
-
     const priceStr = formData.get("price") as string;
     const price = parseFloat(priceStr);
-
     const orderPriceStr = formData.get("orderPrice") as string;
     let orderPrice: number | undefined = undefined;
     if (orderPriceStr && orderPriceStr.trim() !== "" && !isNaN(parseFloat(orderPriceStr))) {
         orderPrice = parseFloat(orderPriceStr);
+    }
+    const tagsStr = formData.get("tags") as string;
+    const tags = tagsStr ? tagsStr.split(",").map(tag => tag.trim()).filter(tag => tag) : undefined;
+    const weightStr = formData.get("weight") as string;
+    const weight = weightStr ? parseFloat(weightStr) : undefined;
+    const dimLengthStr = formData.get("dimLength") as string;
+    const dimWidthStr = formData.get("dimWidth") as string;
+    const dimHeightStr = formData.get("dimHeight") as string;
+    let dimensions: Product["dimensions"] = undefined;
+    if (dimLengthStr && dimWidthStr && dimHeightStr) {
+        dimensions = {
+            length: parseFloat(dimLengthStr),
+            width: parseFloat(dimWidthStr),
+            height: parseFloat(dimHeightStr),
+        };
     }
 
     const updatedProductData: Product = {
@@ -185,6 +195,9 @@ export default function ProductDetailPage() {
       sku: formData.get("sku") as string || undefined,
       images: updatedImageUris,
       dataAiHints: updatedDataAiHints,
+      tags: tags,
+      weight: weight,
+      dimensions: dimensions,
     };
     
     const productIndex = initialProducts.findIndex(p => p.id === product.id);
@@ -192,9 +205,8 @@ export default function ProductDetailPage() {
       initialProducts[productIndex] = updatedProductData;
     }
     setProduct(updatedProductData);
-    setSelectedImageIndex(0); // Reset to first image on successful update
+    setSelectedImageIndex(0); 
     setIsEditDialogOpen(false);
-    // Image slots will be reset via onOpenChange or if user re-opens.
     toast({ title: "Product Updated", description: `${updatedProductData.name} has been successfully updated.` });
   };
 
@@ -216,19 +228,19 @@ export default function ProductDetailPage() {
     product.status === "Archived" ? "bg-slate-500/20 text-slate-700 dark:bg-slate-500/30 dark:text-slate-400 border-slate-500/30" :
     ""; 
 
-  const currentImage = product.images[selectedImageIndex] || "https://picsum.photos/id/101/600/450?grayscale";
+  const currentImage = product.images[selectedImageIndex] || "https://placehold.co/600x450.png?text=No+Image";
   const currentDataAiHint = product.dataAiHints[selectedImageIndex] || "product image";
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <Button variant="outline" onClick={() => router.back()} className="flex items-center gap-2">
+        <Button variant="outline" onClick={() => router.push(`/products?${searchParams.toString()}`)} className="flex items-center gap-2">
           <ArrowLeft className="h-4 w-4" />
           Back to Products
         </Button>
         <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => { setIsEditDialogOpen(isOpen); if (!isOpen) resetEditImageSlots();}}>
           <DialogTrigger asChild>
-            <Button onClick={() => { /* ensure editFormImageSlots is up to date if product changed */
+            <Button onClick={() => { 
                  if (product) {
                     const slots = initialImageSlots().map((slot, i) => {
                         if (product.images && product.images[i]) {
@@ -311,6 +323,30 @@ export default function ProductDetailPage() {
                     </div>
                   </div>
 
+                  <Separator className="my-2"/>
+                  <h4 className="font-medium text-sm col-span-full">Additional Details</h4>
+                  <div className="grid gap-2">
+                    <Label htmlFor="tags">Tags (Optional, comma-separated)</Label>
+                    <Input id="tags" name="tags" defaultValue={product?.tags?.join(", ") || ""} placeholder="e.g., featured, summer, sale" />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                        <Label htmlFor="weight">Weight (kg, Optional)</Label>
+                        <div className="relative">
+                            <Weight className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                            <Input id="weight" name="weight" type="number" step="0.01" defaultValue={product?.weight || ""} placeholder="e.g., 0.5" className="pl-8" />
+                        </div>
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Dimensions (cm, Optional)</Label>
+                    <div className="grid grid-cols-3 gap-2 mt-1">
+                        <Input name="dimLength" type="number" step="0.1" placeholder="Length" defaultValue={product?.dimensions?.length || ""} />
+                        <Input name="dimWidth" type="number" step="0.1" placeholder="Width" defaultValue={product?.dimensions?.width || ""} />
+                        <Input name="dimHeight" type="number" step="0.1" placeholder="Height" defaultValue={product?.dimensions?.height || ""}/>
+                    </div>
+                  </div>
+
                   <Separator className="my-4"/>
                   <h4 className="font-medium text-md col-span-full">Product Images (up to {MAX_IMAGES})</h4>
                   {editFormImageSlots.map((slot, index) => (
@@ -339,7 +375,7 @@ export default function ProductDetailPage() {
                       {slot.previewUrl && (
                         <div className="mt-2 md:mt-0 md:self-end">
                           <Image
-                            src={slot.previewUrl} // This could be object URL or existing data/http URL
+                            src={slot.previewUrl} 
                             alt={`Preview ${index + 1}`}
                             width={64}
                             height={64}
@@ -479,7 +515,7 @@ export default function ProductDetailPage() {
                     {product.dimensions && (
                        <TableRow>
                         <TableCell className="font-medium w-1/3 py-2 px-0"><Ruler className="inline mr-2 h-4 w-4 text-muted-foreground"/> Dimensions</TableCell>
-                        <TableCell className="py-2 px-0">{product.dimensions.length} x {product.dimensions.width} x {product.dimensions.height} cm</TableCell>
+                        <TableCell className="py-2 px-0">{product.dimensions.length}L x {product.dimensions.width}W x {product.dimensions.height}H cm</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
@@ -504,3 +540,4 @@ export default function ProductDetailPage() {
     </div>
   );
 }
+

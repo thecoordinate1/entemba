@@ -31,7 +31,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MoreVertical, PlusCircle, Edit, Trash2, MapPin, Eye, Tag, Instagram, Facebook, Twitter, Link as LinkIcon } from "lucide-react";
+import { MoreVertical, PlusCircle, Edit, Trash2, MapPin, Eye, Tag, Instagram, Facebook, Twitter, Link as LinkIcon, UploadCloud } from "lucide-react";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -50,14 +50,37 @@ import { initialStores, storeStatusColors } from "@/lib/mockData";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
+interface ImageSlot {
+  file: File | null;
+  previewUrl: string | null;
+  dataUri: string | null;
+  hint: string;
+}
 
-const socialIconMap: Record<SocialLink["platform"], LucideIcon> = {
+const initialLogoSlot = (): ImageSlot => ({
+  file: null,
+  previewUrl: null,
+  dataUri: null,
+  hint: "",
+});
+
+const fileToDataUri = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
+const socialIconMap: Record<SocialLink["platform"], React.ElementType> = {
   Instagram: Instagram,
   Facebook: Facebook,
   Twitter: Twitter,
-  TikTok: () => <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-2.47.02-4.8-.73-6.66-2.48-1.85-1.75-2.95-4.02-2.95-6.42 0-2.55 1.28-4.91 3.22-6.49L8.63 9.9c.02-.42.02-.85.02-1.28.02-2.21.02-4.41.02-6.62l2.48-.01c.01.83.01 1.66.01 2.49.01 1.07.01 2.13.01 3.2 0 .39-.03.79-.03 1.18.2-.02.4-.04.6-.05.02-.36.01-.72.02-1.08.01-1.22.01-2.43.01-3.65z"></path></svg>, // Placeholder TikTok Icon
-  LinkedIn: () => <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"></path></svg>, // Placeholder LinkedIn Icon
+  TikTok: () => <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-2.47.02-4.8-.73-6.66-2.48-1.85-1.75-2.95-4.02-2.95-6.42 0-2.55 1.28-4.91 3.22-6.49L8.63 9.9c.02-.42.02-.85.02-1.28.02-2.21.02-4.41.02-6.62l2.48-.01c.01.83.01 1.66.01 2.49.01 1.07.01 2.13.01 3.2 0 .39-.03.79-.03 1.18.2-.02.4-.04.6-.05.02-.36.01-.72.02-1.08.01-1.22.01-2.43.01-3.65z"></path></svg>, 
+  LinkedIn: () => <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"></path></svg>,
   Other: LinkIcon,
 };
 
@@ -69,8 +92,47 @@ export default function StoresPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
   const [selectedStore, setSelectedStore] = React.useState<Store | null>(null);
   const { toast } = useToast();
+  
+  const [formLogoSlot, setFormLogoSlot] = React.useState<ImageSlot>(initialLogoSlot());
 
-  const processFormData = (formData: FormData, currentStore?: Store): Omit<Store, "id" | "createdAt" | "logo" | "dataAiHint"> => {
+  const resetLogoSlot = () => {
+    if (formLogoSlot.previewUrl && formLogoSlot.file) URL.revokeObjectURL(formLogoSlot.previewUrl);
+    setFormLogoSlot(initialLogoSlot());
+  };
+
+  const handleLogoFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    setFormLogoSlot(prevSlot => {
+      const newSlot = { ...prevSlot };
+      if (newSlot.previewUrl && newSlot.file) URL.revokeObjectURL(newSlot.previewUrl);
+
+      if (file) {
+        newSlot.file = file;
+        newSlot.previewUrl = URL.createObjectURL(file);
+        newSlot.dataUri = null; // Will be set on submit
+      } else {
+        newSlot.file = null;
+        newSlot.previewUrl = newSlot.dataUri ? newSlot.dataUri : null; // Revert to existing if any
+      }
+      return newSlot;
+    });
+  };
+  
+  const handleLogoHintChange = (hint: string) => {
+    setFormLogoSlot(prevSlot => ({ ...prevSlot, hint }));
+  };
+
+  const prepareLogoSlotForEdit = (store: Store) => {
+    setFormLogoSlot({
+      file: null,
+      previewUrl: store.logo,
+      dataUri: store.logo,
+      hint: store.dataAiHint || "",
+    });
+  };
+
+
+  const processFormData = async (formData: FormData, currentStore?: Store): Promise<Omit<Store, "id" | "createdAt">> => {
     const socialLinks: SocialLink[] = [];
     const instagramUrl = formData.get("socialInstagram") as string;
     const facebookUrl = formData.get("socialFacebook") as string;
@@ -80,9 +142,29 @@ export default function StoresPage() {
     if (facebookUrl) socialLinks.push({ platform: "Facebook", url: facebookUrl });
     if (twitterUrl) socialLinks.push({ platform: "Twitter", url: twitterUrl });
 
+    let logoDataUri = currentStore?.logo || "https://placehold.co/200x100.png"; // Default
+    let logoDataAiHint = currentStore?.dataAiHint || "store logo";
+
+    if (formLogoSlot.file) {
+      try {
+        logoDataUri = await fileToDataUri(formLogoSlot.file);
+        logoDataAiHint = formLogoSlot.hint || `store logo`;
+      } catch (error) {
+        console.error("Error converting logo to data URI:", error);
+        toast({ variant: "destructive", title: "Logo Processing Error", description: "Could not process the logo." });
+        throw error;
+      }
+    } else if (formLogoSlot.dataUri) { // Existing logo being kept (relevant for edit)
+        logoDataUri = formLogoSlot.dataUri;
+        logoDataAiHint = formLogoSlot.hint || currentStore?.dataAiHint || "store logo";
+    }
+
+
     return {
       name: formData.get("name") as string,
       description: formData.get("description") as string,
+      logo: logoDataUri,
+      dataAiHint: logoDataAiHint,
       category: formData.get("category") as string,
       status: formData.get("status") as Store["status"] || (currentStore?.status || "Inactive"),
       location: formData.get("location") as string || undefined,
@@ -90,49 +172,57 @@ export default function StoresPage() {
     };
   };
 
-  const handleAddStore = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleAddStore = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    const storeData = processFormData(formData);
-    const newStore: Store = {
-      id: `store_${Date.now()}`,
-      ...storeData,
-      logo: "https://picsum.photos/id/120/200/100", // Placeholder
-      dataAiHint: "store generic",
-      createdAt: new Date().toISOString().split("T")[0],
-    };
-    
-    initialStores.unshift(newStore); // For demo persistence
-    setStores([newStore, ...stores]);
-    setIsAddDialogOpen(false);
-    toast({ title: "Store Created", description: `${newStore.name} has been successfully created.` });
+    try {
+      const storeData = await processFormData(formData);
+      const newStore: Store = {
+        id: `store_${Date.now()}`,
+        ...storeData,
+        createdAt: new Date().toISOString().split("T")[0],
+      };
+      
+      initialStores.unshift(newStore); 
+      setStores([newStore, ...stores]);
+      setIsAddDialogOpen(false);
+      resetLogoSlot();
+      toast({ title: "Store Created", description: `${newStore.name} has been successfully created.` });
+    } catch (error) {
+      // Error already handled by toast in processFormData if image related
+    }
   };
 
-  const handleEditStore = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleEditStore = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedStore) return;
     const formData = new FormData(event.currentTarget);
-    const storeData = processFormData(formData, selectedStore);
-    const updatedStore: Store = {
-      ...selectedStore,
-      ...storeData,
-    };
-    
-    const storeIndex = initialStores.findIndex(s => s.id === selectedStore.id);
-    if (storeIndex !== -1) { // For demo persistence
-      initialStores[storeIndex] = updatedStore;
+    try {
+      const storeData = await processFormData(formData, selectedStore);
+      const updatedStore: Store = {
+        ...selectedStore,
+        ...storeData,
+      };
+      
+      const storeIndex = initialStores.findIndex(s => s.id === selectedStore.id);
+      if (storeIndex !== -1) { 
+        initialStores[storeIndex] = updatedStore;
+      }
+      setStores(stores.map(s => s.id === selectedStore.id ? updatedStore : s));
+      setIsEditDialogOpen(false);
+      setSelectedStore(null);
+      resetLogoSlot();
+      toast({ title: "Store Updated", description: `${updatedStore.name} has been successfully updated.` });
+    } catch (error) {
+       // Error already handled by toast in processFormData if image related
     }
-    setStores(stores.map(s => s.id === selectedStore.id ? updatedStore : s));
-    setIsEditDialogOpen(false);
-    setSelectedStore(null);
-    toast({ title: "Store Updated", description: `${updatedStore.name} has been successfully updated.` });
   };
 
   const handleDeleteStore = () => {
     if (!selectedStore) return;
     
     const storeIndex = initialStores.findIndex(s => s.id === selectedStore.id);
-    if (storeIndex !== -1) { // For demo persistence
+    if (storeIndex !== -1) { 
       initialStores.splice(storeIndex, 1);
     }
     setStores(stores.filter(s => s.id !== selectedStore.id));
@@ -143,6 +233,7 @@ export default function StoresPage() {
 
   const openEditDialog = (store: Store) => {
     setSelectedStore(store);
+    prepareLogoSlotForEdit(store);
     setIsEditDialogOpen(true);
   };
 
@@ -155,6 +246,44 @@ export default function StoresPage() {
     const getSocialUrl = (platform: SocialLink["platform"]) => store?.socialLinks?.find(link => link.platform === platform)?.url || "";
     return (
       <>
+        <div className="grid gap-2">
+          <Label htmlFor="logoFile">Store Logo</Label>
+          <Input 
+            id="logoFile" 
+            name="logoFile" 
+            type="file" 
+            accept="image/*" 
+            onChange={handleLogoFileChange}
+            className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+          />
+        </div>
+        {formLogoSlot.previewUrl && (
+          <div className="mt-2 flex justify-center">
+            <Image
+              src={formLogoSlot.previewUrl}
+              alt="Logo preview"
+              width={128}
+              height={128}
+              className="rounded-md object-contain h-32 w-32 border"
+            />
+          </div>
+        )}
+        {!formLogoSlot.previewUrl && (
+          <div className="mt-2 flex justify-center h-32 w-32 rounded-md border bg-muted items-center">
+              <UploadCloud className="h-12 w-12 text-muted-foreground" />
+          </div>
+        )}
+        <div className="grid gap-2">
+            <Label htmlFor="logoAiHint">Logo AI Hint</Label>
+            <Input 
+                id="logoAiHint" 
+                name="logoAiHint" 
+                value={formLogoSlot.hint}
+                onChange={(e) => handleLogoHintChange(e.target.value)}
+                placeholder="e.g., 'modern shop'"
+            />
+        </div>
+        <Separator className="my-2" />
         <div className="grid gap-2">
           <Label htmlFor="name">Store Name</Label>
           <Input id="name" name="name" defaultValue={store?.name || ""} placeholder="e.g., My Awesome Shop" required />
@@ -209,9 +338,9 @@ export default function StoresPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Your Stores</h1>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <Dialog open={isAddDialogOpen} onOpenChange={(isOpen) => { setIsAddDialogOpen(isOpen); if (!isOpen) resetLogoSlot();}}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={() => { setSelectedStore(null); resetLogoSlot(); setIsAddDialogOpen(true); }}>
               <PlusCircle className="mr-2 h-4 w-4" /> Create Store
             </Button>
           </DialogTrigger>
@@ -222,10 +351,14 @@ export default function StoresPage() {
                 Set up your new storefront. You can customize it further later.
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleAddStore} className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-3">
-              {renderStoreFormFields()}
+            <form onSubmit={handleAddStore}>
+                <ScrollArea className="h-[70vh] pr-3">
+                    <div className="grid gap-4 py-4">
+                        {renderStoreFormFields()}
+                    </div>
+                </ScrollArea>
               <DialogFooter className="pt-4 border-t">
-                <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
+                <Button type="button" variant="outline" onClick={() => {setIsAddDialogOpen(false); resetLogoSlot();}}>Cancel</Button>
                 <Button type="submit">Create Store</Button>
               </DialogFooter>
             </form>
@@ -326,7 +459,7 @@ export default function StoresPage() {
       </div>
 
       {/* Edit Store Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {setIsEditDialogOpen(isOpen); if(!isOpen) resetLogoSlot();}}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit {selectedStore?.name}</DialogTitle>
@@ -335,10 +468,14 @@ export default function StoresPage() {
             </DialogDescription>
           </DialogHeader>
           {selectedStore && (
-            <form onSubmit={handleEditStore} className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-3">
-              {renderStoreFormFields(selectedStore)}
+            <form onSubmit={handleEditStore}>
+                <ScrollArea className="h-[70vh] pr-3">
+                    <div className="grid gap-4 py-4">
+                        {renderStoreFormFields(selectedStore)}
+                    </div>
+                </ScrollArea>
               <DialogFooter className="pt-4 border-t">
-                 <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+                 <Button type="button" variant="outline" onClick={() => {setIsEditDialogOpen(false); resetLogoSlot();}}>Cancel</Button>
                 <Button type="submit">Save Changes</Button>
               </DialogFooter>
             </form>

@@ -34,7 +34,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Eye, Image as ImageIconLucide, Info, DollarSign, UploadCloud } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Eye, Image as ImageIconLucide, Info, DollarSign, UploadCloud, Tag, Weight, Ruler } from "lucide-react";
 import NextImage from "next/image"; 
 import {
   AlertDialog,
@@ -191,6 +191,25 @@ export default function ProductsPage() {
     if (orderPriceStr && orderPriceStr.trim() !== "" && !isNaN(parseFloat(orderPriceStr))) {
         orderPrice = parseFloat(orderPriceStr);
     }
+    
+    const tagsStr = formData.get("tags") as string;
+    const tags = tagsStr ? tagsStr.split(",").map(tag => tag.trim()).filter(tag => tag) : undefined;
+
+    const weightStr = formData.get("weight") as string;
+    const weight = weightStr ? parseFloat(weightStr) : undefined;
+    
+    const dimLengthStr = formData.get("dimLength") as string;
+    const dimWidthStr = formData.get("dimWidth") as string;
+    const dimHeightStr = formData.get("dimHeight") as string;
+    let dimensions: Product["dimensions"] = undefined;
+    if (dimLengthStr && dimWidthStr && dimHeightStr) {
+        dimensions = {
+            length: parseFloat(dimLengthStr),
+            width: parseFloat(dimWidthStr),
+            height: parseFloat(dimHeightStr),
+        };
+    }
+
 
     return {
       name: formData.get("name") as string,
@@ -204,6 +223,9 @@ export default function ProductsPage() {
       description: formData.get("description") as string,
       fullDescription: formData.get("fullDescription") as string || formData.get("description") as string,
       sku: formData.get("sku") as string || undefined,
+      tags: tags,
+      weight: weight,
+      dimensions: dimensions,
     };
   };
 
@@ -225,6 +247,7 @@ export default function ProductsPage() {
       setProducts([newProduct, ...products]);
       setIsAddDialogOpen(false);
       resetImageSlots();
+      (event.target as HTMLFormElement).reset(); // Reset form fields
       toast({ title: "Product Added", description: `${newProduct.name} has been successfully added to ${selectedStoreName || 'the current store'}.` });
     } catch (error) {
       // Error already toasted in processProductForm
@@ -345,6 +368,31 @@ export default function ProductsPage() {
             </Select>
         </div>
       </div>
+      
+      <Separator className="my-2"/>
+      <h4 className="font-medium text-sm col-span-full">Additional Details</h4>
+      <div className="grid gap-2">
+        <Label htmlFor="tags">Tags (Optional, comma-separated)</Label>
+        <Input id="tags" name="tags" defaultValue={product?.tags?.join(", ") || ""} placeholder="e.g., featured, summer, sale" />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid gap-2">
+            <Label htmlFor="weight">Weight (kg, Optional)</Label>
+            <div className="relative">
+                <Weight className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input id="weight" name="weight" type="number" step="0.01" defaultValue={product?.weight || ""} placeholder="e.g., 0.5" className="pl-8" />
+            </div>
+        </div>
+      </div>
+      <div>
+        <Label>Dimensions (cm, Optional)</Label>
+        <div className="grid grid-cols-3 gap-2 mt-1">
+            <Input name="dimLength" type="number" step="0.1" placeholder="Length" defaultValue={product?.dimensions?.length || ""} />
+            <Input name="dimWidth" type="number" step="0.1" placeholder="Width" defaultValue={product?.dimensions?.width || ""} />
+            <Input name="dimHeight" type="number" step="0.1" placeholder="Height" defaultValue={product?.dimensions?.height || ""}/>
+        </div>
+      </div>
+
 
       <Separator className="my-4"/>
       <h4 className="font-medium text-md col-span-full">Product Images (up to {MAX_IMAGES})</h4>
@@ -510,7 +558,7 @@ export default function ProductsPage() {
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Actions</DropdownMenuLabel>
                       <DropdownMenuItem asChild>
-                        <Link href={`/products/${product.id}`}>
+                        <Link href={`/products/${product.id}?${searchParams.toString()}`}>
                           <Eye className="mr-2 h-4 w-4" /> View Details
                         </Link>
                       </DropdownMenuItem>
@@ -584,3 +632,4 @@ export default function ProductsPage() {
     </div>
   );
 }
+

@@ -17,8 +17,8 @@ export interface Product {
   fullDescription: string;
   sku?: string;
   tags?: string[];
-  weight?: number;
-  dimensions?: { length: number; width: number; height: number };
+  weight?: number; // in kg
+  dimensions?: { length: number; width: number; height: number }; // in cm
 }
 
 export type OrderStatus = "Pending" | "Processing" | "Shipped" | "Delivered" | "Cancelled";
@@ -110,8 +110,8 @@ export const initialProducts: Product[] = [
     fullDescription: "Experience ultimate comfort and support with our Ergonomic Office Chair. Designed for long hours of work, it features a breathable mesh back, adjustable lumbar support, customizable armrests, and a smooth swivel and tilt mechanism. Perfect for home offices and professional workspaces. Comes with a 5-year warranty.",
     sku: "FURN-CHR-001",
     tags: ["office", "ergonomic", "chair", "furniture"],
-    weight: 15,
-    dimensions: { length: 60, width: 60, height: 120 },
+    weight: 15, // kg
+    dimensions: { length: 60, width: 60, height: 120 }, // cm
   },
   {
     id: "prod_2",
@@ -131,8 +131,8 @@ export const initialProducts: Product[] = [
     fullDescription: "Immerse yourself in pure sound with our Wireless Noise-Cancelling Headphones. Featuring advanced ANC technology, plush earcups, and a 30-hour battery life, these headphones are perfect for travel, work, or leisure. Crystal-clear call quality and intuitive controls.",
     sku: "ELEC-HP-002",
     tags: ["electronics", "audio", "headphones", "wireless"],
-    weight: 0.25,
-    dimensions: { length: 20, width: 18, height: 8 },
+    weight: 0.25, // kg
+    dimensions: { length: 20, width: 18, height: 8 }, // cm
   },
   {
     id: "prod_3",
@@ -149,7 +149,8 @@ export const initialProducts: Product[] = [
     fullDescription: "Our Organic Cotton T-Shirt is a wardrobe staple. Made from 100% GOTS-certified organic cotton, it's incredibly soft, breathable, and eco-friendly. Classic fit, durable construction. Available in sizes S-XXL and a range of versatile colors.",
     sku: "APP-TSH-003",
     tags: ["apparel", "clothing", "organic", "t-shirt"],
-    weight: 0.15,
+    weight: 0.15, // kg
+    // dimensions undefined for this product
   },
   {
     id: "prod_4",
@@ -171,7 +172,7 @@ export const initialProducts: Product[] = [
     fullDescription: "Stay hydrated on the go with our Stainless Steel Water Bottle. This 750ml bottle is made from food-grade stainless steel, is BPA-free, and features a double-wall vacuum insulation to keep drinks cold for 24 hours or hot for 12 hours. Leak-proof lid and wide mouth for easy cleaning.",
     sku: "HOME-BOT-004",
     tags: ["home goods", "kitchen", "bottle", "reusable"],
-    weight: 0.35,
+    weight: 0.35, // kg
   },
   {
     id: "prod_5",
@@ -194,7 +195,7 @@ export const initialProducts: Product[] = [
     fullDescription: "Start your day right with our Artisan Coffee Blend. This medium roast features a balanced flavor profile with notes of chocolate and caramel. Sourced from sustainable farms and roasted in small batches for maximum freshness. Whole beans, 12oz (340g) bag.",
     sku: "GROC-COF-005",
     tags: ["groceries", "coffee", "beverage", "artisan"],
-    weight: 0.34,
+    weight: 0.34, // kg
   },
 ];
 
@@ -251,6 +252,7 @@ export const initialOrders: Order[] = [
     billingAddress: "789 Good Grief Street, Peanuts Town, PT 101",
     shippingMethod: "Standard Shipping",
     paymentMethod: "Credit Card **** 5678",
+    trackingNumber: undefined,
   },
   {
     id: "ORD004",

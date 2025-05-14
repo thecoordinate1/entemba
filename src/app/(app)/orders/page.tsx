@@ -33,7 +33,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { DollarSign, Eye, Filter, MoreHorizontal, PlusCircle, Printer, Search, ShoppingCart, Trash2 } from "lucide-react";
+import { DollarSign, Eye, Filter, MoreHorizontal, PlusCircle, Printer, Search, ShoppingCart, Trash2, Truck } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import * as React from "react";
@@ -56,6 +56,7 @@ const defaultNewOrderData = {
   billingAddress: "",
   shippingMethod: "",
   paymentMethod: "",
+  trackingNumber: "",
   status: "Pending" as OrderStatus,
 };
 
@@ -141,7 +142,7 @@ export default function OrdersPage() {
         {
           productId: product.id,
           productName: product.name,
-          productImage: product.images[0] || "https://picsum.photos/50/50?grayscale",
+          productImage: product.images[0] || "https://placehold.co/50x50.png",
           productDataAiHint: product.dataAiHints[0] || "product",
           unitPrice: product.orderPrice !== undefined ? product.orderPrice : product.price,
           quantity: quantityToAdd,
@@ -190,6 +191,7 @@ export default function OrdersPage() {
       id: `ORD_${Date.now()}`,
       // storeId: storeId || initialStores[0]?.id || "default_store", // Associate with selected store
       ...newOrderData,
+      trackingNumber: newOrderData.trackingNumber || undefined,
       date: new Date().toISOString().split("T")[0],
       total: calculateNewOrderTotal,
       itemsCount: newOrderItems.reduce((sum, item) => sum + item.quantity, 0),
@@ -294,6 +296,13 @@ export default function OrdersPage() {
                             <Label htmlFor="paymentMethod">Payment Method</Label>
                             <Input id="paymentMethod" name="paymentMethod" value={newOrderData.paymentMethod} onChange={handleNewOrderInputChange} />
                         </div>
+                        <div className="grid gap-2 md:col-span-2">
+                            <Label htmlFor="trackingNumber">Tracking Number (Optional)</Label>
+                            <div className="relative">
+                                <Truck className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                <Input id="trackingNumber" name="trackingNumber" value={newOrderData.trackingNumber || ""} onChange={handleNewOrderInputChange} className="pl-8" />
+                            </div>
+                        </div>
                     </CardContent>
                   </Card>
 
@@ -386,7 +395,7 @@ export default function OrdersPage() {
                 </div>
               </ScrollArea>
               <DialogFooter className="pt-4 mt-4 border-t px-6">
-                <Button type="button" variant="outline" onClick={() => setIsAddOrderDialogOpen(false)}>Cancel</Button>
+                <Button type="button" variant="outline" onClick={() => {setIsAddOrderDialogOpen(false); resetAddOrderForm();}}>Cancel</Button>
                 <Button type="submit">Create Order</Button>
               </DialogFooter>
             </form>
@@ -439,7 +448,7 @@ export default function OrdersPage() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuItem asChild>
-                          <Link href={`/orders/${order.id}`}>
+                          <Link href={`/orders/${order.id}?${searchParams.toString()}`}>
                              <Eye className="mr-2 h-4 w-4" /> View Order Details
                           </Link>
                         </DropdownMenuItem>
@@ -472,3 +481,4 @@ export default function OrdersPage() {
     </div>
   );
 }
+
