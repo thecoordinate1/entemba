@@ -11,6 +11,7 @@ export async function signUpWithEmail(email: string, password: string, displayNa
       emailRedirectTo: `${window.location.origin}/auth/callback`,
       data: {
         display_name: displayName,
+        email: email, // Explicitly pass email for vendor metadata
         // You can add other metadata here if needed in the future, e.g., avatar_url
       }
     },
