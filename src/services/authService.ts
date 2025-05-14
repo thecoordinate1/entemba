@@ -1,22 +1,46 @@
-// src/services/authService.ts
-// This service will encapsulate Supabase authentication logic.
-// For example, sign-up, sign-in, sign-out, password recovery.
 
-// import { createClient } from '@/lib/supabase/client'; // Or server client depending on usage
-// import { createClient as createServerSupabaseClient } from '@/lib/supabase/server';
-// import { cookies } from 'next/headers';
+import { createClient } from '@/lib/supabase/client';
 
-// Example functions (to be implemented in Phase 3):
-/*
-export async function signUpUser(credentials) {
-  // ...
+const supabase = createClient();
+
+export async function signUpWithEmail(email: string, password: string) {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    // options: {
+    //   emailRedirectTo: `${window.location.origin}/auth/callback`, // Or your desired redirect URL after email confirmation
+    // },
+  });
+  return { data, error };
 }
 
-export async function signInUser(credentials) {
-  // ...
+export async function signInWithEmail(email: string, password: string) {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+  return { data, error };
 }
 
-export async function signOutUser() {
-  // ...
+export async function signOut() {
+  const { error } = await supabase.auth.signOut();
+  return { error };
 }
-*/
+
+export async function getCurrentUser() {
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) return { user: null, error: sessionError };
+  if (!session) return { user: null, error: null };
+  
+  const { data: { user }, error } = await supabase.auth.getUser();
+  return { user, error };
+}
+
+export async function resetPasswordForEmail(email: string) {
+  const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+    // redirectTo: `${window.location.origin}/update-password`, // URL to your update password page
+  });
+  return { data, error };
+}
+
+// You might add more functions here, e.g., for OAuth sign-in, password updates, etc.
