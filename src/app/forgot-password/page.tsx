@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-// import { resetPasswordForEmail } from "@/services/authService"; // To be implemented
+import { resetPasswordForEmail } from "@/services/authService"; 
 import { Gem } from "lucide-react";
 
 const forgotPasswordSchema = z.object({
@@ -49,23 +49,19 @@ export default function ForgotPasswordPage() {
 
   async function onSubmit(values: ForgotPasswordFormValues) {
     setIsLoading(true);
-    // const { error } = await resetPasswordForEmail(values.email); // To be implemented
-    // Simulate API call for now
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    const error = null; // Placeholder
+    const { error } = await resetPasswordForEmail(values.email); 
     setIsLoading(false);
 
     if (error) {
       toast({
         variant: "destructive",
         title: "Password Reset Failed",
-        // description: error.message,
-        description: "This feature is not yet implemented.",
+        description: error.message || "An unexpected error occurred. Please try again.",
       });
     } else {
       toast({
         title: "Password Reset Email Sent",
-        description: "If an account exists for this email, you will receive instructions to reset your password.",
+        description: "If an account exists for this email, you will receive instructions to reset your password shortly.",
       });
       form.reset();
     }

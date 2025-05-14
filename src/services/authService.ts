@@ -7,9 +7,9 @@ export async function signUpWithEmail(email: string, password: string) {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    // options: {
-    //   emailRedirectTo: `${window.location.origin}/auth/callback`, // Or your desired redirect URL after email confirmation
-    // },
+    options: {
+      emailRedirectTo: `${window.location.origin}/auth/callback`, 
+    },
   });
   return { data, error };
 }
@@ -38,7 +38,7 @@ export async function getCurrentUser() {
 
 export async function resetPasswordForEmail(email: string) {
   const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-    // redirectTo: `${window.location.origin}/update-password`, // URL to your update password page
+    redirectTo: `${window.location.origin}/update-password`, 
   });
   return { data, error };
 }
