@@ -101,7 +101,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, descripti
 export default function RevenueReportPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [defaultCurrency, setDefaultCurrency] = React.useState("USD");
+  const [defaultCurrency, setDefaultCurrency] = React.useState("ZMW");
   const [taxRate, setTaxRate] = React.useState("10"); // Stored as string for input
   const [pricesIncludeTax, setPricesIncludeTax] = React.useState(false);
 
@@ -127,7 +127,7 @@ export default function RevenueReportPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Revenue (YTD)"
-          value="$150,750.20"
+          value="K150,750.20"
           icon={DollarSign}
           description="Year-to-date gross revenue."
           trend="+15.2% vs last year"
@@ -135,15 +135,15 @@ export default function RevenueReportPage() {
         />
         <StatCard
           title="Revenue (This Month)"
-          value="$45,231.89"
+          value="K45,231.89"
           icon={DollarSign}
           description="Gross revenue for the current month."
-          trend="+$5,231 vs last month"
+          trend="+K5,231 vs last month"
           trendType="positive"
         />
         <StatCard
           title="Average Order Value"
-          value="$85.50"
+          value="K85.50"
           icon={ShoppingCart}
           description="Average amount spent per order."
           trend="-2.5% vs last month"
@@ -184,11 +184,11 @@ export default function RevenueReportPage() {
                     tickLine={false}
                     axisLine={false}
                     tickMargin={10}
-                    tickFormatter={(value) => `$${Number(value / 1000).toFixed(0)}k`}
+                    tickFormatter={(value) => `K${Number(value / 1000).toFixed(0)}k`}
                   />
                   <ChartTooltip
                     cursor={false}
-                    content={<ChartTooltipContent indicator="dashed" formatter={(value) => `$${Number(value).toLocaleString()}`} />}
+                    content={<ChartTooltipContent indicator="dashed" formatter={(value) => `K${Number(value).toLocaleString()}`} />}
                   />
                   <ChartLegend content={<ChartLegendContent />} />
                   <Bar dataKey="revenue" fill="var(--color-revenue)" radius={4} />
@@ -212,7 +212,7 @@ export default function RevenueReportPage() {
                             content={<ChartTooltipContent hideLabel formatter={(value, name, props) => (
                                 <div className="flex flex-col">
                                     <span className="font-medium">{props.payload?.name}</span>
-                                    <span>${Number(value).toLocaleString()} ({(props.payload?.percent * 100).toFixed(1)}%)</span>
+                                    <span>K{Number(value).toLocaleString()} ({(props.payload?.percent * 100).toFixed(1)}%)</span>
                                 </div>
                             )} />}
                         />
@@ -289,9 +289,9 @@ export default function RevenueReportPage() {
                       {product.name}
                     </Link>
                   </TableCell>
-                  <TableCell className="text-right">${product.revenue.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">K{product.revenue.toFixed(2)}</TableCell>
                   <TableCell className="text-right hidden md:table-cell">{product.unitsSold}</TableCell>
-                  <TableCell className="text-right hidden md:table-cell">${(product.revenue / product.unitsSold).toFixed(2)}</TableCell>
+                  <TableCell className="text-right hidden md:table-cell">K{(product.revenue / product.unitsSold).toFixed(2)}</TableCell>
                   <TableCell className="text-center">
                     <Button variant="outline" size="sm" asChild>
                       <Link href={`/products/${product.id}`}>View</Link>
@@ -325,6 +325,7 @@ export default function RevenueReportPage() {
                             <SelectValue placeholder="Select currency" />
                         </SelectTrigger>
                         <SelectContent>
+                            <SelectItem value="ZMW">ZMW - Zambian Kwacha</SelectItem>
                             <SelectItem value="USD">USD - United States Dollar</SelectItem>
                             <SelectItem value="EUR">EUR - Euro</SelectItem>
                             <SelectItem value="GBP">GBP - British Pound</SelectItem>
@@ -363,11 +364,12 @@ export default function RevenueReportPage() {
               <Separator />
               <h4 className="text-md font-medium">Payment Gateways (Placeholder)</h4>
               <p className="text-sm text-muted-foreground">
-                Connect payment gateways like Stripe, PayPal, etc. (Integration TBD).
+                Connect payment gateways. (Integration TBD).
               </p>
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" disabled>Connect Stripe</Button>
-                <Button type="button" variant="outline" disabled>Connect PayPal</Button>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" disabled>Connect MoMo</Button>
+                <Button type="button" variant="outline" disabled>Connect Airtel Money</Button>
+                <Button type="button" variant="outline" disabled>Connect Zamtel Money</Button>
               </div>
 
               <CardFooter className="px-0 pt-6">
