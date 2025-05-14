@@ -8,7 +8,7 @@ export async function signUpWithEmail(email: string, password: string) {
     email,
     password,
     options: {
-      emailRedirectTo: `${window.location.origin}/auth/callback`, 
+      emailRedirectTo: `${window.location.origin}/auth/callback`,
     },
   });
   return { data, error };
@@ -38,9 +38,21 @@ export async function getCurrentUser() {
 
 export async function resetPasswordForEmail(email: string) {
   const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/update-password`, 
+    redirectTo: `${window.location.origin}/update-password`,
+  });
+  return { data, error };
+}
+
+export async function resendConfirmationEmail(email: string) {
+  const { data, error } = await supabase.auth.resend({
+    type: 'signup', // Or 'email_change' if you implement that later
+    email: email,
+    options: {
+      emailRedirectTo: `${window.location.origin}/auth/callback`,
+    }
   });
   return { data, error };
 }
 
 // You might add more functions here, e.g., for OAuth sign-in, password updates, etc.
+

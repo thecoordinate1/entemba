@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -26,50 +26,51 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { signInWithEmail } from "@/services/authService";
-import { Gem } from "lucide-react";
+import { resendConfirmationEmail } from "@/services/authService";
+import { Gem, MailCheck } from "lucide-react";
 
-const loginSchema = z.object({
+const resendSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
-  password: z.string().min(1, { message: "Password is required." }),
 });
 
-type LoginFormValues = z.infer<typeof loginSchema>;
+type ResendFormValues = z.infer<typeof resendSchema>;
 
-export default function LoginPage() {
+export default function ResendConfirmationPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
+  const emailFromQuery = searchParams.get("email");
 
-  const form = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
+  const form = useForm<ResendFormValues>({
+    resolver: zodResolver(resendSchema),
     defaultValues: {
-      email: "",
-      password: "",
+      email: emailFromQuery || "",
     },
   });
 
-  async function onSubmit(values: LoginFormValues) {
+  React.useEffect(() => {
+    if (emailFromQuery) {
+      form.setValue("email", emailFromQuery);
+    }
+  }, [emailFromQuery, form]);
+
+  async function onSubmit(values: ResendFormValues) {
     setIsLoading(true);
-    const { error } = await signInWithEmail(values.email, values.password);
+    const { error } = await resendConfirmationEmail(values.email);
     setIsLoading(false);
 
     if (error) {
-      if (error.message.toLowerCase().includes("email not confirmed")) {
-        router.push(`/resend-confirmation?email=${encodeURIComponent(values.email)}`);
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Login Failed",
-          description: error.message,
-        });
-      }
+      toast({
+        variant: "destructive",
+        title: "Failed to Resend",
+        description: error.message || "Could not resend confirmation email. Please try again.",
+      });
     } else {
       toast({
-        title: "Login Successful",
-        description: "Welcome back!",
+        title: "Confirmation Email Sent",
+        description: "If an account exists for this email, a new confirmation link has been sent. Please check your inbox.",
       });
-      router.push("/dashboard"); 
     }
   }
 
@@ -81,9 +82,11 @@ export default function LoginPage() {
       </div>
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl">Welcome Back</CardTitle>
+          <MailCheck className="mx-auto h-12 w-12 text-primary" />
+          <CardTitle className="text-2xl pt-2">Confirm Your Email</CardTitle>
           <CardDescription>
-            Enter your credentials to access your account.
+            Your email address needs to be confirmed before you can sign in.
+            Enter your email below to resend the confirmation link.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -102,34 +105,15 @@ export default function LoginPage() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="flex items-center justify-between">
-                        <FormLabel>Password</FormLabel>
-                        <Link href="/forgot-password" passHref legacyBehavior>
-                            <a className="text-sm text-primary hover:underline">Forgot password?</a>
-                        </Link>
-                    </div>
-                    <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} disabled={isLoading} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Signing In..." : "Sign In"}
+                {isLoading ? "Sending..." : "Resend Confirmation Email"}
               </Button>
             </form>
           </Form>
         </CardContent>
         <CardContent className="mt-4 text-center text-sm">
-          Don&apos;t have an account?{" "}
-          <Link href="/signup" className="underline text-primary hover:text-primary/80">
-            Sign Up
+          <Link href="/login" className="underline text-primary hover:text-primary/80">
+            Back to Sign In
           </Link>
         </CardContent>
       </Card>
