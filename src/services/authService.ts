@@ -3,12 +3,16 @@ import { createClient } from '@/lib/supabase/client';
 
 const supabase = createClient();
 
-export async function signUpWithEmail(email: string, password: string) {
+export async function signUpWithEmail(email: string, password: string, displayName: string) {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       emailRedirectTo: `${window.location.origin}/auth/callback`,
+      data: {
+        display_name: displayName,
+        // You can add other metadata here if needed in the future, e.g., avatar_url
+      }
     },
   });
   return { data, error };

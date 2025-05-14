@@ -30,6 +30,7 @@ import { signUpWithEmail } from "@/services/authService";
 import { Gem } from "lucide-react";
 
 const signUpSchema = z.object({
+  displayName: z.string().min(1, { message: "Display name is required." }),
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
 });
@@ -44,6 +45,7 @@ export default function SignUpPage() {
   const form = useForm<SignUpFormValues>({
     resolver: zodResolver(signUpSchema),
     defaultValues: {
+      displayName: "",
       email: "",
       password: "",
     },
@@ -51,7 +53,7 @@ export default function SignUpPage() {
 
   async function onSubmit(values: SignUpFormValues) {
     setIsLoading(true);
-    const { error }  = await signUpWithEmail(values.email, values.password);
+    const { error }  = await signUpWithEmail(values.email, values.password, values.displayName);
     setIsLoading(false);
 
     if (error) {
@@ -65,9 +67,6 @@ export default function SignUpPage() {
         title: "Sign Up Successful",
         description: "Please check your email to confirm your registration.",
       });
-      // Potentially redirect to a page telling them to check their email
-      // or directly to login after a small delay.
-      // For now, let's just clear the form or stay here.
       form.reset();
       // router.push('/login'); // Or a confirmation page
     }
@@ -83,12 +82,25 @@ export default function SignUpPage() {
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl">Create an Account</CardTitle>
           <CardDescription>
-            Enter your email and password to sign up.
+            Enter your details to sign up.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+               <FormField
+                control={form.control}
+                name="displayName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Display Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Your Store or Name" {...field} disabled={isLoading} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="email"
