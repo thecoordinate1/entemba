@@ -81,7 +81,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, descripti
             "text-muted-foreground"
         }`}>
           {trendType === "positive" && <TrendingUp className="mr-1 h-4 w-4" />}
-          {trendType === "negative" && <TrendingUp className="mr-1 h-4 w-4 rotate-180" />}
+          {trendType === "negative" && <TrendingUp className="mr-1 h-4 w-4 rotate-180" />} {/* Fixed: Using TrendingUp and rotating for negative trend */}
           {trend}
         </p>
       )}
@@ -166,7 +166,7 @@ export default function RevenueReportPage() {
                   />
                   <ChartTooltip
                     cursor={false}
-                    content={<ChartTooltipContent indicator="dashed" formatter={(value, name) => `$${Number(value).toLocaleString()}`} />}
+                    content={<ChartTooltipContent indicator="dashed" formatter={(value) => `$${Number(value).toLocaleString()}`} />}
                   />
                   <ChartLegend content={<ChartLegendContent />} />
                   <Bar dataKey="revenue" fill="var(--color-revenue)" radius={4} />
@@ -205,8 +205,14 @@ export default function RevenueReportPage() {
                             label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name }) => {
                                 const RADIAN = Math.PI / 180;
                                 const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                                const x = cx + (radius + 15) * Math.cos(-midAngle * RADIAN);
-                                const y = cy + (radius + 15) * Math.sin(-midAngle * RADIAN);
+                                let x = cx + (radius + 15) * Math.cos(-midAngle * RADIAN);
+                                let y = cy + (radius + 15) * Math.sin(-midAngle * RADIAN);
+                                // Adjust label position to avoid overlap, very basic adjustment
+                                if (name === 'Marketplace A' && (percent * 100) < 30) { // Example condition
+                                   x = cx + (outerRadius + 20) * Math.cos(-midAngle * RADIAN);
+                                   y = cy + (outerRadius + 20) * Math.sin(-midAngle * RADIAN);
+                                }
+
                                 return (
                                 <text x={x} y={y} fill="hsl(var(--foreground))" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" className="text-xs">
                                     {`${name} (${(percent * 100).toFixed(0)}%)`}
@@ -275,7 +281,9 @@ export default function RevenueReportPage() {
           </Table>
         </CardContent>
         <CardFooter className="justify-center border-t pt-4">
-            <Button variant="outline">View All Products Revenue</Button>
+            <Button variant="outline" asChild>
+              <Link href="/reports/revenue/products">View All Products Revenue</Link>
+            </Button>
         </CardFooter>
       </Card>
       
