@@ -1,8 +1,8 @@
 
 "use client";
 
-import type { Order, OrderItem, OrderStatus } from "@/lib/mockData";
-import { initialOrders, initialProducts, orderStatusColors, orderStatusIcons } from "@/lib/mockData";
+import type { Order, OrderItem, OrderStatus, Store } from "@/lib/mockData";
+import { initialOrders, initialProducts, orderStatusColors, orderStatusIcons, initialStores } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-// Removed ScrollArea as form will handle scrolling directly
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -37,6 +37,8 @@ import { DollarSign, Eye, Filter, MoreHorizontal, PlusCircle, Printer, Search, S
 import Image from "next/image";
 import Link from "next/link";
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
+
 
 interface NewOrderItemEntry {
   productId: string;
@@ -59,6 +61,10 @@ const defaultNewOrderData = {
 
 
 export default function OrdersPage() {
+  const searchParams = useSearchParams();
+  const storeId = searchParams.get("storeId");
+  const [selectedStoreName, setSelectedStoreName] = React.useState<string | null>(null);
+
   const [orders, setOrders] = React.useState<Order[]>(initialOrders);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<OrderStatus | "All">("All");
@@ -69,6 +75,20 @@ export default function OrdersPage() {
   const [newOrderItems, setNewOrderItems] = React.useState<NewOrderItemEntry[]>([]);
   const [selectedProductIdToAdd, setSelectedProductIdToAdd] = React.useState<string>("");
   const [quantityToAdd, setQuantityToAdd] = React.useState<number>(1);
+
+  React.useEffect(() => {
+    if (storeId) {
+      const store = initialStores.find((s: Store) => s.id === storeId);
+      setSelectedStoreName(store ? store.name : "Unknown Store");
+    } else if (initialStores.length > 0) {
+        setSelectedStoreName(initialStores[0].name); 
+    }
+     else {
+      setSelectedStoreName("No Store Selected");
+    }
+    // In a real app, orders would be fetched based on storeId here
+  }, [storeId]);
+
 
   const handleUpdateStatus = (orderId: string, newStatus: OrderStatus) => {
     const updatedOrders = orders.map((order) =>
@@ -83,6 +103,7 @@ export default function OrdersPage() {
   };
 
   const filteredOrders = orders.filter(order => {
+    // In a real app, orders would already be filtered by storeId from the backend
     const matchesSearch = order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           order.customerEmail.toLowerCase().includes(searchTerm.toLowerCase());
@@ -127,8 +148,8 @@ export default function OrdersPage() {
         }
       ]);
     }
-    setSelectedProductIdToAdd(""); // Reset product selection
-    setQuantityToAdd(1); // Reset quantity
+    setSelectedProductIdToAdd(""); 
+    setQuantityToAdd(1); 
   };
 
   const handleRemoveProductFromOrder = (productId: string) => {
@@ -167,6 +188,7 @@ export default function OrdersPage() {
 
     const newOrder: Order = {
       id: `ORD_${Date.now()}`,
+      // storeId: storeId || initialStores[0]?.id || "default_store", // Associate with selected store
       ...newOrderData,
       date: new Date().toISOString().split("T")[0],
       total: calculateNewOrderTotal,
@@ -178,7 +200,7 @@ export default function OrdersPage() {
     initialOrders.unshift(newOrder); 
     setOrders([newOrder, ...orders]); 
     setIsAddOrderDialogOpen(false);
-    toast({ title: "Order Created", description: `Order ${newOrder.id} has been successfully created.` });
+    toast({ title: "Order Created", description: `Order ${newOrder.id} has been successfully created for ${selectedStoreName || 'the current store'}.` });
     resetAddOrderForm();
   };
 
@@ -233,135 +255,137 @@ export default function OrdersPage() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-3xl">
             <DialogHeader className="p-6 pb-4">
-              <DialogTitle>Create New Order</DialogTitle>
+              <DialogTitle>Create New Order {selectedStoreName ? `for ${selectedStoreName}`: ''}</DialogTitle>
               <DialogDescription>
                 Fill in the details to manually create a new order.
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleCreateOrder} className="grid gap-4 px-6 pb-6 pt-0 max-h-[65vh] overflow-y-auto">
-              
-              <Card>
-                <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="customerName">Customer Name</Label>
-                    <Input id="customerName" name="customerName" value={newOrderData.customerName} onChange={handleNewOrderInputChange} required />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="customerEmail">Customer Email</Label>
-                    <Input id="customerEmail" name="customerEmail" type="email" value={newOrderData.customerEmail} onChange={handleNewOrderInputChange} required />
-                  </div>
-                </CardContent>
-              </Card>
+            <form onSubmit={handleCreateOrder}>
+              <ScrollArea className="h-[65vh] pr-4">
+                <div className="grid gap-4 px-2 pb-6 pt-0">              
+                  <Card>
+                    <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="customerName">Customer Name</Label>
+                        <Input id="customerName" name="customerName" value={newOrderData.customerName} onChange={handleNewOrderInputChange} required />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="customerEmail">Customer Email</Label>
+                        <Input id="customerEmail" name="customerEmail" type="email" value={newOrderData.customerEmail} onChange={handleNewOrderInputChange} required />
+                      </div>
+                    </CardContent>
+                  </Card>
 
-               <Card>
-                <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                        <Label htmlFor="shippingAddress">Shipping Address</Label>
-                        <Textarea id="shippingAddress" name="shippingAddress" value={newOrderData.shippingAddress} onChange={handleNewOrderInputChange} required rows={3}/>
-                    </div>
-                    <div className="grid gap-2">
-                        <Label htmlFor="billingAddress">Billing Address (Optional)</Label>
-                        <Textarea id="billingAddress" name="billingAddress" value={newOrderData.billingAddress} onChange={handleNewOrderInputChange} placeholder="Leave blank if same as shipping" rows={3}/>
-                    </div>
-                     <div className="grid gap-2">
-                        <Label htmlFor="shippingMethod">Shipping Method</Label>
-                        <Input id="shippingMethod" name="shippingMethod" value={newOrderData.shippingMethod} onChange={handleNewOrderInputChange} />
-                    </div>
-                    <div className="grid gap-2">
-                        <Label htmlFor="paymentMethod">Payment Method</Label>
-                        <Input id="paymentMethod" name="paymentMethod" value={newOrderData.paymentMethod} onChange={handleNewOrderInputChange} />
-                    </div>
-                </CardContent>
-               </Card>
+                  <Card>
+                    <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="shippingAddress">Shipping Address</Label>
+                            <Textarea id="shippingAddress" name="shippingAddress" value={newOrderData.shippingAddress} onChange={handleNewOrderInputChange} required rows={3}/>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="billingAddress">Billing Address (Optional)</Label>
+                            <Textarea id="billingAddress" name="billingAddress" value={newOrderData.billingAddress} onChange={handleNewOrderInputChange} placeholder="Leave blank if same as shipping" rows={3}/>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="shippingMethod">Shipping Method</Label>
+                            <Input id="shippingMethod" name="shippingMethod" value={newOrderData.shippingMethod} onChange={handleNewOrderInputChange} />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="paymentMethod">Payment Method</Label>
+                            <Input id="paymentMethod" name="paymentMethod" value={newOrderData.paymentMethod} onChange={handleNewOrderInputChange} />
+                        </div>
+                    </CardContent>
+                  </Card>
 
-              <Card>
-                <CardContent className="pt-6 space-y-4">
-                  <h4 className="font-medium text-lg flex items-center gap-2"><ShoppingCart className="h-5 w-5 text-primary"/>Order Items</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_auto] gap-3 items-end p-3 border rounded-md">
-                    <div className="grid gap-1.5">
-                      <Label htmlFor="productToAdd">Select Product</Label>
-                      <Select value={selectedProductIdToAdd} onValueChange={setSelectedProductIdToAdd}>
-                        <SelectTrigger id="productToAdd">
-                          <SelectValue placeholder="Choose a product..." />
+                  <Card>
+                    <CardContent className="pt-6 space-y-4">
+                      <h4 className="font-medium text-lg flex items-center gap-2"><ShoppingCart className="h-5 w-5 text-primary"/>Order Items</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_auto] gap-3 items-end p-3 border rounded-md">
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="productToAdd">Select Product</Label>
+                          <Select value={selectedProductIdToAdd} onValueChange={setSelectedProductIdToAdd}>
+                            <SelectTrigger id="productToAdd">
+                              <SelectValue placeholder="Choose a product..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {initialProducts.filter(p => p.status === 'Active').map(product => (
+                                <SelectItem key={product.id} value={product.id}>
+                                  {product.name} (${product.orderPrice !== undefined ? product.orderPrice.toFixed(2) : product.price.toFixed(2)})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="quantityToAdd">Quantity</Label>
+                          <Input id="quantityToAdd" type="number" min="1" value={quantityToAdd} onChange={(e) => setQuantityToAdd(parseInt(e.target.value) || 1)} />
+                        </div>
+                        <Button type="button" onClick={handleAddProductToOrder} className="self-end">Add Item</Button>
+                      </div>
+
+                      {newOrderItems.length > 0 && (
+                        <div className="space-y-2">
+                          <Label>Current Items in Order:</Label>
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-[60px] hidden sm:table-cell">Image</TableHead>
+                                <TableHead>Product</TableHead>
+                                <TableHead className="text-right">Qty</TableHead>
+                                <TableHead className="text-right">Unit Price</TableHead>
+                                <TableHead className="text-right">Total</TableHead>
+                                <TableHead className="w-[50px]"></TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {newOrderItems.map(item => (
+                                <TableRow key={item.productId}>
+                                  <TableCell className="hidden sm:table-cell">
+                                    <Image src={item.productImage} alt={item.productName} width={40} height={40} className="rounded-md object-cover" data-ai-hint={item.productDataAiHint}/>
+                                  </TableCell>
+                                  <TableCell className="font-medium">{item.productName}</TableCell>
+                                  <TableCell className="text-right">{item.quantity}</TableCell>
+                                  <TableCell className="text-right">${item.unitPrice.toFixed(2)}</TableCell>
+                                  <TableCell className="text-right">${(item.unitPrice * item.quantity).toFixed(2)}</TableCell>
+                                  <TableCell>
+                                    <Button type="button" variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleRemoveProductFromOrder(item.productId)}>
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                      <Separator />
+                      <div className="flex justify-end items-center gap-4">
+                            <Label className="text-lg font-semibold">Order Total:</Label>
+                            <div className="text-xl font-bold flex items-center">
+                                <DollarSign className="h-5 w-5 mr-1 text-primary"/> {calculateNewOrderTotal.toFixed(2)}
+                            </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="pt-6 grid gap-2">
+                      <Label htmlFor="orderStatus">Order Status</Label>
+                      <Select name="status" value={newOrderData.status} onValueChange={handleNewOrderStatusChange}>
+                        <SelectTrigger id="orderStatus">
+                          <SelectValue placeholder="Select status" />
                         </SelectTrigger>
                         <SelectContent>
-                          {initialProducts.filter(p => p.status === 'Active').map(product => (
-                            <SelectItem key={product.id} value={product.id}>
-                              {product.name} (${product.orderPrice !== undefined ? product.orderPrice.toFixed(2) : product.price.toFixed(2)})
-                            </SelectItem>
+                          {(Object.keys(orderStatusIcons) as OrderStatus[]).map(status => (
+                            <SelectItem key={status} value={status}>{status}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                    </div>
-                    <div className="grid gap-1.5">
-                      <Label htmlFor="quantityToAdd">Quantity</Label>
-                      <Input id="quantityToAdd" type="number" min="1" value={quantityToAdd} onChange={(e) => setQuantityToAdd(parseInt(e.target.value) || 1)} />
-                    </div>
-                    <Button type="button" onClick={handleAddProductToOrder} className="self-end">Add Item</Button>
-                  </div>
-
-                  {newOrderItems.length > 0 && (
-                    <div className="space-y-2">
-                      <Label>Current Items in Order:</Label>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-[60px] hidden sm:table-cell">Image</TableHead>
-                            <TableHead>Product</TableHead>
-                            <TableHead className="text-right">Qty</TableHead>
-                            <TableHead className="text-right">Unit Price</TableHead>
-                            <TableHead className="text-right">Total</TableHead>
-                            <TableHead className="w-[50px]"></TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {newOrderItems.map(item => (
-                            <TableRow key={item.productId}>
-                              <TableCell className="hidden sm:table-cell">
-                                <Image src={item.productImage} alt={item.productName} width={40} height={40} className="rounded-md object-cover" data-ai-hint={item.productDataAiHint}/>
-                              </TableCell>
-                              <TableCell className="font-medium">{item.productName}</TableCell>
-                              <TableCell className="text-right">{item.quantity}</TableCell>
-                              <TableCell className="text-right">${item.unitPrice.toFixed(2)}</TableCell>
-                              <TableCell className="text-right">${(item.unitPrice * item.quantity).toFixed(2)}</TableCell>
-                              <TableCell>
-                                <Button type="button" variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleRemoveProductFromOrder(item.productId)}>
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                   <Separator />
-                   <div className="flex justify-end items-center gap-4">
-                        <Label className="text-lg font-semibold">Order Total:</Label>
-                        <div className="text-xl font-bold flex items-center">
-                            <DollarSign className="h-5 w-5 mr-1 text-primary"/> {calculateNewOrderTotal.toFixed(2)}
-                        </div>
-                   </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="pt-6 grid gap-2">
-                  <Label htmlFor="orderStatus">Order Status</Label>
-                  <Select name="status" value={newOrderData.status} onValueChange={handleNewOrderStatusChange}>
-                    <SelectTrigger id="orderStatus">
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(Object.keys(orderStatusIcons) as OrderStatus[]).map(status => (
-                        <SelectItem key={status} value={status}>{status}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </CardContent>
-              </Card>
-              
-              <DialogFooter className="pt-4 mt-4 border-t">
+                    </CardContent>
+                  </Card>
+                </div>
+              </ScrollArea>
+              <DialogFooter className="pt-4 mt-4 border-t px-6">
                 <Button type="button" variant="outline" onClick={() => setIsAddOrderDialogOpen(false)}>Cancel</Button>
                 <Button type="submit">Create Order</Button>
               </DialogFooter>
@@ -369,6 +393,8 @@ export default function OrdersPage() {
           </DialogContent>
         </Dialog>
       </div>
+      {selectedStoreName && <p className="text-sm text-muted-foreground">Showing orders for store: <span className="font-semibold">{selectedStoreName}</span>. New orders will be added to this store.</p>}
+
 
       <Card>
         <Table>

@@ -1,6 +1,8 @@
 
 "use client";
 
+import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -31,7 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import * as React from "react";
+import { initialStores, type Store } from "@/lib/mockData";
 
 const monthlyRevenueData = [
   { month: "January", revenue: 30250 },
@@ -89,7 +91,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, descripti
             "text-muted-foreground"
         }`}>
           {trendType === "positive" && <TrendingUp className="mr-1 h-4 w-4" />}
-          {trendType === "negative" && <TrendingUp className="mr-1 h-4 w-4 rotate-180" />} {/* Fixed: Using TrendingUp and rotating for negative trend */}
+          {trendType === "negative" && <TrendingUp className="mr-1 h-4 w-4 rotate-180" />} 
           {trend}
         </p>
       )}
@@ -101,13 +103,29 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, descripti
 export default function RevenueReportPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const storeId = searchParams.get("storeId");
+  const [selectedStoreName, setSelectedStoreName] = React.useState<string | null>(null);
+
   const [defaultCurrency, setDefaultCurrency] = React.useState("ZMW");
-  const [taxRate, setTaxRate] = React.useState("10"); // Stored as string for input
+  const [taxRate, setTaxRate] = React.useState("10"); 
   const [pricesIncludeTax, setPricesIncludeTax] = React.useState(false);
+
+  React.useEffect(() => {
+    if (storeId) {
+      const store = initialStores.find((s: Store) => s.id === storeId);
+      setSelectedStoreName(store ? store.name : "Unknown Store");
+    } else if (initialStores.length > 0) {
+        setSelectedStoreName(initialStores[0].name); 
+    } else {
+      setSelectedStoreName("No Store Selected");
+    }
+  }, [storeId]);
+
+  const storeContextMessage = selectedStoreName ? ` for ${selectedStoreName}` : "";
 
   const handleSaveRevenueSettings = (e: React.FormEvent) => {
     e.preventDefault();
-    // Placeholder for actual save logic
     console.log({ defaultCurrency, taxRate, pricesIncludeTax });
     toast({
       title: "Settings Saved",
@@ -118,7 +136,7 @@ export default function RevenueReportPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Revenue Report</h1>
+        <h1 className="text-3xl font-bold">Revenue Report{storeContextMessage}</h1>
         <Button variant="outline" onClick={() => router.back()}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
@@ -129,7 +147,7 @@ export default function RevenueReportPage() {
           title="Total Revenue (YTD)"
           value="K150,750.20"
           icon={DollarSign}
-          description="Year-to-date gross revenue."
+          description={`Year-to-date gross revenue${storeContextMessage}.`}
           trend="+15.2% vs last year"
           trendType="positive"
         />
@@ -137,7 +155,7 @@ export default function RevenueReportPage() {
           title="Revenue (This Month)"
           value="K45,231.89"
           icon={DollarSign}
-          description="Gross revenue for the current month."
+          description={`Gross revenue for current month${storeContextMessage}.`}
           trend="+K5,231 vs last month"
           trendType="positive"
         />
@@ -145,7 +163,7 @@ export default function RevenueReportPage() {
           title="Average Order Value"
           value="K85.50"
           icon={ShoppingCart}
-          description="Average amount spent per order."
+          description={`Average amount spent per order${storeContextMessage}.`}
           trend="-2.5% vs last month"
           trendType="negative"
         />
@@ -153,7 +171,7 @@ export default function RevenueReportPage() {
           title="Total Transactions"
           value="1,763"
           icon={CreditCard}
-          description="Total successful transactions YTD."
+          description={`Total successful transactions YTD${storeContextMessage}.`}
           trend="+120 transactions this month"
           trendType="positive"
         />
@@ -163,7 +181,7 @@ export default function RevenueReportPage() {
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Monthly Revenue Trend</CardTitle>
-            <CardDescription>Track your gross revenue month over month.</CardDescription>
+            <CardDescription>Track your gross revenue month over month{storeContextMessage}.</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
             <ChartContainer config={revenueChartConfig} className="h-[300px] w-full">
@@ -201,7 +219,7 @@ export default function RevenueReportPage() {
         <Card className="lg:col-span-2">
             <CardHeader>
                 <CardTitle>Revenue by Source</CardTitle>
-                <CardDescription>Distribution of revenue across different channels.</CardDescription>
+                <CardDescription>Distribution of revenue across different channels{storeContextMessage}.</CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center items-center h-[300px]">
                  <ChartContainer config={{}} className="h-full w-full max-h-[250px]">
@@ -229,8 +247,7 @@ export default function RevenueReportPage() {
                                 const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
                                 let x = cx + (radius + 15) * Math.cos(-midAngle * RADIAN);
                                 let y = cy + (radius + 15) * Math.sin(-midAngle * RADIAN);
-                                // Adjust label position to avoid overlap, very basic adjustment
-                                if (name === 'Marketplace A' && (percent * 100) < 30) { // Example condition
+                                if (name === 'Marketplace A' && (percent * 100) < 30) { 
                                    x = cx + (outerRadius + 20) * Math.cos(-midAngle * RADIAN);
                                    y = cy + (outerRadius + 20) * Math.sin(-midAngle * RADIAN);
                                 }
@@ -257,7 +274,7 @@ export default function RevenueReportPage() {
       <Card>
         <CardHeader>
           <CardTitle>Top Products by Revenue</CardTitle>
-          <CardDescription>Detailed breakdown of revenue by products this month.</CardDescription>
+          <CardDescription>Detailed breakdown of revenue by products this month{storeContextMessage}.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -312,7 +329,7 @@ export default function RevenueReportPage() {
       <Card>
         <CardHeader>
             <CardTitle>Revenue Settings</CardTitle>
-            <CardDescription>Configure currency, tax, and payment gateway options.</CardDescription>
+            <CardDescription>Configure currency, tax, and payment gateway options{storeContextMessage}.</CardDescription>
         </CardHeader>
         <CardContent>
             <form onSubmit={handleSaveRevenueSettings} className="space-y-6">
@@ -382,4 +399,3 @@ export default function RevenueReportPage() {
     </div>
   );
 }
-

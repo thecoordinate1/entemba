@@ -3,6 +3,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Table,
   TableBody,
@@ -48,8 +49,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Product } from "@/lib/mockData";
-import { initialProducts } from "@/lib/mockData";
+import type { Product, Store } from "@/lib/mockData";
+import { initialProducts, initialStores } from "@/lib/mockData";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -58,8 +59,8 @@ const MAX_IMAGES = 5;
 
 interface ImageSlot {
   file: File | null;
-  previewUrl: string | null; // For object URLs or existing http URLs
-  dataUri: string | null; // For submitted data URIs
+  previewUrl: string | null; 
+  dataUri: string | null; 
   hint: string;
 }
 
@@ -81,6 +82,10 @@ const fileToDataUri = (file: File): Promise<string> => {
 };
 
 export default function ProductsPage() {
+  const searchParams = useSearchParams();
+  const storeId = searchParams.get("storeId");
+  const [selectedStoreName, setSelectedStoreName] = React.useState<string | null>(null);
+
   const [products, setProducts] = React.useState<Product[]>(initialProducts);
   const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
@@ -90,6 +95,18 @@ export default function ProductsPage() {
   const { toast } = useToast();
 
   const [formImageSlots, setFormImageSlots] = React.useState<ImageSlot[]>(initialImageSlots());
+
+  React.useEffect(() => {
+    if (storeId) {
+      const store = initialStores.find((s: Store) => s.id === storeId);
+      setSelectedStoreName(store ? store.name : "Unknown Store");
+    } else if (initialStores.length > 0) {
+        setSelectedStoreName(initialStores[0].name); 
+    }
+     else {
+      setSelectedStoreName("No Store Selected");
+    }
+  }, [storeId]);
 
   const resetImageSlots = () => {
     formImageSlots.forEach(slot => {
@@ -104,7 +121,6 @@ export default function ProductsPage() {
       const newSlots = [...prevSlots];
       const oldSlot = newSlots[index];
 
-      // Revoke old object URL if it was from a File object
       if (oldSlot.previewUrl && oldSlot.file) {
         URL.revokeObjectURL(oldSlot.previewUrl);
       }
@@ -112,7 +128,6 @@ export default function ProductsPage() {
       if (file) {
         newSlots[index] = { ...oldSlot, file: file, previewUrl: URL.createObjectURL(file), dataUri: null };
       } else {
-        // If file is removed, keep existing http URL (if editing) or clear
         newSlots[index] = { ...oldSlot, file: null, previewUrl: oldSlot.dataUri ? oldSlot.dataUri : null };
       }
       return newSlots;
@@ -131,9 +146,9 @@ export default function ProductsPage() {
     const slotsToEdit = initialImageSlots().map((slot, i) => {
       if (product.images && product.images[i]) {
         return {
-          file: null, // No file initially for existing images
-          previewUrl: product.images[i], // This is a dataURI or http URL
-          dataUri: product.images[i], // Store it as dataUri as it's the source
+          file: null, 
+          previewUrl: product.images[i], 
+          dataUri: product.images[i], 
           hint: product.dataAiHints[i] || "",
         };
       }
@@ -155,16 +170,16 @@ export default function ProductsPage() {
         } catch (error) {
           console.error("Error converting file to data URI:", error);
           toast({ variant: "destructive", title: "Image Processing Error", description: "Could not process one of the images."});
-          // Decide error handling: throw or continue with fewer images?
+          throw error; // Propagate error to stop form submission
         }
-      } else if (slot.dataUri) { // Existing image (dataUri or http URL)
+      } else if (slot.dataUri) { 
         imageUris.push(slot.dataUri);
         imageDataAiHints.push(slot.hint || `product image ${imageUris.length}`);
       }
     }
     
     if (imageUris.length === 0) {
-        imageUris.push("https://picsum.photos/id/103/400/300"); 
+        imageUris.push("https://placehold.co/400x300.png"); 
         imageDataAiHints.push("product placeholder");
     }
 
@@ -201,6 +216,7 @@ export default function ProductsPage() {
       
       const newProduct: Product = {
         id: `prod_${Date.now()}`,
+        // storeId: storeId || initialStores[0]?.id || "default_store", // Associate with selected store
         ...productData,
         createdAt: new Date().toISOString().split("T")[0],
       };
@@ -209,9 +225,9 @@ export default function ProductsPage() {
       setProducts([newProduct, ...products]);
       setIsAddDialogOpen(false);
       resetImageSlots();
-      toast({ title: "Product Added", description: `${newProduct.name} has been successfully added.` });
+      toast({ title: "Product Added", description: `${newProduct.name} has been successfully added to ${selectedStoreName || 'the current store'}.` });
     } catch (error) {
-      // Error already toasted in processProductForm or fileToDataUri
+      // Error already toasted in processProductForm
     }
   };
 
@@ -235,7 +251,7 @@ export default function ProductsPage() {
       setIsEditDialogOpen(false);
       setSelectedProduct(null);
       resetImageSlots();
-      toast({ title: "Product Updated", description: `${updatedProduct.name} has been successfully updated.` });
+      toast({ title: "Product Updated", description: `${updatedProduct.name} has been successfully updated for ${selectedStoreName || 'the current store'}.` });
     } catch (error) {
       // Error handling
     }
@@ -265,8 +281,9 @@ export default function ProductsPage() {
   };
 
   const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.category.toLowerCase().includes(searchTerm.toLowerCase())
+    // In a real app, products would be filtered by storeId from the backend
+    (product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.category.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const renderProductFormFields = (product?: Product) => (
@@ -399,7 +416,7 @@ export default function ProductsPage() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-3xl"> 
             <DialogHeader>
-              <DialogTitle>Add New Product</DialogTitle>
+              <DialogTitle>Add New Product {selectedStoreName ? `for ${selectedStoreName}` : ''}</DialogTitle>
               <DialogDescription>
                 Fill in the details for your new product. Add up to {MAX_IMAGES} images.
               </DialogDescription>
@@ -418,6 +435,8 @@ export default function ProductsPage() {
           </DialogContent>
         </Dialog>
       </div>
+      {selectedStoreName && <p className="text-sm text-muted-foreground">Showing products for store: <span className="font-semibold">{selectedStoreName}</span>. New products will be added to this store.</p>}
+
 
       <Card>
        <CardContent className="pt-6">
@@ -511,11 +530,10 @@ export default function ProductsPage() {
        </CardContent>
       </Card>
 
-      {/* Edit Product Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => { setIsEditDialogOpen(isOpen); if(!isOpen) resetImageSlots(); }}>
         <DialogContent className="sm:max-w-3xl"> 
           <DialogHeader>
-            <DialogTitle>Edit Product</DialogTitle>
+            <DialogTitle>Edit Product {selectedProduct?.name} {selectedStoreName ? `for ${selectedStoreName}` : ''}</DialogTitle>
             <DialogDescription>
               Update the details for {selectedProduct?.name}. Add up to {MAX_IMAGES} images.
             </DialogDescription>

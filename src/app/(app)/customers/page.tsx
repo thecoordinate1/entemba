@@ -3,6 +3,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Table,
   TableBody,
@@ -49,8 +50,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Customer, CustomerStatus } from "@/lib/mockData";
-import { initialCustomers, customerStatusColors } from "@/lib/mockData";
+import type { Customer, CustomerStatus, Store } from "@/lib/mockData";
+import { initialCustomers, customerStatusColors, initialStores } from "@/lib/mockData";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -65,6 +66,10 @@ const defaultNewCustomerData: Omit<Customer, 'id' | 'avatar' | 'dataAiHintAvatar
 };
 
 export default function CustomersPage() {
+  const searchParams = useSearchParams();
+  const storeId = searchParams.get("storeId");
+  const [selectedStoreName, setSelectedStoreName] = React.useState<string | null>(null);
+
   const [customers, setCustomers] = React.useState<Customer[]>(initialCustomers);
   const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
@@ -74,6 +79,20 @@ export default function CustomersPage() {
   const { toast } = useToast();
 
   const [formData, setFormData] = React.useState<Omit<Customer, 'id' | 'avatar' | 'dataAiHintAvatar' | 'totalSpent' | 'totalOrders' | 'joinedDate' | 'lastOrderDate'>>(defaultNewCustomerData);
+
+  React.useEffect(() => {
+    if (storeId) {
+      const store = initialStores.find((s: Store) => s.id === storeId);
+      setSelectedStoreName(store ? store.name : "Unknown Store");
+    } else if (initialStores.length > 0) {
+        setSelectedStoreName(initialStores[0].name); 
+    }
+     else {
+      setSelectedStoreName("No Store Selected");
+    }
+    // Customer data might be global, but their activity (totalSpent, totalOrders)
+    // would ideally be filtered by storeId in a real backend.
+  }, [storeId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -110,10 +129,10 @@ export default function CustomersPage() {
       const newCustomer: Customer = {
         id: `cust_${Date.now()}`,
         ...customerData,
-        avatar: "https://placehold.co/40x40.png", // Default avatar
+        avatar: "https://placehold.co/40x40.png", 
         dataAiHintAvatar: "person new",
-        totalSpent: 0,
-        totalOrders: 0,
+        totalSpent: 0, // Initial values, would be calculated per store in real app
+        totalOrders: 0, // Initial values
         joinedDate: new Date().toISOString().split("T")[0],
       };
 
@@ -135,6 +154,7 @@ export default function CustomersPage() {
       const updatedCustomer: Customer = {
         ...selectedCustomer,
         ...customerData,
+        // totalSpent and totalOrders would be recalculated based on selectedStoreId in a real app
       };
       
       const customerIndex = initialCustomers.findIndex(c => c.id === selectedCustomer.id);
@@ -299,6 +319,8 @@ export default function CustomersPage() {
           </Dialog>
         </div>
       </div>
+      {selectedStoreName && <p className="text-sm text-muted-foreground">Customer activity (Total Spent, Total Orders) reflects data for store: <span className="font-semibold">{selectedStoreName}</span>.</p>}
+
 
       <Card>
        <CardContent className="pt-6">

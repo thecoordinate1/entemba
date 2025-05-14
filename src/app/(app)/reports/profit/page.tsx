@@ -1,6 +1,8 @@
 
 "use client";
 
+import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -26,8 +28,8 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { initialStores, type Store } from "@/lib/mockData";
 
-// Mock Data for Profit Report
 const monthlyProfitData = [
   { month: "January", profit: 10150 },
   { month: "February", profit: 12800 },
@@ -40,7 +42,7 @@ const monthlyProfitData = [
 const profitChartConfig = {
   profit: {
     label: "Profit",
-    color: "hsl(var(--chart-2))", // Using a different chart color
+    color: "hsl(var(--chart-2))", 
   },
 };
 
@@ -92,11 +94,27 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, descripti
 
 export default function ProfitReportPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const storeId = searchParams.get("storeId");
+  const [selectedStoreName, setSelectedStoreName] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (storeId) {
+      const store = initialStores.find((s: Store) => s.id === storeId);
+      setSelectedStoreName(store ? store.name : "Unknown Store");
+    } else if (initialStores.length > 0) {
+        setSelectedStoreName(initialStores[0].name); 
+    } else {
+      setSelectedStoreName("No Store Selected");
+    }
+  }, [storeId]);
+
+  const storeContextMessage = selectedStoreName ? ` for ${selectedStoreName}` : "";
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Profit Report</h1>
+        <h1 className="text-3xl font-bold">Profit Report{storeContextMessage}</h1>
         <Button variant="outline" onClick={() => router.back()}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
@@ -107,15 +125,15 @@ export default function ProfitReportPage() {
           title="Gross Profit (YTD)"
           value="K76,500.75"
           icon={DollarSign}
-          description="Total revenue minus COGS."
+          description={`Total revenue minus COGS${storeContextMessage}.`}
           trend="+12.5% vs last year"
           trendType="positive"
         />
         <StatCard
           title="Net Profit (YTD)"
           value="K55,200.30"
-          icon={Landmark} // Using Landmark as an icon for Net Profit
-          description="Profit after all expenses."
+          icon={Landmark} 
+          description={`Profit after all expenses${storeContextMessage}.`}
           trend="+K8,100 vs last period"
           trendType="positive"
         />
@@ -123,7 +141,7 @@ export default function ProfitReportPage() {
           title="Profit Margin"
           value="36.6%"
           icon={Percent}
-          description="Net profit as a percentage of revenue."
+          description={`Net profit as a percentage of revenue${storeContextMessage}.`}
           trend="+1.5% vs last month"
           trendType="positive"
         />
@@ -131,7 +149,7 @@ export default function ProfitReportPage() {
           title="Cost of Goods Sold (COGS)"
           value="K21,300.45"
           icon={Receipt}
-          description="Direct costs of producing goods."
+          description={`Direct costs of producing goods${storeContextMessage}.`}
           trend="-K1,200 vs last month (lower is better)"
           trendType="positive" 
         />
@@ -141,7 +159,7 @@ export default function ProfitReportPage() {
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Monthly Profit Trend</CardTitle>
-            <CardDescription>Track your net profit month over month.</CardDescription>
+            <CardDescription>Track your net profit month over month{storeContextMessage}.</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
             <ChartContainer config={profitChartConfig} className="h-[300px] w-full">
@@ -179,7 +197,7 @@ export default function ProfitReportPage() {
         <Card className="lg:col-span-2">
             <CardHeader>
                 <CardTitle>Profit by Category</CardTitle>
-                <CardDescription>Distribution of profit across product categories.</CardDescription>
+                <CardDescription>Distribution of profit across product categories{storeContextMessage}.</CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center items-center h-[300px]">
                  <ChartContainer config={{}} className="h-full w-full max-h-[250px]">
@@ -229,7 +247,7 @@ export default function ProfitReportPage() {
       <Card>
         <CardHeader>
           <CardTitle>Top Products by Profit</CardTitle>
-          <CardDescription>Detailed breakdown of profit by products this month.</CardDescription>
+          <CardDescription>Detailed breakdown of profit by products this month{storeContextMessage}.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -285,4 +303,3 @@ export default function ProfitReportPage() {
     </div>
   );
 }
-

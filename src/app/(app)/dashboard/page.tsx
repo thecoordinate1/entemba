@@ -1,6 +1,8 @@
 
 "use client";
 
+import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
   DollarSign,
@@ -25,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
-import { initialProducts } from "@/lib/mockData"; // Import initialProducts to get updated image structure
+import { initialProducts, initialStores, type Store } from "@/lib/mockData"; 
 
 const chartData = [
   { month: "January", sales: 186, orders: 80 },
@@ -90,19 +92,33 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, change, c
   </Card>
 );
 
-// Using a subset of initialProducts for dashboard display
-// Assuming sales data for these products would come from an API or calculations
 const topProductsToDisplay = initialProducts.slice(0, 3).map(p => ({
   id: p.id,
   name: p.name,
-  // Simulate sales numbers for demonstration
   sales: p.id === "prod_2" ? 1250 : p.id === "prod_5" ? 980 : 750, 
-  image: p.images[0] || "https://picsum.photos/50/50?grayscale", // Use primary image
-  dataAiHint: p.dataAiHints[0] || "product", // Use hint for primary image
+  image: p.images[0] || "https://picsum.photos/50/50?grayscale",
+  dataAiHint: p.dataAiHints[0] || "product",
 }));
 
 
 export default function DashboardPage() {
+  const searchParams = useSearchParams();
+  const storeId = searchParams.get("storeId");
+  const [selectedStoreName, setSelectedStoreName] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (storeId) {
+      const store = initialStores.find((s: Store) => s.id === storeId);
+      setSelectedStoreName(store ? store.name : "Unknown Store");
+    } else if (initialStores.length > 0) {
+      setSelectedStoreName(initialStores[0].name); // Default to first store if no ID in URL
+    } else {
+      setSelectedStoreName("No Store Selected");
+    }
+  }, [storeId]);
+
+  const storeContextMessage = selectedStoreName ? ` for ${selectedStoreName}` : "";
+
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -112,7 +128,7 @@ export default function DashboardPage() {
           icon={DollarSign}
           change="+$5,231 from last month"
           changeType="positive"
-          description="Total earnings this period"
+          description={`Total earnings this period${storeContextMessage}`}
           ctaLink="/reports/revenue"
           ctaText="View Revenue Report"
         />
@@ -122,7 +138,7 @@ export default function DashboardPage() {
           icon={LineChart} 
           change="+$1,200 from last month"
           changeType="positive"
-          description="Total profit after all expenses"
+          description={`Total profit after all expenses${storeContextMessage}`}
           ctaLink="/reports/profit"
           ctaText="View Profit Details"
         />
@@ -131,7 +147,7 @@ export default function DashboardPage() {
           value="185"
           icon={Activity} 
           change="65 completed in last 30d"
-          description="35 new orders today"
+          description={`35 new orders today${storeContextMessage}`}
           ctaLink="/orders"
           ctaText="Manage Orders"
         />
@@ -141,7 +157,7 @@ export default function DashboardPage() {
           icon={Package}
           change="+1,200 this month"
           changeType="positive"
-          description="Total items sold across all orders"
+          description={`Total items sold across all orders${storeContextMessage}`}
           ctaLink="/products"
           ctaText="Manage Products"
         />
@@ -151,7 +167,7 @@ export default function DashboardPage() {
           icon={Users}
           change="+82 this week"
           changeType="positive"
-          description="Customers who signed up recently"
+          description={`Customers who signed up recently${storeContextMessage}`}
           ctaLink="/customers"
           ctaText="View Customers"
         />
@@ -161,7 +177,7 @@ export default function DashboardPage() {
         <Card className="lg:col-span-4">
           <CardHeader>
             <CardTitle>Sales Overview</CardTitle>
-            <CardDescription>Monthly sales and order trends.</CardDescription>
+            <CardDescription>Monthly sales and order trends{storeContextMessage}.</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
             <ChartContainer config={chartConfig} className="h-[300px] w-full">
@@ -200,7 +216,7 @@ export default function DashboardPage() {
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Top Performing Products</CardTitle>
-            <CardDescription>Your best-selling items this month.</CardDescription>
+            <CardDescription>Your best-selling items this month{storeContextMessage}.</CardDescription>
           </CardHeader>
           <CardContent>
             <ul className="space-y-4">
