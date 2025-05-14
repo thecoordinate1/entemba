@@ -25,6 +25,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { signInWithEmail } from "@/services/authService";
 import { Gem } from "lucide-react";
@@ -40,6 +41,11 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
+  const [hasMounted, setHasMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -71,6 +77,37 @@ export default function LoginPage() {
       });
       router.push("/dashboard"); 
     }
+  }
+
+  if (!hasMounted) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-muted/40 p-4">
+        <div className="flex items-center gap-2 mb-8 text-2xl font-semibold text-primary">
+          <Gem className="h-8 w-8" />
+          <span>E-Ntemba</span>
+        </div>
+        <Card className="w-full max-w-md shadow-xl">
+          <CardHeader className="space-y-1 text-center">
+            <CardTitle className="text-2xl">Welcome Back</CardTitle>
+            <CardDescription>
+              Loading...
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full mt-2" />
+               <div className="h-4"></div> 
+              <Skeleton className="h-10 w-full" />
+            </div>
+          </CardContent>
+          <CardContent className="mt-4 text-center text-sm">
+            <Skeleton className="h-4 w-3/4 mx-auto" />
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
