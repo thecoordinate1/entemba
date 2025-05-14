@@ -277,7 +277,9 @@ export default function ProfitReportPage() {
           </Table>
         </CardContent>
         <CardFooter className="justify-center border-t pt-4">
-            <Button variant="outline" disabled>View All Products Profit (TBD)</Button>
+            <Button variant="outline" asChild>
+                <Link href="/reports/profit/products">View All Products Profit</Link>
+            </Button>
         </CardFooter>
       </Card>
     </div>
