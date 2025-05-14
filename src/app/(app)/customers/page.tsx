@@ -100,7 +100,7 @@ export default function CustomersPage() {
       const addressField = name.split(".")[1] as keyof Customer["address"];
       setFormData(prev => ({
         ...prev,
-        address: { ...prev.address!, [addressField]: value }
+        address: { ...(prev.address || defaultNewCustomerData.address!), [addressField]: value }
       }));
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
@@ -219,33 +219,33 @@ export default function CustomersPage() {
       </div>
       <div className="grid gap-2">
         <Label htmlFor="phone">Phone Number (Optional)</Label>
-        <Input id="phone" name="phone" type="tel" value={formData.phone} onChange={handleInputChange} />
+        <Input id="phone" name="phone" type="tel" value={formData.phone || ""} onChange={handleInputChange} />
       </div>
       
       <Separator className="my-4"/>
       <h4 className="font-medium text-md col-span-full">Address Details (Optional)</h4>
       <div className="grid gap-2">
         <Label htmlFor="address.street">Street Address</Label>
-        <Input id="address.street" name="address.street" value={formData.address?.street} onChange={handleInputChange} />
+        <Input id="address.street" name="address.street" value={formData.address?.street || ""} onChange={handleInputChange} />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="grid gap-2">
           <Label htmlFor="address.city">City</Label>
-          <Input id="address.city" name="address.city" value={formData.address?.city} onChange={handleInputChange} />
+          <Input id="address.city" name="address.city" value={formData.address?.city || ""} onChange={handleInputChange} />
         </div>
         <div className="grid gap-2">
           <Label htmlFor="address.state">State/Province</Label>
-          <Input id="address.state" name="address.state" value={formData.address?.state} onChange={handleInputChange} />
+          <Input id="address.state" name="address.state" value={formData.address?.state || ""} onChange={handleInputChange} />
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="grid gap-2">
           <Label htmlFor="address.zip">ZIP/Postal Code</Label>
-          <Input id="address.zip" name="address.zip" value={formData.address?.zip} onChange={handleInputChange} />
+          <Input id="address.zip" name="address.zip" value={formData.address?.zip || ""} onChange={handleInputChange} />
         </div>
         <div className="grid gap-2">
           <Label htmlFor="address.country">Country</Label>
-          <Input id="address.country" name="address.country" value={formData.address?.country} onChange={handleInputChange} />
+          <Input id="address.country" name="address.country" value={formData.address?.country || ""} onChange={handleInputChange} />
         </div>
       </div>
 
@@ -446,3 +446,4 @@ export default function CustomersPage() {
     </div>
   );
 }
+
