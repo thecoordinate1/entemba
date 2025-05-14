@@ -8,7 +8,9 @@ import {
   TrendingUp,
   ShoppingCart,
   CreditCard,
-  ArrowLeft
+  ArrowLeft,
+  Percent,
+  Banknote
 } from "lucide-react";
 import {
   ChartContainer,
@@ -24,6 +26,12 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import Image from "next/image";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/hooks/use-toast";
+import * as React from "react";
 
 const monthlyRevenueData = [
   { month: "January", revenue: 30250 },
@@ -92,6 +100,20 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, descripti
 
 export default function RevenueReportPage() {
   const router = useRouter();
+  const { toast } = useToast();
+  const [defaultCurrency, setDefaultCurrency] = React.useState("USD");
+  const [taxRate, setTaxRate] = React.useState("10"); // Stored as string for input
+  const [pricesIncludeTax, setPricesIncludeTax] = React.useState(false);
+
+  const handleSaveRevenueSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Placeholder for actual save logic
+    console.log({ defaultCurrency, taxRate, pricesIncludeTax });
+    toast({
+      title: "Settings Saved",
+      description: "Your revenue settings have been (mock) saved.",
+    });
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -289,14 +311,73 @@ export default function RevenueReportPage() {
       
       <Card>
         <CardHeader>
-            <CardTitle>Revenue Settings (Placeholder)</CardTitle>
-            <CardDescription>Configure tax settings, payment gateways, and currency options.</CardDescription>
+            <CardTitle>Revenue Settings</CardTitle>
+            <CardDescription>Configure currency, tax, and payment gateway options.</CardDescription>
         </CardHeader>
         <CardContent>
-            <p className="text-muted-foreground">Future settings for revenue management will appear here.</p>
+            <form onSubmit={handleSaveRevenueSettings} className="space-y-6">
+              <div className="grid gap-3">
+                <Label htmlFor="defaultCurrency">Default Currency</Label>
+                <div className="relative">
+                    <Banknote className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Select value={defaultCurrency} onValueChange={setDefaultCurrency}>
+                        <SelectTrigger id="defaultCurrency" className="pl-8">
+                            <SelectValue placeholder="Select currency" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="USD">USD - United States Dollar</SelectItem>
+                            <SelectItem value="EUR">EUR - Euro</SelectItem>
+                            <SelectItem value="GBP">GBP - British Pound</SelectItem>
+                            <SelectItem value="CAD">CAD - Canadian Dollar</SelectItem>
+                            <SelectItem value="AUD">AUD - Australian Dollar</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+              </div>
+
+              <Separator />
+              <h4 className="text-md font-medium">Tax Settings</h4>
+              <div className="grid gap-3">
+                <Label htmlFor="taxRate">Default Tax Rate (%)</Label>
+                 <div className="relative">
+                    <Percent className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                        id="taxRate"
+                        type="number"
+                        value={taxRate}
+                        onChange={(e) => setTaxRate(e.target.value)}
+                        placeholder="e.g., 10"
+                        className="pl-8"
+                    />
+                 </div>
+              </div>
+              <div className="flex items-center space-x-2 pt-2">
+                <Switch 
+                    id="pricesIncludeTax"
+                    checked={pricesIncludeTax}
+                    onCheckedChange={setPricesIncludeTax}
+                />
+                <Label htmlFor="pricesIncludeTax" className="text-sm font-normal">Product prices already include tax</Label>
+              </div>
+
+              <Separator />
+              <h4 className="text-md font-medium">Payment Gateways (Placeholder)</h4>
+              <p className="text-sm text-muted-foreground">
+                Connect payment gateways like Stripe, PayPal, etc. (Integration TBD).
+              </p>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" disabled>Connect Stripe</Button>
+                <Button type="button" variant="outline" disabled>Connect PayPal</Button>
+              </div>
+
+              <CardFooter className="px-0 pt-6">
+                <Button type="submit">Save Revenue Settings</Button>
+              </CardFooter>
+            </form>
         </CardContent>
       </Card>
 
     </div>
   );
 }
+
