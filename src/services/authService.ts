@@ -45,7 +45,7 @@ export async function resetPasswordForEmail(email: string) {
 
 export async function resendConfirmationEmail(email: string) {
   const { data, error } = await supabase.auth.resend({
-    type: 'signup', // Or 'email_change' if you implement that later
+    type: 'signup', 
     email: email,
     options: {
       emailRedirectTo: `${window.location.origin}/auth/callback`,
@@ -53,6 +53,3 @@ export async function resendConfirmationEmail(email: string) {
   });
   return { data, error };
 }
-
-// You might add more functions here, e.g., for OAuth sign-in, password updates, etc.
-

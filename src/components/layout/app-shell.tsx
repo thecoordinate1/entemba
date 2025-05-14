@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -36,6 +37,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { signOut } from "@/services/authService";
+import { useToast } from "@/hooks/use-toast";
 
 
 const UserDisplay = () => (
@@ -96,6 +99,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { toast } = useToast();
   const [selectedStoreId, setSelectedStoreId] = React.useState<string | null>(null);
   const [availableStores, setAvailableStores] = React.useState<Store[]>([]);
   const [defaultOpen, setDefaultOpen] = React.useState(true);
@@ -173,6 +177,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const storeName = availableStores.find(s => s.id === selectedStoreId)?.name;
   const displayTitle = storeName ? `${storeName} - ${pageTitle}` : pageTitle;
 
+  const handleLogout = async () => {
+    const { error } = await signOut();
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Logout Failed",
+        description: error.message,
+      });
+    } else {
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out.",
+      });
+      router.push("/login");
+    }
+  };
+
 
   return (
     <SidebarProvider defaultOpen={defaultOpen} collapsible="icon">
@@ -217,7 +238,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Settings className="mr-2 group-data-[collapsible=icon]:mr-0 h-5 w-5" /> <span className="group-data-[collapsible=icon]:hidden">Settings</span>
             </Link>
           </Button>
-          <Button variant="ghost" className="w-full justify-start h-11 text-base group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:aspect-square group-data-[collapsible=icon]:h-11">
+          <Button 
+            variant="ghost" 
+            className="w-full justify-start h-11 text-base group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:aspect-square group-data-[collapsible=icon]:h-11"
+            onClick={handleLogout}
+          >
             <LogOut className="mr-2 group-data-[collapsible=icon]:mr-0 h-5 w-5" /> <span className="group-data-[collapsible=icon]:hidden">Logout</span>
           </Button>
         </SidebarFooter>
