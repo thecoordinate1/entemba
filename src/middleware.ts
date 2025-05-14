@@ -58,27 +58,27 @@ export async function middleware(request: NextRequest) {
   )
 
   // Refresh session if expired - important to do before checking for user
-  const { data: { user } } = await supabase.auth.getUser()
+  // const { data: { user } } = await supabase.auth.getUser()
 
   // Define public paths that don't require authentication
-  const authRelatedPublicPaths = ['/login', '/signup', '/auth/callback']; // Paths related to auth flow
+  // const authRelatedPublicPaths = ['/login', '/signup', '/auth/callback']; // Paths related to auth flow
 
-  const currentPath = request.nextUrl.pathname;
+  // const currentPath = request.nextUrl.pathname;
 
   // Check if the current path is one of the designated public paths
-  const isPublicPath = currentPath === '/' || 
-                       currentPath === '/about' ||
-                       authRelatedPublicPaths.some(path => currentPath.startsWith(path));
+  // const isPublicPath = currentPath === '/' || 
+  //                      currentPath === '/about' ||
+  //                      authRelatedPublicPaths.some(path => currentPath.startsWith(path));
 
   // If user is not signed in and the current path is not public, redirect to /login
-  if (!user && !isPublicPath) {
-    return NextResponse.redirect(new URL('/login', request.url))
-  }
+  // if (!user && !isPublicPath) {
+  //   return NextResponse.redirect(new URL('/login', request.url))
+  // }
   
   // If user is signed in and tries to access /login or /signup, redirect to dashboard
-  if (user && (currentPath.startsWith('/login') || currentPath.startsWith('/signup'))) {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
-  }
+  // if (user && (currentPath.startsWith('/login') || currentPath.startsWith('/signup'))) {
+  //     return NextResponse.redirect(new URL('/dashboard', request.url))
+  // }
 
   return response
 }
