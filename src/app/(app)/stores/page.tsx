@@ -45,20 +45,28 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import type { Store as MockStoreType, SocialLink as MockSocialLinkType } from "@/lib/mockData"; // Using mock types for now
-import { initialStores as mockInitialStores, storeStatusColors } from "@/lib/mockData";
+import type { Store as MockStoreType, SocialLink as MockSocialLinkType } from "@/lib/mockData"; // Using mock types for local state rendering
+import { storeStatusColors } from "@/lib/mockData"; // Using mock types for local state rendering
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
-import { createStore, getStoresByUserId, type StorePayload, type StoreFromSupabase, type SocialLinkPayload as StoreSocialLinkPayload } from "@/services/storeService"; // Using Supabase service types
+import { 
+    createStore, 
+    getStoresByUserId, 
+    // updateStore, TODO: Implement and use for edit
+    // deleteStore, TODO: Implement and use for delete
+    type StorePayload, 
+    type StoreFromSupabase, 
+    type SocialLinkPayload as StoreSocialLinkPayload 
+} from "@/services/storeService"; 
 
 interface ImageSlot {
   file: File | null;
   previewUrl: string | null;
-  dataUri: string | null; // To hold data URI or existing URL
+  dataUri: string | null; 
   hint: string;
 }
 
@@ -89,7 +97,7 @@ const socialIconMap: Record<MockSocialLinkType["platform"], React.ElementType> =
 
 
 export default function StoresPage() {
-  const [stores, setStores] = React.useState<MockStoreType[]>(mockInitialStores); // Using MockStoreType for local state
+  const [stores, setStores] = React.useState<MockStoreType[]>([]); 
   const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
@@ -101,7 +109,6 @@ export default function StoresPage() {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   
   const [formLogoSlot, setFormLogoSlot] = React.useState<ImageSlot>(initialLogoSlot());
-  // Form state for add/edit dialog
   const [formStoreName, setFormStoreName] = React.useState("");
   const [formStoreDescription, setFormStoreDescription] = React.useState("");
   const [formStoreCategory, setFormStoreCategory] = React.useState("");
@@ -109,34 +116,40 @@ export default function StoresPage() {
   const [formStoreStatus, setFormStoreStatus] = React.useState<MockStoreType["status"]>("Inactive");
   const [formSocialLinks, setFormSocialLinks] = React.useState<StoreSocialLinkPayload[]>([]);
 
-
   React.useEffect(() => {
-    const getUser = async () => {
+    const getUserAndStores = async () => {
+      setIsLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       setAuthUser(user);
-    };
-    getUser();
-  }, [supabase.auth]);
-
-  // Placeholder: In a real app, fetch stores from backend here based on authUser.id
-  // For now, we continue to use mockInitialStores and manage state locally
-  React.useEffect(() => {
-    if (authUser) {
-      // Placeholder for fetching user's stores from Supabase
-      // const userStores = await getStoresByUserId(authUser.id);
-      // setStores(userStores); 
-      setStores(mockInitialStores.filter(s => s.user_id === authUser.id || !s.user_id)); // Basic filter for mock
-      setIsLoading(false);
-    } else if (!authUser && isLoading) {
-        // If there's no authUser and we are still in initial loading phase, wait.
-        // If authUser remains null after initial check, then proceed to set loading to false.
-        const timer = setTimeout(() => setIsLoading(false), 500); // Give some time for authUser to be set
-        return () => clearTimeout(timer);
-    } else {
-        setIsLoading(false);
+      if (user) {
+        const { data: userStores, error } = await getStoresByUserId(user.id);
+        if (error) {
+          toast({ variant: "destructive", title: "Error fetching stores", description: error.message });
+          setStores([]);
+        } else if (userStores) {
+          // Map StoreFromSupabase to MockStoreType for local state compatibility
+          const mappedStores: MockStoreType[] = userStores.map(s => ({
+            id: s.id,
+            user_id: s.user_id,
+            name: s.name,
+            description: s.description,
+            logo: s.logo_url || "https://placehold.co/200x100.png?text=No+Logo",
+            dataAiHint: s.data_ai_hint || "store logo",
+            status: s.status,
+            category: s.category,
+            socialLinks: s.social_links.map(sl => ({ platform: sl.platform as MockSocialLinkType["platform"], url: sl.url })),
+            location: s.location || undefined,
+            createdAt: new Date(s.created_at).toISOString().split("T")[0],
+          }));
+          setStores(mappedStores);
+        }
+      } else {
         setStores([]); // No user, no stores
-    }
-  }, [authUser, isLoading]);
+      }
+      setIsLoading(false);
+    };
+    getUserAndStores();
+  }, [supabase, toast]);
 
 
   const resetLogoSlot = () => {
@@ -199,19 +212,22 @@ export default function StoresPage() {
         return null;
     }
 
-    let logoDataUriForPayload: string | undefined | null = selectedStore?.logo; // Keep existing if not changed
+    let logoDataUriForPayload: string | undefined | null = selectedStore?.logo; 
     let logoDataAiHintForPayload: string | undefined | null = selectedStore?.dataAiHint;
 
     if (formLogoSlot.file) {
       try {
+        // For actual Supabase upload, the URL will come from Supabase Storage
+        // Here, we're still using data URI for payload to be compatible with service expecting it.
+        // The service function `createStore` (or `updateStore`) should handle the actual upload.
         logoDataUriForPayload = await fileToDataUri(formLogoSlot.file);
         logoDataAiHintForPayload = formLogoSlot.hint || `store logo`;
       } catch (error) {
         console.error("Error converting logo to data URI:", error);
         toast({ variant: "destructive", title: "Logo Processing Error", description: "Could not process the logo." });
-        throw error; // Propagate to stop submission
+        throw error; 
       }
-    } else if (formLogoSlot.dataUri !== selectedStore?.logo) { // If dataUri was set but not a file (e.g. cleared)
+    } else if (formLogoSlot.dataUri !== selectedStore?.logo) { 
         logoDataUriForPayload = formLogoSlot.dataUri;
         logoDataAiHintForPayload = formLogoSlot.hint;
     }
@@ -220,7 +236,7 @@ export default function StoresPage() {
     return {
       name: formStoreName,
       description: formStoreDescription,
-      logo_url: logoDataUriForPayload,
+      logo_url: logoDataUriForPayload, // This might be a data URI or an existing URL if not changed
       data_ai_hint: logoDataAiHintForPayload,
       category: formStoreCategory,
       status: formStoreStatus,
@@ -237,60 +253,47 @@ export default function StoresPage() {
       return;
     }
     setIsSubmitting(true);
-    const storePayload = await processAndValidateFormData();
-    if (!storePayload) {
-        setIsSubmitting(false);
-        return;
-    }
-
     try {
-      // const newStoreFromBackend = await createStore(authUser.id, storePayload, formLogoSlot.file);
-      // if (newStoreFromBackend) {
-      //   // Map StoreFromSupabase to MockStoreType for local state
-      //   const newStoreMapped: MockStoreType = {
-      //       id: newStoreFromBackend.id,
-      //       user_id: newStoreFromBackend.user_id,
-      //       name: newStoreFromBackend.name,
-      //       description: newStoreFromBackend.description,
-      //       logo: newStoreFromBackend.logo_url || "https://placehold.co/200x100.png",
-      //       dataAiHint: newStoreFromBackend.data_ai_hint || "store logo",
-      //       status: newStoreFromBackend.status,
-      //       category: newStoreFromBackend.category,
-      //       socialLinks: newStoreFromBackend.social_links?.map(sl => ({ platform: sl.platform as any, url: sl.url })),
-      //       location: newStoreFromBackend.location || undefined,
-      //       createdAt: new Date(newStoreFromBackend.created_at).toISOString().split("T")[0],
-      //   };
-      //   setStores(prevStores => [newStoreMapped, ...prevStores]);
-      //   toast({ title: "Store Created", description: `${newStoreMapped.name} has been successfully created.` });
-      // } else {
-      //   toast({ variant: "destructive", title: "Error", description: "Could not create store on the backend." });
-      // }
+      const storePayload = await processAndValidateFormData();
+      if (!storePayload) {
+          setIsSubmitting(false);
+          return;
+      }
 
-      // Mock logic (replace with above when ready)
-      const newStoreForMock: MockStoreType = {
-        id: `store_mock_${crypto.randomUUID()}`, // Use crypto.randomUUID()
-        user_id: authUser.id,
-        name: storePayload.name,
-        description: storePayload.description,
-        logo: storePayload.logo_url || "https://placehold.co/200x100.png",
-        dataAiHint: storePayload.data_ai_hint || "store logo",
-        status: storePayload.status,
-        category: storePayload.category,
-        socialLinks: storePayload.social_links?.map(sl => ({ platform: sl.platform as any, url: sl.url })),
-        location: storePayload.location || undefined,
-        createdAt: new Date().toISOString().split("T")[0],
-      };
-      setStores(prevStores => [newStoreForMock, ...prevStores]);
-      toast({ title: "Store Created (Mock)", description: `${newStoreForMock.name} has been successfully created.` });
+      const { data: newStoreFromBackend, error } = await createStore(authUser.id, storePayload, formLogoSlot.file);
       
-      setIsAddDialogOpen(false);
-      resetFormFields();
+      if (error) {
+        throw error;
+      }
+
+      if (newStoreFromBackend) {
+        // Map StoreFromSupabase to MockStoreType for local state update
+        const newStoreMapped: MockStoreType = {
+            id: newStoreFromBackend.id,
+            user_id: newStoreFromBackend.user_id,
+            name: newStoreFromBackend.name,
+            description: newStoreFromBackend.description,
+            logo: newStoreFromBackend.logo_url || "https://placehold.co/200x100.png?text=No+Logo",
+            dataAiHint: newStoreFromBackend.data_ai_hint || "store logo",
+            status: newStoreFromBackend.status,
+            category: newStoreFromBackend.category,
+            socialLinks: newStoreFromBackend.social_links?.map(sl => ({ platform: sl.platform as MockSocialLinkType["platform"], url: sl.url })),
+            location: newStoreFromBackend.location || undefined,
+            createdAt: new Date(newStoreFromBackend.created_at).toISOString().split("T")[0],
+        };
+        setStores(prevStores => [newStoreMapped, ...prevStores]);
+        toast({ title: "Store Created", description: `${newStoreMapped.name} has been successfully created.` });
+        setIsAddDialogOpen(false);
+        resetFormFields();
+      } else {
+        toast({ variant: "destructive", title: "Error", description: "Could not create store on the backend." });
+      }
     } catch (error) {
       console.error("Failed to add store:", error);
       if (error instanceof Error) {
         toast({ variant: "destructive", title: "Error Creating Store", description: error.message });
       } else {
-        toast({ variant: "destructive", title: "Error", description: "An unknown error occurred." });
+        toast({ variant: "destructive", title: "Error", description: "An unknown error occurred while creating the store." });
       }
     } finally {
         setIsSubmitting(false);
@@ -304,14 +307,16 @@ export default function StoresPage() {
         return;
     }
     setIsSubmitting(true);
-    const storePayload = await processAndValidateFormData();
-    if (!storePayload) {
-        setIsSubmitting(false);
-        return;
-    }
-
     try {
-        // const updatedStoreFromBackend = await updateStore(selectedStore.id, authUser.id, storePayload, formLogoSlot.file);
+        const storePayload = await processAndValidateFormData();
+        if (!storePayload) {
+            setIsSubmitting(false);
+            return;
+        }
+
+        // TODO: Implement updateStore in storeService.ts and call it here
+        // const { data: updatedStoreFromBackend, error } = await updateStore(selectedStore.id, authUser.id, storePayload, formLogoSlot.file);
+        // if (error) throw error;
         // if (updatedStoreFromBackend) {
         //     const updatedStoreMapped: MockStoreType = { /* map StoreFromSupabase to MockStoreType */ };
         //     setStores(prevStores => prevStores.map(s => s.id === selectedStore.id ? updatedStoreMapped : s));
@@ -320,16 +325,16 @@ export default function StoresPage() {
         //     toast({ variant: "destructive", title: "Error", description: "Could not update store on the backend." });
         // }
 
-        // Mock logic:
+        // Mock logic for now:
         const updatedStoreForMock: MockStoreType = {
             ...selectedStore,
             name: storePayload.name,
             description: storePayload.description,
-            logo: storePayload.logo_url || selectedStore.logo,
+            logo: formLogoSlot.previewUrl || selectedStore.logo, // Use preview URL if available for immediate UI update
             dataAiHint: storePayload.data_ai_hint || selectedStore.dataAiHint,
             status: storePayload.status,
             category: storePayload.category,
-            socialLinks: storePayload.social_links?.map(sl => ({ platform: sl.platform as any, url: sl.url })),
+            socialLinks: storePayload.social_links?.map(sl => ({ platform: sl.platform as MockSocialLinkType["platform"], url: sl.url })),
             location: storePayload.location || undefined,
         };
         setStores(prevStores => prevStores.map(s => s.id === selectedStore.id ? updatedStoreForMock : s));
@@ -343,7 +348,7 @@ export default function StoresPage() {
        if (error instanceof Error) {
         toast({ variant: "destructive", title: "Error Updating Store", description: error.message });
       } else {
-        toast({ variant: "destructive", title: "Error", description: "An unknown error occurred." });
+        toast({ variant: "destructive", title: "Error", description: "An unknown error occurred while updating the store." });
       }
     } finally {
         setIsSubmitting(false);
@@ -354,16 +359,14 @@ export default function StoresPage() {
     if (!selectedStore || !authUser) return;
     setIsSubmitting(true);
     try {
-        // const success = await deleteStore(selectedStore.id, authUser.id);
-        // if (success) {
-        //     setStores(prevStores => prevStores.filter(s => s.id !== selectedStore.id));
-        //     toast({ title: "Store Deleted", description: `${selectedStore.name} has been successfully deleted.` });
-        // } else {
-        //     toast({ variant: "destructive", title: "Error", description: "Could not delete store on the backend." });
-        // }
+        // TODO: Implement deleteStore in storeService.ts and call it here
+        // const { error } = await deleteStore(selectedStore.id, authUser.id);
+        // if (error) throw error;
+        // setStores(prevStores => prevStores.filter(s => s.id !== selectedStore.id));
+        // toast({ title: "Store Deleted", description: `${selectedStore.name} has been successfully deleted.` });
 
         // Mock Logic
-        setStores(prevStores => prevStores.filter(s => s.id !== selectedStore.id));
+        setStores(prevStores => prevStores.filter(s => s.id !== selectedStore!.id));
         toast({ title: "Store Deleted (Mock)", description: `${selectedStore.name} has been successfully deleted.`, variant: "destructive" });
 
         setIsDeleteDialogOpen(false);
@@ -384,16 +387,16 @@ export default function StoresPage() {
     setFormSocialLinks(prevLinks => {
         const existingLinkIndex = prevLinks.findIndex(link => link.platform === platform);
         if (existingLinkIndex > -1) {
-            if (url.trim() === "") { // Remove if URL is cleared
+            if (url.trim() === "") { 
                 return prevLinks.filter(link => link.platform !== platform);
             }
             const updatedLinks = [...prevLinks];
             updatedLinks[existingLinkIndex] = { ...updatedLinks[existingLinkIndex], url };
             return updatedLinks;
-        } else if (url.trim() !== "") { // Add new if URL is provided
+        } else if (url.trim() !== "") { 
             return [...prevLinks, { platform, url }];
         }
-        return prevLinks; // No change if new and URL is empty
+        return prevLinks; 
     });
   };
 
@@ -502,7 +505,7 @@ export default function StoresPage() {
                 <h1 className="text-2xl font-semibold">Your Stores</h1>
                 <Button disabled><PlusCircle className="mr-2 h-4 w-4" /> Create Store</Button>
             </div>
-            <div className="text-center py-10">Loading stores...</div>
+            <div className="text-center py-10 text-muted-foreground">Loading your stores...</div>
         </div>
     );
   }
@@ -513,7 +516,7 @@ export default function StoresPage() {
         <h1 className="text-2xl font-semibold">Your Stores</h1>
         <Dialog open={isAddDialogOpen} onOpenChange={(isOpen) => { setIsAddDialogOpen(isOpen); if (!isOpen) resetFormFields();}}>
           <DialogTrigger asChild>
-            <Button onClick={() => { setSelectedStore(null); resetFormFields(); setIsAddDialogOpen(true); }}>
+            <Button onClick={() => { setSelectedStore(null); resetFormFields(); setIsAddDialogOpen(true); }} disabled={!authUser}>
               <PlusCircle className="mr-2 h-4 w-4" /> Create Store
             </Button>
           </DialogTrigger>
@@ -532,104 +535,113 @@ export default function StoresPage() {
                 </ScrollArea>
               <DialogFooter className="pt-4 border-t">
                 <Button type="button" variant="outline" onClick={() => {setIsAddDialogOpen(false); resetFormFields();}}>Cancel</Button>
-                <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Creating..." : "Create Store"}</Button>
+                <Button type="submit" disabled={isSubmitting || !authUser}>{isSubmitting ? "Creating..." : "Create Store"}</Button>
               </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
       </div>
 
-      {stores.length === 0 && !isLoading && (
+      {!authUser && !isLoading && (
+        <div className="text-center text-muted-foreground py-10 col-span-full">
+            Please <Link href="/login" className="text-primary hover:underline">sign in</Link> to manage your stores.
+        </div>
+      )}
+
+      {authUser && stores.length === 0 && !isLoading && (
          <div className="text-center text-muted-foreground py-10 col-span-full">
           You haven't created any stores yet. Click "Create Store" to get started.
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {stores.map((store) => (
-          <Card key={store.id} className="flex flex-col">
-            <CardHeader>
-              <Image
-                alt={`${store.name} logo`}
-                className="aspect-[2/1] w-full rounded-t-md object-cover"
-                height={100}
-                src={store.logo || "https://placehold.co/200x100.png?text=No+Logo"}
-                width={200}
-                data-ai-hint={store.dataAiHint || "store logo"}
-              />
-              <div className="pt-4 flex items-center justify-between">
-                <CardTitle className="text-xl">{store.name}</CardTitle>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button aria-haspopup="true" size="icon" variant="ghost">
-                      <MoreVertical className="h-5 w-5" />
-                      <span className="sr-only">Store actions</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                    <DropdownMenuItem asChild>
-                      <Link href={`/dashboard?storeId=${store.id}`}>
-                        <ExternalLink className="mr-2 h-4 w-4" /> View Store Dashboard
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => prepareFormForEdit(store)}>
-                      <Edit className="mr-2 h-4 w-4" /> Edit Details
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => openDeleteDialog(store)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                      <Trash2 className="mr-2 h-4 w-4" /> Delete Store
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-              <CardDescription className="line-clamp-2">{store.description}</CardDescription>
-            </CardHeader>
-            <CardContent className="flex-grow space-y-3">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Badge variant="outline" className={`${storeStatusColors[store.status]} text-xs`}>
-                  {store.status}
-                </Badge>
-                <span>· Created {new Date(store.createdAt).toLocaleDateString()}</span>
-              </div>
-               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Tag className="mr-1 h-4 w-4" />
-                  <span>{store.category}</span>
+      {authUser && stores.length > 0 && (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {stores.map((store) => (
+            <Card key={store.id} className="flex flex-col">
+                <CardHeader>
+                <Image
+                    alt={`${store.name} logo`}
+                    className="aspect-[2/1] w-full rounded-t-md object-cover border"
+                    height={100}
+                    src={store.logo || "https://placehold.co/200x100.png?text=No+Logo"}
+                    width={200}
+                    data-ai-hint={store.dataAiHint || "store logo"}
+                    unoptimized={store.logo?.startsWith('blob:')} // Prevent optimization for blob URLs
+                />
+                <div className="pt-4 flex items-center justify-between">
+                    <CardTitle className="text-xl">{store.name}</CardTitle>
+                    <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button aria-haspopup="true" size="icon" variant="ghost">
+                        <MoreVertical className="h-5 w-5" />
+                        <span className="sr-only">Store actions</span>
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuItem asChild>
+                        <Link href={`/dashboard?storeId=${store.id}`}>
+                            <ExternalLink className="mr-2 h-4 w-4" /> View Store Dashboard
+                        </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => prepareFormForEdit(store)}>
+                        <Edit className="mr-2 h-4 w-4" /> Edit Details
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => openDeleteDialog(store)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete Store
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
-              {store.location && (
+                <CardDescription className="line-clamp-2">{store.description}</CardDescription>
+                </CardHeader>
+                <CardContent className="flex-grow space-y-3">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <MapPin className="mr-1 h-4 w-4" />
-                  <span>{store.location}</span>
+                    <Badge variant="outline" className={`${storeStatusColors[store.status]} text-xs`}>
+                    {store.status}
+                    </Badge>
+                    <span>· Created {new Date(store.createdAt).toLocaleDateString()}</span>
                 </div>
-              )}
-              {store.socialLinks && store.socialLinks.length > 0 && (
-                <div className="flex items-center gap-3 pt-1">
-                  {store.socialLinks.map(link => {
-                    const IconComponent = socialIconMap[link.platform as MockSocialLinkType["platform"]] || LinkIconLucide;
-                    return (
-                      <a 
-                        key={link.platform} 
-                        href={link.url} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        aria-label={`${store.name} on ${link.platform}`}
-                        className="text-muted-foreground hover:text-primary transition-colors"
-                      >
-                        <IconComponent className="h-4 w-4"/>
-                      </a>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-            <CardFooter>
-               <Button variant="outline" className="w-full" asChild>
-                <Link href={`/dashboard?storeId=${store.id}`}>Manage Store</Link>
-              </Button>
-            </CardFooter>
-          </Card>
-        ))}
-      </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Tag className="mr-1 h-4 w-4" />
+                    <span>{store.category}</span>
+                    </div>
+                {store.location && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <MapPin className="mr-1 h-4 w-4" />
+                    <span>{store.location}</span>
+                    </div>
+                )}
+                {store.socialLinks && store.socialLinks.length > 0 && (
+                    <div className="flex items-center gap-3 pt-1">
+                    {store.socialLinks.map(link => {
+                        const IconComponent = socialIconMap[link.platform as MockSocialLinkType["platform"]] || LinkIconLucide;
+                        return (
+                        <a 
+                            key={link.platform} 
+                            href={link.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            aria-label={`${store.name} on ${link.platform}`}
+                            className="text-muted-foreground hover:text-primary transition-colors"
+                        >
+                            <IconComponent className="h-4 w-4"/>
+                        </a>
+                        );
+                    })}
+                    </div>
+                )}
+                </CardContent>
+                <CardFooter>
+                <Button variant="outline" className="w-full" asChild>
+                    <Link href={`/dashboard?storeId=${store.id}`}>Manage Store</Link>
+                </Button>
+                </CardFooter>
+            </Card>
+            ))}
+        </div>
+      )}
 
       <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {setIsEditDialogOpen(isOpen); if(!isOpen) resetFormFields();}}>
         <DialogContent className="sm:max-w-lg">
@@ -648,7 +660,7 @@ export default function StoresPage() {
                 </ScrollArea>
               <DialogFooter className="pt-4 border-t">
                  <Button type="button" variant="outline" onClick={() => {setIsEditDialogOpen(false); resetFormFields();}}>Cancel</Button>
-                <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Saving..." : "Save Changes"}</Button>
+                <Button type="submit" disabled={isSubmitting || !authUser}>{isSubmitting ? "Saving..." : "Save Changes"}</Button>
               </DialogFooter>
             </form>
           )}
@@ -674,6 +686,3 @@ export default function StoresPage() {
     </div>
   );
 }
-
-
-    
