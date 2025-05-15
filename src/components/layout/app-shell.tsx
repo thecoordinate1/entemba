@@ -4,6 +4,8 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
+import type { User as AuthUser } from '@supabase/supabase-js';
+
 import {
   SidebarProvider,
   Sidebar,
@@ -23,6 +25,7 @@ import type { NavItem } from "@/config/nav";
 import { navItems } from "@/config/nav";
 import { LogOut, Settings, Gem, Store as StoreIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -30,7 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { initialStores, type Store } from "@/lib/mockData";
+import { initialStores, type Store } from "@/lib/mockData"; // Will be replaced by Supabase call
 import {
   Tooltip,
   TooltipContent,
@@ -38,21 +41,46 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { signOut } from "@/services/authService";
+import { getCurrentVendorProfile, type VendorProfile } from "@/services/userService";
 import { useToast } from "@/hooks/use-toast";
+import { createClient } from "@/lib/supabase/client";
 
 
-const UserDisplay = () => (
-  <div className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center">
-    <Avatar className="h-10 w-10">
-      <AvatarImage src="https://picsum.photos/seed/user-avatar/40/40" alt="Vendor Avatar" data-ai-hint="person portrait" />
-      <AvatarFallback>VD</AvatarFallback>
-    </Avatar>
-    <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-      <span className="text-sm font-medium text-sidebar-foreground">Vendor Name</span>
-      <span className="text-xs text-sidebar-foreground/70">vendor@example.com</span>
+interface UserDisplayProps {
+  displayName?: string | null;
+  email?: string | null;
+  avatarUrl?: string | null;
+  isLoading: boolean;
+}
+
+const UserDisplay: React.FC<UserDisplayProps> = ({ displayName, email, avatarUrl, isLoading }) => {
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center">
+        <Skeleton className="h-10 w-10 rounded-full" />
+        <div className="flex flex-col gap-1 group-data-[collapsible=icon]:hidden">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-3 w-32" />
+        </div>
+      </div>
+    );
+  }
+
+  const fallbackName = displayName?.substring(0, 2).toUpperCase() || "VD";
+
+  return (
+    <div className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center">
+      <Avatar className="h-10 w-10">
+        <AvatarImage src={avatarUrl || undefined} alt={displayName || "Vendor Avatar"} data-ai-hint="person portrait" />
+        <AvatarFallback>{fallbackName}</AvatarFallback>
+      </Avatar>
+      <div className="flex flex-col group-data-[collapsible=icon]:hidden">
+        <span className="text-sm font-medium text-sidebar-foreground truncate max-w-[150px]">{displayName || "Vendor"}</span>
+        <span className="text-xs text-sidebar-foreground/70 truncate max-w-[150px]">{email || "vendor@example.com"}</span>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const StoreSelector = ({ stores, selectedStoreId, onStoreChange }: { stores: Store[], selectedStoreId: string | null, onStoreChange: (storeId: string) => void }) => {
   const { state: sidebarState } = useSidebar();
@@ -101,10 +129,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const [selectedStoreId, setSelectedStoreId] = React.useState<string | null>(null);
-  const [availableStores, setAvailableStores] = React.useState<Store[]>([]);
+  const [availableStores, setAvailableStores] = React.useState<Store[]>(initialStores); // TODO: Replace with Supabase call
   const [defaultOpen, setDefaultOpen] = React.useState(true);
   const [hasMounted, setHasMounted] = React.useState(false);
   
+  const [authUser, setAuthUser] = React.useState<AuthUser | null>(null);
+  const [vendorDisplayName, setVendorDisplayName] = React.useState<string | null>(null);
+  const [vendorEmail, setVendorEmail] = React.useState<string | null>(null);
+  const [vendorAvatarUrl, setVendorAvatarUrl] = React.useState<string | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = React.useState(true);
+
+  const supabase = createClient();
 
   React.useEffect(() => {
     setHasMounted(true);
@@ -117,26 +152,70 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       setDefaultOpen(cookieValue === "true");
     }
     
-    setAvailableStores(initialStores);
-    const currentStoreIdFromUrl = searchParams.get("storeId");
+    const fetchInitialUserAndProfile = async () => {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      setAuthUser(currentUser);
+      if (currentUser) {
+        const { profile, error } = await getCurrentVendorProfile(currentUser.id);
+        if (profile) {
+          setVendorDisplayName(profile.display_name);
+          setVendorEmail(profile.email);
+          setVendorAvatarUrl(profile.avatar_url);
+        } else {
+          // Fallback to auth user metadata if profile not found or error
+          setVendorDisplayName(currentUser.user_metadata?.display_name || currentUser.email);
+          setVendorEmail(currentUser.email);
+          setVendorAvatarUrl(currentUser.user_metadata?.avatar_url);
+        }
+      }
+      setIsLoadingProfile(false);
+    };
 
-    if (currentStoreIdFromUrl && initialStores.some(s => s.id === currentStoreIdFromUrl)) {
+    fetchInitialUserAndProfile();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      const currentUser = session?.user ?? null;
+      setAuthUser(currentUser);
+      setIsLoadingProfile(true);
+      if (currentUser) {
+        const { profile, error } = await getCurrentVendorProfile(currentUser.id);
+        if (profile) {
+          setVendorDisplayName(profile.display_name);
+          setVendorEmail(profile.email);
+          setVendorAvatarUrl(profile.avatar_url);
+        } else {
+          setVendorDisplayName(currentUser.user_metadata?.display_name || currentUser.email);
+          setVendorEmail(currentUser.email);
+          setVendorAvatarUrl(currentUser.user_metadata?.avatar_url);
+        }
+      } else {
+        setVendorDisplayName(null);
+        setVendorEmail(null);
+        setVendorAvatarUrl(null);
+      }
+      setIsLoadingProfile(false);
+    });
+
+    // Store selector logic
+    const currentStoreIdFromUrl = searchParams.get("storeId");
+    if (currentStoreIdFromUrl && availableStores.some(s => s.id === currentStoreIdFromUrl)) {
         setSelectedStoreId(currentStoreIdFromUrl);
-    } else if (initialStores.length > 0) {
-        const firstStoreId = initialStores[0].id;
+    } else if (availableStores.length > 0) {
+        const firstStoreId = availableStores[0].id;
         setSelectedStoreId(firstStoreId);
         const newParams = new URLSearchParams(searchParams.toString());
         newParams.set("storeId", firstStoreId);
         router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
     } else {
       setSelectedStoreId(null);
-      const newParams = new URLSearchParams(searchParams.toString());
-      if (newParams.has("storeId")) {
-        newParams.delete("storeId");
-        router.replace(newParams.toString() ? `${pathname}?${newParams.toString()}` : pathname, { scroll: false });
-      }
+      // remove storeId from URL if no stores available or no selection
     }
-  }, [searchParams, pathname, router]);
+
+    return () => {
+      authListener?.subscription.unsubscribe();
+    };
+  }, [searchParams, pathname, router, supabase.auth, availableStores]);
+
 
   if (!hasMounted) {
     return (
@@ -162,7 +241,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (selectedStoreId) {
       currentParams.set("storeId", selectedStoreId);
     } else {
-      currentParams.delete("storeId");
+      currentParams.delete("storeId"); // Keep other params, remove storeId if not selected
     }
     const queryString = currentParams.toString();
     return queryString ? `${href}?${queryString}` : href;
@@ -232,7 +311,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </SidebarContent>
         
         <SidebarFooter className="p-4 space-y-2">
-          <UserDisplay />
+          <UserDisplay 
+            displayName={vendorDisplayName} 
+            email={vendorEmail}
+            avatarUrl={vendorAvatarUrl}
+            isLoading={isLoadingProfile}
+          />
           <Button variant="ghost" asChild className="w-full justify-start h-11 text-base group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:aspect-square group-data-[collapsible=icon]:h-11">
             <Link href={getHrefWithStoreId("/settings")}>
               <Settings className="mr-2 group-data-[collapsible=icon]:mr-0 h-5 w-5" /> <span className="group-data-[collapsible=icon]:hidden">Settings</span>
@@ -261,3 +345,5 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </SidebarProvider>
   );
 }
+
+    
