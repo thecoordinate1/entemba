@@ -3,7 +3,9 @@
 
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
-import NextImage from "next/image"; // Renamed to avoid conflict
+import NextImage from "next/image";
+import type { User as AuthUser } from '@supabase/supabase-js';
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,11 +16,15 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { initialStores, type Store, type SocialLink } from "@/lib/mockData"; // Removed storeStatusColors as it's not used here
+import { initialStores, type Store, type SocialLink } from "@/lib/mockData";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
 import { Instagram, Facebook, Twitter, Link as LinkIcon, Palette, User, Shield, CreditCard, Building, UploadCloud } from "lucide-react";
+
+import { createClient } from "@/lib/supabase/client";
+import { getCurrentVendorProfile, updateCurrentVendorProfile, uploadAvatar, type VendorProfile } from "@/services/userService";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const socialIconMap: Record<SocialLink["platform"], React.ElementType> = {
   Instagram: Instagram,
@@ -41,15 +47,18 @@ const fileToDataUri = (file: File): Promise<string> => {
 export default function SettingsPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const storeIdFromUrl = searchParams.get("storeId"); // Renamed to avoid conflict
+  const storeIdFromUrl = searchParams.get("storeId");
+  const supabase = createClient();
 
-  // Mock user data
-  const [userName, setUserName] = React.useState("Vendor Name");
-  const [userEmail, setUserEmail] = React.useState("vendor@example.com");
-  const [userAvatar, setUserAvatar] = React.useState("https://picsum.photos/seed/user1/100/100"); // Stores final data URI or URL
+  const [authUser, setAuthUser] = React.useState<AuthUser | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = React.useState(true);
+
+  // User profile state
+  const [userName, setUserName] = React.useState("");
+  const [userEmail, setUserEmail] = React.useState("");
+  const [userAvatar, setUserAvatar] = React.useState<string | null>(null); // Stores the actual URL of the avatar
   const [avatarFile, setAvatarFile] = React.useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = React.useState<string | null>(userAvatar);
-
+  const [avatarPreview, setAvatarPreview] = React.useState<string | null>(null); // For object URL preview
 
   // Store settings state
   const [selectedStore, setSelectedStore] = React.useState<Store | null>(null);
@@ -60,11 +69,10 @@ export default function SettingsPage() {
   const [storeStatus, setStoreStatus] = React.useState<Store["status"]>("Inactive");
   const [storeSocialLinks, setStoreSocialLinks] = React.useState<SocialLink[]>([]);
   
-  const [storeLogo, setStoreLogo] = React.useState<string>(""); // Stores final data URI or URL for logo
+  const [storeLogo, setStoreLogo] = React.useState<string>(""); 
   const [logoFile, setLogoFile] = React.useState<File | null>(null);
   const [logoPreview, setLogoPreview] = React.useState<string | null>(null);
   const [storeDataAiHint, setStoreDataAiHint] = React.useState<string>("");
-
 
   // Theme state
   const [currentTheme, setCurrentTheme] = React.useState("system");
@@ -74,6 +82,42 @@ export default function SettingsPage() {
     setCurrentTheme(storedTheme);
     applyTheme(storedTheme, false); 
   }, []);
+
+  // Fetch Auth User and Vendor Profile
+  React.useEffect(() => {
+    const fetchUserAndProfile = async () => {
+      setIsLoadingProfile(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      setAuthUser(user);
+
+      if (user) {
+        const { profile, error } = await getCurrentVendorProfile(user.id);
+        if (profile) {
+          setUserName(profile.display_name || user.user_metadata?.display_name || user.email || "");
+          setUserEmail(profile.email || user.email || "");
+          setUserAvatar(profile.avatar_url || user.user_metadata?.avatar_url || null);
+          setAvatarPreview(profile.avatar_url || user.user_metadata?.avatar_url || null);
+        } else {
+          // Fallback if no vendor profile exists yet
+          setUserName(user.user_metadata?.display_name || user.email || "");
+          setUserEmail(user.email || "");
+          setUserAvatar(user.user_metadata?.avatar_url || null);
+          setAvatarPreview(user.user_metadata?.avatar_url || null);
+          if (error) {
+            console.warn("Error fetching vendor profile, using auth data as fallback:", error.message);
+          }
+        }
+      } else {
+        // No user logged in, clear profile fields
+        setUserName("");
+        setUserEmail("");
+        setUserAvatar(null);
+        setAvatarPreview(null);
+      }
+      setIsLoadingProfile(false);
+    };
+    fetchUserAndProfile();
+  }, [supabase]);
   
   React.useEffect(() => {
     if (storeIdFromUrl) {
@@ -90,10 +134,10 @@ export default function SettingsPage() {
         setLogoPreview(foundStore.logo);
         setStoreDataAiHint(foundStore.dataAiHint || "store logo");
       } else {
-        setSelectedStore(null);
+        setSelectedStore(null); // Reset if store not found
       }
     } else {
-      setSelectedStore(null);
+      setSelectedStore(null); // Reset if no storeId in URL
     }
   }, [storeIdFromUrl]);
 
@@ -120,63 +164,93 @@ export default function SettingsPage() {
     const file = event.target.files?.[0];
     if (file) {
       setAvatarFile(file);
-      if (avatarPreview && avatarFile) URL.revokeObjectURL(avatarPreview); // Revoke old object URL
+      if (avatarPreview && (avatarPreview.startsWith('blob:') || avatarFile)) {
+         URL.revokeObjectURL(avatarPreview);
+      }
       setAvatarPreview(URL.createObjectURL(file));
     } else {
       setAvatarFile(null);
-      if (avatarPreview && avatarFile) URL.revokeObjectURL(avatarPreview);
+      if (avatarPreview && (avatarPreview.startsWith('blob:') || avatarFile)) {
+        URL.revokeObjectURL(avatarPreview);
+      }
       setAvatarPreview(userAvatar); // Revert to original/saved avatar
     }
   };
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    let finalAvatar = userAvatar;
+    if (!authUser) {
+      toast({ variant: "destructive", title: "Not Authenticated", description: "You must be logged in to update your profile." });
+      return;
+    }
+
+    let newAvatarUrl = userAvatar; // Start with current avatar URL
+
     if (avatarFile) {
-      try {
-        finalAvatar = await fileToDataUri(avatarFile);
-        setUserAvatar(finalAvatar);
-        if (avatarPreview && avatarFile) URL.revokeObjectURL(avatarPreview); // Clean up object URL
-        setAvatarPreview(finalAvatar); // Show the new data URI
-        setAvatarFile(null); // Reset file input state
-      } catch (error) {
-        toast({ variant: "destructive", title: "Avatar Upload Failed", description: "Could not process the image." });
+      const { publicUrl, error: uploadError } = await uploadAvatar(authUser.id, avatarFile);
+      if (uploadError) {
+        toast({ variant: "destructive", title: "Avatar Upload Failed", description: uploadError.message || "Could not process the image." });
         return;
       }
+      if (publicUrl) {
+        newAvatarUrl = publicUrl;
+      }
     }
-    // Update name, email etc.
-    toast({ title: "Profile Updated", description: "Your profile information has been saved." });
+
+    const { profile, error: updateError } = await updateCurrentVendorProfile(authUser.id, {
+      display_name: userName,
+      email: userEmail, // Assuming email can be updated; if not, remove this
+      avatar_url: newAvatarUrl,
+    });
+
+    if (updateError) {
+      toast({ variant: "destructive", title: "Profile Update Failed", description: updateError.message || "Could not save profile changes." });
+    } else {
+      toast({ title: "Profile Updated", description: "Your profile information has been saved." });
+      // Update local state to reflect saved changes
+      if (profile) {
+        setUserName(profile.display_name || "");
+        setUserEmail(profile.email || "");
+        setUserAvatar(profile.avatar_url || null);
+        setAvatarPreview(profile.avatar_url || null); // Show the new data URI/URL
+      }
+      setAvatarFile(null); // Reset file input state
+    }
   };
   
   const handleLogoFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       setLogoFile(file);
-      if (logoPreview && logoFile) URL.revokeObjectURL(logoPreview);
+      if (logoPreview && (logoPreview.startsWith('blob:') || logoFile)) URL.revokeObjectURL(logoPreview);
       setLogoPreview(URL.createObjectURL(file));
     } else {
       setLogoFile(null);
-      if (logoPreview && logoFile) URL.revokeObjectURL(logoPreview);
+      if (logoPreview && (logoPreview.startsWith('blob:') || logoFile)) URL.revokeObjectURL(logoPreview);
       setLogoPreview(storeLogo); 
     }
   };
 
   const handleStoreSettingsUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedStore) return;
+    if (!selectedStore || !authUser) {
+        toast({ variant: "destructive", title: "Error", description: "No store selected or user not authenticated." });
+        return;
+    }
 
-    let finalLogo = storeLogo;
+    let finalLogoUrl = selectedStore.logo;
     if (logoFile) {
+        // Here you would upload logoFile to Supabase storage, similar to avatar
+        // For mock: const { publicUrl, error } = await uploadStoreLogo(authUser.id, selectedStore.id, logoFile);
+        // For now, we'll simulate with a data URI or keep existing
         try {
-            finalLogo = await fileToDataUri(logoFile);
-            if (logoPreview && logoFile) URL.revokeObjectURL(logoPreview);
-            setLogoPreview(finalLogo);
-            setLogoFile(null);
+            finalLogoUrl = await fileToDataUri(logoFile); // Placeholder for actual upload URL
         } catch (error) {
-            toast({ variant: "destructive", title: "Logo Upload Failed", description: "Could not process the logo image." });
+             toast({ variant: "destructive", title: "Logo Upload Failed", description: "Could not process the logo image." });
             return;
         }
     }
+
 
     const updatedStoreData: Partial<Store> = {
         name: storeName,
@@ -185,53 +259,39 @@ export default function SettingsPage() {
         location: storeLocation || undefined,
         status: storeStatus,
         socialLinks: storeSocialLinks.filter(link => link.url.trim() !== ''),
-        logo: finalLogo,
+        logo: finalLogoUrl, // Use the uploaded/updated logo URL
         dataAiHint: storeDataAiHint,
     };
     
+    // In a real app, you'd call a service function like:
+    // const { updatedStore, error } = await updateStoreService(selectedStore.id, updatedStoreData);
+    
+    // Mock update:
     const storeIndex = initialStores.findIndex(s => s.id === selectedStore.id);
     if (storeIndex !== -1) {
         initialStores[storeIndex] = { ...initialStores[storeIndex], ...updatedStoreData } as Store;
+        setSelectedStore(initialStores[storeIndex]); // Update local state
+        setStoreLogo(finalLogoUrl); // Reflect new logo
+        setLogoPreview(finalLogoUrl);
+        setLogoFile(null);
     }
-    setSelectedStore(prev => prev ? ({...prev, ...updatedStoreData} as Store) : null);
-    setStoreLogo(finalLogo); // Update the main logo state as well
 
     toast({ title: "Store Settings Updated", description: `${storeName} settings have been saved.` });
   };
 
   const handleSocialLinkChange = (index: number, platform: SocialLink["platform"], url: string) => {
     const newLinks = [...storeSocialLinks];
-    const existingLinkIndex = newLinks.findIndex(link => link.platform === platform);
-
-    if (url.trim() === "") { // If URL is empty, remove the link if it exists
-        if (existingLinkIndex > -1) {
-            newLinks.splice(existingLinkIndex, 1);
-        }
-    } else { // If URL is not empty
-        if (existingLinkIndex > -1) { // Update existing link
-            newLinks[existingLinkIndex].url = url;
-        } else { // Add new link if it doesn't exist
-             // This path is less likely with the current fixed UI, but good for robustness
-             // For fixed inputs, usually only existing links are modified or created if empty initially.
-             // Let's ensure we target the correct one via index if it's for a pre-defined slot.
-            if(newLinks[index] && newLinks[index].platform === platform) {
-                 newLinks[index].url = url;
-            } else {
-                 // This case handles if we're adding a new platform not initially in the array,
-                 // or if the index mapping is complex. For this UI, direct indexing is simpler.
-                 // Let's assume the UI provides a fixed set of platform inputs.
-                 // We find or create the specific platform.
-                 let targetLink = newLinks.find(l => l.platform === platform);
-                 if(targetLink) targetLink.url = url;
-                 else newLinks.push({ platform, url });
-            }
-        }
+    let targetLink = newLinks.find(l => l.platform === platform);
+    if (targetLink) {
+        if (url.trim() === "") newLinks.splice(newLinks.indexOf(targetLink), 1);
+        else targetLink.url = url;
+    } else if (url.trim() !== "") {
+        newLinks.push({ platform, url });
     }
     setStoreSocialLinks(newLinks);
   };
   
   const getSocialUrl = (platform: SocialLink["platform"]) => storeSocialLinks.find(link => link.platform === platform)?.url || "";
-
 
   const handlePasswordChange = (e: React.FormEvent) => {
     e.preventDefault();
@@ -240,9 +300,9 @@ export default function SettingsPage() {
   };
 
   React.useEffect(() => {
-    return () => { // Cleanup object URLs on unmount
-      if (avatarPreview && avatarFile) URL.revokeObjectURL(avatarPreview);
-      if (logoPreview && logoFile) URL.revokeObjectURL(logoPreview);
+    return () => { 
+      if (avatarPreview && (avatarPreview.startsWith('blob:') || avatarFile)) URL.revokeObjectURL(avatarPreview);
+      if (logoPreview && (logoPreview.startsWith('blob:') || logoFile)) URL.revokeObjectURL(logoPreview);
     };
   }, [avatarPreview, avatarFile, logoPreview, logoFile]);
 
@@ -266,27 +326,39 @@ export default function SettingsPage() {
               <CardDescription>Manage your personal information.</CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleProfileUpdate} className="space-y-6">
-                <div className="flex flex-col items-center space-y-4">
-                  <Avatar className="h-32 w-32">
-                    <AvatarImage src={avatarPreview || undefined} alt={userName} data-ai-hint="person portrait" />
-                    <AvatarFallback>{userName.substring(0, 2).toUpperCase()}</AvatarFallback>
-                  </Avatar>
-                   <div className="grid w-full max-w-sm items-center gap-1.5">
-                    <Label htmlFor="avatarFile">Upload Avatar</Label>
-                    <Input id="avatarFile" type="file" accept="image/*" onChange={handleAvatarFileChange} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90" />
+              {isLoadingProfile ? (
+                <div className="space-y-6">
+                  <div className="flex flex-col items-center space-y-4">
+                    <Skeleton className="h-32 w-32 rounded-full" />
+                    <Skeleton className="h-8 w-40" />
                   </div>
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-24" />
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="name">Name</Label>
-                  <Input id="name" value={userName} onChange={(e) => setUserName(e.target.value)} />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" value={userEmail} onChange={(e) => setUserEmail(e.target.value)} />
-                </div>
-                <Button type="submit">Update Profile</Button>
-              </form>
+              ) : (
+                <form onSubmit={handleProfileUpdate} className="space-y-6">
+                  <div className="flex flex-col items-center space-y-4">
+                    <Avatar className="h-32 w-32">
+                      <AvatarImage src={avatarPreview || undefined} alt={userName || "User"} data-ai-hint="person portrait" />
+                      <AvatarFallback>{userName ? userName.substring(0, 2).toUpperCase() : "U"}</AvatarFallback>
+                    </Avatar>
+                     <div className="grid w-full max-w-sm items-center gap-1.5">
+                      <Label htmlFor="avatarFile">Upload Avatar</Label>
+                      <Input id="avatarFile" type="file" accept="image/*" onChange={handleAvatarFileChange} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90" />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="name">Display Name</Label>
+                    <Input id="name" value={userName} onChange={(e) => setUserName(e.target.value)} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input id="email" type="email" value={userEmail} onChange={(e) => setUserEmail(e.target.value)} />
+                  </div>
+                  <Button type="submit">Update Profile</Button>
+                </form>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -300,7 +372,7 @@ export default function SettingsPage() {
                 {selectedStore ? `Manage settings for ${selectedStore.name}.` : "Select a store from the sidebar to manage its settings."}
               </CardDescription>
             </CardHeader>
-            {selectedStore && (
+            {selectedStore ? (
               <CardContent>
                 <form onSubmit={handleStoreSettingsUpdate} className="space-y-6">
                   <div className="flex flex-col items-center space-y-4">
@@ -372,6 +444,10 @@ export default function SettingsPage() {
                   <Button type="submit">Update Store Settings</Button>
                 </form>
               </CardContent>
+            ) : (
+                <CardContent>
+                    <p className="text-muted-foreground">Select a store from the sidebar to manage its settings, or create a new store if you don't have one.</p>
+                </CardContent>
             )}
           </Card>
         </TabsContent>
@@ -513,3 +589,5 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+    
