@@ -1,153 +1,150 @@
--- Helper function to check if the currently authenticated user owns a specific store.
--- This function assumes your 'stores' table has a 'user_id' column referencing 'auth.users.id'.
+-- Helper function to check if the current user owns a store
+-- Drop the function if it exists to ensure it's updated correctly
+DROP FUNCTION IF EXISTS is_store_owner(uuid);
+
 CREATE OR REPLACE FUNCTION is_store_owner(store_id_to_check uuid)
 RETURNS boolean
 LANGUAGE plpgsql
-SECURITY DEFINER
+SECURITY DEFINER -- Important for accessing tables RLS might otherwise restrict
+SET search_path = public -- Explicitly set search path
 AS $$
 BEGIN
   RETURN EXISTS (
     SELECT 1
-    FROM public.stores s
-    WHERE s.id = store_id_to_check AND s.user_id = auth.uid()
+    FROM public.stores s -- Alias the table
+    WHERE s.id = store_id_to_check AND s.vendor_id = auth.uid() -- Changed user_id to vendor_id
   );
 END;
 $$;
 
---
--- Policies for 'user-avatars' bucket
--- Files are expected to be in a folder named after the user's ID, e.g., '{user_id}/avatar.png'
---
+COMMENT ON FUNCTION is_store_owner(uuid) IS 'Checks if the currently authenticated user is the owner of the specified store, by checking vendor_id.';
 
--- Allow public read access to all avatars
-CREATE POLICY "Allow public read access to user avatars"
-ON storage.objects FOR SELECT
-USING ( bucket_id = 'user-avatars' );
+-- BUCKET: user-avatars
+-- Policies for the 'user-avatars' bucket
+-- Path convention: user-avatars/{user_id}/<filename>
+
+-- Allow public read access for avatars
+DROP POLICY IF EXISTS "Public read access for user avatars" ON storage.objects FOR SELECT;
+CREATE POLICY "Public read access for user avatars"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'user-avatars');
 
 -- Allow authenticated users to upload their own avatar
--- Assumes files are uploaded to a path like: user-avatars/{user_id}/filename.ext
-CREATE POLICY "Allow authenticated user to upload their own avatar"
-ON storage.objects FOR INSERT
-WITH CHECK (
-  bucket_id = 'user-avatars' AND
-  auth.role() = 'authenticated' AND
-  (storage.foldername(name))[1] = auth.uid()::text -- Checks if the first folder in the path is the user's ID
-);
+DROP POLICY IF EXISTS "Authenticated users can upload their own avatar" ON storage.objects FOR INSERT;
+CREATE POLICY "Authenticated users can upload their own avatar"
+  ON storage.objects FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    bucket_id = 'user-avatars'
+    AND auth.uid()::text = (storage.foldername(name))[1] -- Assumes folder name is user_id
+    AND auth.uid() IS NOT NULL
+  );
 
--- Allow authenticated users to update/replace their own avatar
-CREATE POLICY "Allow authenticated user to update their own avatar"
-ON storage.objects FOR UPDATE
-USING (
-  bucket_id = 'user-avatars' AND
-  auth.role() = 'authenticated' AND
-  (storage.foldername(name))[1] = auth.uid()::text
-)
-WITH CHECK (
-  bucket_id = 'user-avatars' AND
-  auth.role() = 'authenticated' AND
-  (storage.foldername(name))[1] = auth.uid()::text
-);
+-- Allow authenticated users to update/delete their own avatar
+DROP POLICY IF EXISTS "Authenticated users can update their own avatar" ON storage.objects FOR UPDATE;
+CREATE POLICY "Authenticated users can update their own avatar"
+  ON storage.objects FOR UPDATE
+  TO authenticated
+  USING (
+    bucket_id = 'user-avatars'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  )
+  WITH CHECK (
+    auth.uid() IS NOT NULL
+  );
 
--- Allow authenticated users to delete their own avatar
-CREATE POLICY "Allow authenticated user to delete their own avatar"
-ON storage.objects FOR DELETE
-USING (
-  bucket_id = 'user-avatars' AND
-  auth.role() = 'authenticated' AND
-  (storage.foldername(name))[1] = auth.uid()::text
-);
-
-
---
--- Policies for 'store-logos' bucket
--- Files are expected to be in a folder named after the store's ID, e.g., 'store-logos/{store_id}/logo.png'
---
-
--- Allow public read access to all store logos
-CREATE POLICY "Allow public read access to store logos"
-ON storage.objects FOR SELECT
-USING ( bucket_id = 'store-logos' );
-
--- Allow store owners to upload a logo for their store
--- Assumes files are uploaded to a path like: store-logos/{store_id}/filename.ext
-CREATE POLICY "Allow store owner to upload logo"
-ON storage.objects FOR INSERT
-WITH CHECK (
-  bucket_id = 'store-logos' AND
-  auth.role() = 'authenticated' AND
-  is_store_owner((storage.foldername(name))[1]::uuid) -- Checks if the user owns the store ID in the path
-);
-
--- Allow store owners to update the logo for their store
-CREATE POLICY "Allow store owner to update logo"
-ON storage.objects FOR UPDATE
-USING (
-  bucket_id = 'store-logos' AND
-  auth.role() = 'authenticated' AND
-  is_store_owner((storage.foldername(name))[1]::uuid)
-)
-WITH CHECK (
-  bucket_id = 'store-logos' AND
-  auth.role() = 'authenticated' AND
-  is_store_owner((storage.foldername(name))[1]::uuid)
-);
-
--- Allow store owners to delete the logo for their store
-CREATE POLICY "Allow store owner to delete logo"
-ON storage.objects FOR DELETE
-USING (
-  bucket_id = 'store-logos' AND
-  auth.role() = 'authenticated' AND
-  is_store_owner((storage.foldername(name))[1]::uuid)
-);
+DROP POLICY IF EXISTS "Authenticated users can delete their own avatar" ON storage.objects FOR DELETE;
+CREATE POLICY "Authenticated users can delete their own avatar"
+  ON storage.objects FOR DELETE
+  TO authenticated
+  USING (
+    bucket_id = 'user-avatars'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
 
 
---
--- Policies for 'product-images' bucket
--- Files are expected to be in a folder structure like: 'product-images/{store_id}/{product_id}/image.png'
--- or 'product-images/{store_id}/any_filename.png'
--- The policy primarily checks ownership of the top-level {store_id} folder.
---
+-- BUCKET: store-logos
+-- Policies for the 'store-logos' bucket
+-- Path convention: store-logos/{store_id}/<filename> (Note: The uploader's auth.uid() will be checked against store ownership)
 
--- Allow public read access to all product images
-CREATE POLICY "Allow public read access to product images"
-ON storage.objects FOR SELECT
-USING ( bucket_id = 'product-images' );
+-- Allow public read access for store logos
+DROP POLICY IF EXISTS "Public read access for store logos" ON storage.objects FOR SELECT;
+CREATE POLICY "Public read access for store logos"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'store-logos');
+
+-- Allow store owners to upload their store's logo
+-- The (storage.foldername(name))[1] segment in the path is assumed to be the store_id
+DROP POLICY IF EXISTS "Store owners can upload logos" ON storage.objects FOR INSERT;
+CREATE POLICY "Store owners can upload logos"
+  ON storage.objects FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    bucket_id = 'store-logos'
+    AND is_store_owner((storage.foldername(name))[1]::uuid) -- Check if user owns the store_id in path
+    AND auth.uid() IS NOT NULL
+  );
+
+-- Allow store owners to update/delete their store's logo
+DROP POLICY IF EXISTS "Store owners can update logos" ON storage.objects FOR UPDATE;
+CREATE POLICY "Store owners can update logos"
+  ON storage.objects FOR UPDATE
+  TO authenticated
+  USING (
+    bucket_id = 'store-logos'
+    AND is_store_owner((storage.foldername(name))[1]::uuid)
+  )
+  WITH CHECK ( auth.uid() IS NOT NULL );
+
+
+DROP POLICY IF EXISTS "Store owners can delete logos" ON storage.objects FOR DELETE;
+CREATE POLICY "Store owners can delete logos"
+  ON storage.objects FOR DELETE
+  TO authenticated
+  USING (
+    bucket_id = 'store-logos'
+    AND is_store_owner((storage.foldername(name))[1]::uuid)
+  );
+
+
+-- BUCKET: product-images
+-- Policies for the 'product-images' bucket
+-- Path convention: product-images/{store_id}/<any_subfolder_or_filename>
+
+-- Allow public read access for product images
+DROP POLICY IF EXISTS "Public read access for product images" ON storage.objects FOR SELECT;
+CREATE POLICY "Public read access for product images"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'product-images');
 
 -- Allow store owners to upload product images for their store
-CREATE POLICY "Allow store owner to upload product images"
-ON storage.objects FOR INSERT
-WITH CHECK (
-  bucket_id = 'product-images' AND
-  auth.role() = 'authenticated' AND
-  is_store_owner((storage.foldername(name))[1]::uuid) -- Checks ownership of the store_id part of the path
-);
+-- The (storage.foldername(name))[1] segment in the path is assumed to be the store_id
+DROP POLICY IF EXISTS "Store owners can upload product images" ON storage.objects FOR INSERT;
+CREATE POLICY "Store owners can upload product images"
+  ON storage.objects FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    bucket_id = 'product-images'
+    AND is_store_owner((storage.foldername(name))[1]::uuid) -- Check if user owns the store_id in path
+    AND auth.uid() IS NOT NULL
+  );
 
--- Allow store owners to update product images for their store
-CREATE POLICY "Allow store owner to update product images"
-ON storage.objects FOR UPDATE
-USING (
-  bucket_id = 'product-images' AND
-  auth.role() = 'authenticated' AND
-  is_store_owner((storage.foldername(name))[1]::uuid)
-)
-WITH CHECK (
-  bucket_id = 'product-images' AND
-  auth.role() = 'authenticated' AND
-  is_store_owner((storage.foldername(name))[1]::uuid)
-);
+-- Allow store owners to update/delete product images for their store
+DROP POLICY IF EXISTS "Store owners can update product images" ON storage.objects FOR UPDATE;
+CREATE POLICY "Store owners can update product images"
+  ON storage.objects FOR UPDATE
+  TO authenticated
+  USING (
+    bucket_id = 'product-images'
+    AND is_store_owner((storage.foldername(name))[1]::uuid)
+  )
+  WITH CHECK ( auth.uid() IS NOT NULL );
 
--- Allow store owners to delete product images for their store
-CREATE POLICY "Allow store owner to delete product images"
-ON storage.objects FOR DELETE
-USING (
-  bucket_id = 'product-images' AND
-  auth.role() = 'authenticated' AND
-  is_store_owner((storage.foldername(name))[1]::uuid)
-);
-
--- Note: For more granular control (e.g., ensuring a user can only manage images
--- for a *specific product* they own, rather than any product in a store they own),
--- your application logic before the upload would typically verify product ownership,
--- or you'd use more complex policies possibly involving metadata or more nested path checks if needed.
--- The current policy for product-images allows a store owner to manage any image within their store's top-level folder in this bucket.
+DROP POLICY IF EXISTS "Store owners can delete product images" ON storage.objects FOR DELETE;
+CREATE POLICY "Store owners can delete product images"
+  ON storage.objects FOR DELETE
+  TO authenticated
+  USING (
+    bucket_id = 'product-images'
+    AND is_store_owner((storage.foldername(name))[1]::uuid)
+  );

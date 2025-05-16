@@ -1,4 +1,3 @@
-
 -- Enable pgcrypto extension if not already enabled
 -- You might need to run this separately if you don't have permissions
 -- or if it's not enabled by default in your project.
@@ -14,21 +13,22 @@ END;
 $$ language 'plpgsql';
 
 -- Drop existing trigger and function for idempotency (handle_new_user)
-DROP TRIGGER IF EXISTS create_public_vendor_for_user ON auth.users;
-DROP FUNCTION IF EXISTS public.handle_new_user();
+-- The CASCADE will also drop the trigger if it depends on the function.
+DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
+
 
 -- Vendors Table
--- Stores public profile information for authenticated users (vendors)
-CREATE TABLE IF NOT EXISTS public.vendors (
-    id UUID NOT NULL DEFAULT auth.uid(),
-    display_name TEXT NOT NULL,
-    email TEXT NULL, -- Updated to allow NULL as per user's definition
-    avatar_url TEXT,
-    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-    updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-    CONSTRAINT vendors_pkey PRIMARY KEY (id),
-    CONSTRAINT vendors_email_key UNIQUE (email),
-    CONSTRAINT vendors_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE
+DROP TABLE IF EXISTS public.vendors CASCADE;
+CREATE TABLE public.vendors (
+  id uuid not null default auth.uid (),
+  display_name text not null,
+  email text null, -- As per user's provided definition
+  avatar_url text null,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now(),
+  constraint vendors_pkey primary key (id),
+  constraint vendors_email_key unique (email),
+  constraint vendors_id_fkey foreign KEY (id) references auth.users (id) on delete CASCADE
 );
 COMMENT ON TABLE public.vendors IS 'Stores public profile information for vendors, linked to auth.users.';
 -- Trigger for vendors updated_at
@@ -45,13 +45,14 @@ BEGIN
   VALUES (
     NEW.id,
     NEW.raw_user_meta_data->>'display_name',
-    NEW.raw_user_meta_data->>'email', -- email is passed from client's raw_user_meta_data
-    NEW.raw_user_meta_data->>'avatar_url' -- Optional avatar_url
-  );
+    NEW.raw_user_meta_data->>'email',
+    NEW.raw_user_meta_data->>'avatar_url'
+  )
+  ON CONFLICT (id) DO NOTHING; -- Prevents error if record somehow already exists
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-COMMENT ON FUNCTION public.handle_new_user() IS 'Automatically creates a vendor profile upon new user signup.';
+COMMENT ON FUNCTION public.handle_new_user() IS 'Automatically creates/updates a vendor profile upon new user signup, sourcing data from auth.users and its raw_user_meta_data.';
 
 -- Trigger to call handle_new_user on new user creation
 CREATE TRIGGER create_public_vendor_for_user
@@ -62,7 +63,7 @@ FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 -- Stores Table
 CREATE TABLE IF NOT EXISTS public.stores (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.vendors(id) ON DELETE CASCADE,
+    vendor_id UUID NOT NULL REFERENCES public.vendors(id) ON DELETE CASCADE, -- Changed from user_id
     name TEXT NOT NULL,
     description TEXT NOT NULL,
     logo_url TEXT,
@@ -89,7 +90,6 @@ CREATE TABLE IF NOT EXISTS public.social_links (
     created_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 COMMENT ON TABLE public.social_links IS 'Stores social media links for each store.';
--- No updated_at for social_links as they are usually created/deleted, not updated.
 
 -- Products Table
 CREATE TABLE IF NOT EXISTS public.products (
@@ -98,22 +98,19 @@ CREATE TABLE IF NOT EXISTS public.products (
     name TEXT NOT NULL,
     category TEXT NOT NULL,
     price DECIMAL NOT NULL,
-    order_price DECIMAL, -- Price for orders, can be different from display price
+    order_price DECIMAL,
     stock INTEGER NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'Draft', -- e.g., "Active", "Draft", "Archived"
+    status TEXT NOT NULL DEFAULT 'Draft',
     description TEXT,
     full_description TEXT NOT NULL,
-    sku TEXT, -- Should be unique per store, consider adding a unique constraint: UNIQUE (store_id, sku)
-    tags TEXT[], -- Array of text
+    sku TEXT,
+    tags TEXT[],
     weight_kg DECIMAL,
-    dimensions_cm JSONB, -- e.g., {"length": 10, "width": 10, "height": 10}
+    dimensions_cm JSONB,
     created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 COMMENT ON TABLE public.products IS 'Stores product information for each store.';
--- Optional: Unique constraint for SKU per store
--- ALTER TABLE public.products ADD CONSTRAINT unique_store_sku UNIQUE (store_id, sku);
--- Trigger for products updated_at
 DROP TRIGGER IF EXISTS products_updated_at_trigger ON public.products;
 CREATE TRIGGER products_updated_at_trigger
 BEFORE UPDATE ON public.products
@@ -124,23 +121,21 @@ CREATE TABLE IF NOT EXISTS public.product_images (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
     image_url TEXT NOT NULL,
-    data_ai_hint TEXT, -- For AI hint for image, if using image generation
-    "order" INTEGER DEFAULT 0, -- For image display order, quoted because "order" is a keyword
+    data_ai_hint TEXT,
+    "order" INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 COMMENT ON TABLE public.product_images IS 'Stores images associated with products.';
--- No updated_at for product_images as they are usually created/deleted, not updated.
 
 -- Customers Table
 CREATE TABLE IF NOT EXISTS public.customers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    -- user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL, -- Optional: if customers can also be authenticated users
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
     phone TEXT,
     avatar_url TEXT,
     data_ai_hint_avatar TEXT,
-    status TEXT NOT NULL DEFAULT 'Active', -- e.g., "Active", "Inactive", "Blocked"
+    status TEXT NOT NULL DEFAULT 'Active',
     tags TEXT[],
     street_address TEXT,
     city TEXT,
@@ -155,23 +150,21 @@ CREATE TABLE IF NOT EXISTS public.customers (
     updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 COMMENT ON TABLE public.customers IS 'Stores customer information.';
--- Trigger for customers updated_at
 DROP TRIGGER IF EXISTS customers_updated_at_trigger ON public.customers;
 CREATE TRIGGER customers_updated_at_trigger
 BEFORE UPDATE ON public.customers
 FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-
 -- Orders Table
 CREATE TABLE IF NOT EXISTS public.orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     store_id UUID NOT NULL REFERENCES public.stores(id) ON DELETE CASCADE,
-    customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL, -- Link to customer record
-    customer_name TEXT NOT NULL, -- Snapshot, or if customer_id is null
-    customer_email TEXT NOT NULL, -- Snapshot, or if customer_id is null
+    customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
+    customer_name TEXT NOT NULL,
+    customer_email TEXT NOT NULL,
     order_date TIMESTAMPTZ DEFAULT now() NOT NULL,
     total_amount DECIMAL NOT NULL,
-    status TEXT NOT NULL DEFAULT 'Pending', -- e.g., "Pending", "Processing", "Shipped", "Delivered", "Cancelled"
+    status TEXT NOT NULL DEFAULT 'Pending',
     shipping_address TEXT NOT NULL,
     billing_address TEXT NOT NULL,
     shipping_method TEXT,
@@ -181,7 +174,6 @@ CREATE TABLE IF NOT EXISTS public.orders (
     updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 COMMENT ON TABLE public.orders IS 'Stores order information.';
--- Trigger for orders updated_at
 DROP TRIGGER IF EXISTS orders_updated_at_trigger ON public.orders;
 CREATE TRIGGER orders_updated_at_trigger
 BEFORE UPDATE ON public.orders
@@ -191,34 +183,24 @@ FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 CREATE TABLE IF NOT EXISTS public.order_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
-    product_id UUID REFERENCES public.products(id) ON DELETE SET NULL, -- Can be nullable if product is deleted
-    product_name_snapshot TEXT NOT NULL, -- Snapshot of product name at time of order
+    product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
+    product_name_snapshot TEXT NOT NULL,
     quantity INTEGER NOT NULL,
-    price_per_unit_snapshot DECIMAL NOT NULL, -- Snapshot of price at time of order
-    product_image_url_snapshot TEXT, -- Snapshot of main image URL
-    data_ai_hint_snapshot TEXT, -- Snapshot of data AI hint
+    price_per_unit_snapshot DECIMAL NOT NULL,
+    product_image_url_snapshot TEXT,
+    data_ai_hint_snapshot TEXT,
     created_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 COMMENT ON TABLE public.order_items IS 'Stores individual items within an order.';
--- No updated_at for order_items usually.
 
--- Grant usage on public schema to anon and authenticated roles
--- This is often default but good to be explicit
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
-
--- Grant select on tables to anon and authenticated roles
--- Restrict further with RLS
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon, authenticated;
-GRANT INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated; -- More specific RLS will control actual access
-
--- Allow all users to execute the update_updated_at_column function
+GRANT INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
 GRANT EXECUTE ON FUNCTION public.update_updated_at_column() TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.handle_new_user() TO postgres, authenticated; -- Ensure authenticated role can effectively call this via trigger context
 
-
--- Indexes (Optional, but recommended for performance on larger datasets)
--- Consider adding indexes to foreign key columns and frequently queried columns.
--- Example:
--- CREATE INDEX IF NOT EXISTS idx_stores_user_id ON public.stores(user_id);
+-- Indexes (renaming user_id to vendor_id where applicable)
+-- CREATE INDEX IF NOT EXISTS idx_stores_vendor_id ON public.stores(vendor_id);
 -- CREATE INDEX IF NOT EXISTS idx_products_store_id ON public.products(store_id);
 -- CREATE INDEX IF NOT EXISTS idx_products_category ON public.products(category);
 -- CREATE INDEX IF NOT EXISTS idx_orders_store_id ON public.orders(store_id);
@@ -227,5 +209,3 @@ GRANT EXECUTE ON FUNCTION public.update_updated_at_column() TO anon, authenticat
 -- CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON public.order_items(order_id);
 -- CREATE INDEX IF NOT EXISTS idx_order_items_product_id ON public.order_items(product_id);
 -- CREATE INDEX IF NOT EXISTS idx_customers_email ON public.customers(email);
-
-```
