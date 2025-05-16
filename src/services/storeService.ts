@@ -34,11 +34,11 @@ export interface StoreFromSupabase {
   created_at: string;
   updated_at: string;
   social_links: {
-    id?: string;
-    store_id?: string;
+    // id?: string; // Supabase might not return id for nested selects unless specified
+    // store_id?: string;
     platform: string;
     url: string;
-    created_at?: string;
+    // created_at?: string;
   }[];
 }
 
@@ -47,7 +47,7 @@ async function uploadStoreLogo(userId: string, storeId: string, file: File): Pro
   const filePath = `store-logos/${userId}/${storeId}/${Date.now()}_${file.name}`;
   console.log(`[storeService.uploadStoreLogo] Uploading to: ${filePath}`);
   const { error: uploadError } = await supabase.storage
-    .from('store-logos') // Ensure this bucket name uses hyphens if you changed it
+    .from('store-logos')
     .upload(filePath, file, {
       cacheControl: '3600',
       upsert: true,
@@ -68,17 +68,26 @@ async function uploadStoreLogo(userId: string, storeId: string, file: File): Pro
 }
 
 export async function getStoresByUserId(userId: string): Promise<{ data: StoreFromSupabase[] | null, error: Error | null }> {
+  console.log('[storeService.getStoresByUserId] Fetching stores for vendor_id:', userId); // Logging the userId
+
   const { data: storesData, error: storesError } = await supabase
     .from('stores')
     .select('id, vendor_id, name, description, logo_url, data_ai_hint, status, category, location, created_at, updated_at, social_links(platform, url)')
-    .eq('vendor_id', userId) // Changed from user_id
+    .eq('vendor_id', userId) // Ensure this matches your column name 'vendor_id'
     .order('created_at', { ascending: false });
 
   if (storesError) {
-    console.error('[storeService.getStoresByUserId] Error fetching stores:', storesError);
-    return { data: null, error: new Error(storesError.message || 'Failed to fetch stores.') };
+    console.error('[storeService.getStoresByUserId] Supabase fetch error:', storesError);
+    let message = 'Failed to fetch stores.';
+    if (storesError.message) {
+        message = storesError.message;
+    } else if (Object.keys(storesError).length === 0) {
+        message = 'Failed to fetch stores. This might be due to Row Level Security policies or network issues.';
+    }
+    return { data: null, error: new Error(message) };
   }
   
+  console.log('[storeService.getStoresByUserId] Fetched stores data:', storesData);
   return { data: (storesData as StoreFromSupabase[]) || [], error: null };
 }
 
@@ -90,7 +99,7 @@ export async function createStore(
   console.log(`[storeService.createStore] Attempting to insert store for vendor ID: ${userId}`, { storeData, hasLogoFile: !!logoFile });
 
   const initialStoreInsertData = {
-    vendor_id: userId, // Changed from user_id
+    vendor_id: userId,
     name: storeData.name,
     description: storeData.description,
     category: storeData.category,
@@ -110,16 +119,21 @@ export async function createStore(
 
   if (createStoreError || !newStore) {
     let message = 'Failed to create store record.';
-    if (createStoreError?.message && typeof createStoreError.message === 'string' && createStoreError.message.trim() !== '') {
-        message = createStoreError.message;
-    } else if (createStoreError && Object.keys(createStoreError).length === 0) {
-        message = 'Store creation failed. This usually indicates a Row Level Security policy or data constraint is preventing the operation or read-back.';
-    } else if (!newStore && !createStoreError) {
-        message = 'Failed to create store record or retrieve it after insert. Check RLS for SELECT policy for `auth.uid() = vendor_id`.';
+    if (createStoreError) {
+        if (createStoreError.message && typeof createStoreError.message === 'string' && createStoreError.message.trim() !== '') {
+            message = createStoreError.message;
+        } else if (Object.keys(createStoreError).length === 0) {
+            message = 'Store creation failed. This usually indicates a Row Level Security policy or data constraint is preventing the operation or read-back. Ensure RLS SELECT policy for `auth.uid() = vendor_id` exists.';
+        } else {
+            message = `Supabase error during store insert: ${JSON.stringify(createStoreError)}`;
+        }
+    } else if (!newStore) {
+        message = 'Failed to create store record or retrieve it after insert. This strongly suggests an RLS SELECT policy is missing or incorrect for the `stores` table (e.g., `auth.uid() = vendor_id`).';
     }
     console.error('[storeService.createStore] Error creating store. Message:', message, 'Original Supabase Error:', createStoreError || 'No specific Supabase error object returned.');
     return { data: null, error: new Error(message) };
   }
+  
 
   let currentStoreData: StoreFromSupabase = { ...newStore, social_links: [] } as StoreFromSupabase;
   let logoUrlToSave = newStore.logo_url;
@@ -230,16 +244,18 @@ export async function updateStore(
     .from('stores')
     .update(storeUpdates)
     .eq('id', storeId)
-    .eq('vendor_id', userId) // Ensure user can only update their own store
+    .eq('vendor_id', userId) 
     .select()
     .single();
 
   if (updateStoreError) {
     let message = 'Failed to update store details.';
-     if (updateStoreError?.message && typeof updateStoreError.message === 'string' && updateStoreError.message.trim() !== '') {
+     if (updateStoreError.message && typeof updateStoreError.message === 'string' && updateStoreError.message.trim() !== '') {
         message = updateStoreError.message;
-    } else if (updateStoreError && Object.keys(updateStoreError).length === 0) {
+    } else if (Object.keys(updateStoreError).length === 0) {
         message = 'Store update failed. This might be due to Row Level Security policies or data constraints.';
+    } else {
+        message = `Supabase error during store update: ${JSON.stringify(updateStoreError)}`;
     }
     console.error('[storeService.updateStore] Error updating store details:', message, 'Original Supabase Error:', updateStoreError);
     return { data: null, error: new Error(message) };
@@ -295,18 +311,31 @@ export async function updateStore(
 export async function deleteStore(storeId: string, userId: string): Promise<{ error: Error | null }> { // userId is auth.uid()
   console.log(`[storeService.deleteStore] Attempting to delete store ID: ${storeId} for vendor ID: ${userId}`);
   
+  // First, delete associated social links (optional, but good practice if not using ON DELETE CASCADE for social_links table itself)
+  const { error: deleteSocialLinksError } = await supabase
+    .from('social_links')
+    .delete()
+    .eq('store_id', storeId);
+
+  if (deleteSocialLinksError) {
+    console.warn(`[storeService.deleteStore] Could not delete social links for store ${storeId}:`, deleteSocialLinksError.message);
+    // Depending on requirements, you might choose to stop here or continue deleting the store
+  }
+  
   const { error } = await supabase
     .from('stores')
     .delete()
     .eq('id', storeId)
-    .eq('vendor_id', userId); // Ensure user can only delete their own store
+    .eq('vendor_id', userId); 
 
   if (error) {
     let message = 'Failed to delete store.';
-    if (error?.message && typeof error.message === 'string' && error.message.trim() !== '') {
+    if (error.message && typeof error.message === 'string' && error.message.trim() !== '') {
         message = error.message;
-    } else if (error && Object.keys(error).length === 0) {
+    } else if (Object.keys(error).length === 0) {
         message = 'Store deletion failed. This might be due to Row Level Security policies or data constraints.';
+    } else {
+        message = `Supabase error during store delete: ${JSON.stringify(error)}`;
     }
     console.error('[storeService.deleteStore] Error deleting store:', message, 'Original Supabase Error:', error);
     return { error: new Error(message) };
@@ -314,3 +343,5 @@ export async function deleteStore(storeId: string, userId: string): Promise<{ er
   console.log(`[storeService.deleteStore] Store ${storeId} successfully deleted from DB.`);
   return { error: null };
 }
+
+    
