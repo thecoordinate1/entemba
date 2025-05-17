@@ -1,6 +1,4 @@
 -- Enable pgcrypto extension if not already enabled
--- You might need to run this separately if you don't have permissions
--- or if it's not enabled by default in your project.
 -- CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Function to automatically update 'updated_at' timestamps
@@ -13,16 +11,14 @@ END;
 $$ language 'plpgsql';
 
 -- Drop existing trigger and function for idempotency (handle_new_user)
--- The CASCADE will also drop the trigger if it depends on the function.
+DROP TRIGGER IF EXISTS create_public_vendor_for_user ON auth.users;
 DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
 
-
--- Vendors Table
-DROP TABLE IF EXISTS public.vendors CASCADE;
-CREATE TABLE public.vendors (
+-- Vendors Table (as per your provided definition with email TEXT NULL)
+CREATE TABLE IF NOT EXISTS public.vendors (
   id uuid not null default auth.uid (),
   display_name text not null,
-  email text null, -- As per user's provided definition
+  email text null,
   avatar_url text null,
   created_at timestamp with time zone not null default now(),
   updated_at timestamp with time zone not null default now(),
@@ -48,7 +44,7 @@ BEGIN
     NEW.raw_user_meta_data->>'email',
     NEW.raw_user_meta_data->>'avatar_url'
   )
-  ON CONFLICT (id) DO NOTHING; -- Prevents error if record somehow already exists
+  ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -63,18 +59,18 @@ FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 -- Stores Table
 CREATE TABLE IF NOT EXISTS public.stores (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    vendor_id UUID NOT NULL REFERENCES public.vendors(id) ON DELETE CASCADE, -- Changed from user_id
+    vendor_id UUID NOT NULL REFERENCES public.vendors(id) ON DELETE CASCADE, -- Renamed from user_id
     name TEXT NOT NULL,
     description TEXT NOT NULL,
     logo_url TEXT,
-    data_ai_hint TEXT, -- For AI hint for logo, if using image generation
-    status TEXT NOT NULL DEFAULT 'Inactive', -- e.g., "Active", "Inactive", "Maintenance"
+    data_ai_hint TEXT,
+    status TEXT NOT NULL DEFAULT 'Inactive',
     category TEXT NOT NULL,
     location TEXT,
     created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
-COMMENT ON TABLE public.stores IS 'Stores information about vendor storefronts.';
+COMMENT ON TABLE public.stores IS 'Stores information about vendor storefronts. vendor_id links to public.vendors.';
 -- Trigger for stores updated_at
 DROP TRIGGER IF EXISTS stores_updated_at_trigger ON public.stores;
 CREATE TRIGGER stores_updated_at_trigger
@@ -85,7 +81,7 @@ FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 CREATE TABLE IF NOT EXISTS public.social_links (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     store_id UUID NOT NULL REFERENCES public.stores(id) ON DELETE CASCADE,
-    platform TEXT NOT NULL, -- e.g., "Instagram", "Facebook", "Twitter", "TikTok", "LinkedIn", "Other"
+    platform TEXT NOT NULL,
     url TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
@@ -193,19 +189,66 @@ CREATE TABLE IF NOT EXISTS public.order_items (
 );
 COMMENT ON TABLE public.order_items IS 'Stores individual items within an order.';
 
-GRANT USAGE ON SCHEMA public TO anon, authenticated;
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon, authenticated;
-GRANT INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
-GRANT EXECUTE ON FUNCTION public.update_updated_at_column() TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.handle_new_user() TO postgres, authenticated; -- Ensure authenticated role can effectively call this via trigger context
+-- RLS Policies for public.stores table
+-- Ensure RLS is enabled for the 'stores' table in your Supabase dashboard.
+ALTER TABLE public.stores ENABLE ROW LEVEL SECURITY;
 
--- Indexes (renaming user_id to vendor_id where applicable)
--- CREATE INDEX IF NOT EXISTS idx_stores_vendor_id ON public.stores(vendor_id);
--- CREATE INDEX IF NOT EXISTS idx_products_store_id ON public.products(store_id);
--- CREATE INDEX IF NOT EXISTS idx_products_category ON public.products(category);
--- CREATE INDEX IF NOT EXISTS idx_orders_store_id ON public.orders(store_id);
--- CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON public.orders(customer_id);
--- CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders(status);
--- CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON public.order_items(order_id);
--- CREATE INDEX IF NOT EXISTS idx_order_items_product_id ON public.order_items(product_id);
--- CREATE INDEX IF NOT EXISTS idx_customers_email ON public.customers(email);
+DROP POLICY IF EXISTS "Vendors can insert their own stores" ON public.stores;
+CREATE POLICY "Vendors can insert their own stores"
+  ON public.stores
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = vendor_id); -- Ensure this checks against vendor_id
+
+DROP POLICY IF EXISTS "Vendors can view their own stores" ON public.stores;
+CREATE POLICY "Vendors can view their own stores"
+  ON public.stores
+  FOR SELECT
+  TO authenticated
+  USING (auth.uid() = vendor_id); -- Ensure this checks against vendor_id
+
+DROP POLICY IF EXISTS "Vendors can update their own stores" ON public.stores;
+CREATE POLICY "Vendors can update their own stores"
+  ON public.stores
+  FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = vendor_id) -- Check current owner for update eligibility
+  WITH CHECK (auth.uid() = vendor_id); -- Ensure vendor_id is not changed to someone else's
+
+DROP POLICY IF EXISTS "Vendors can delete their own stores" ON public.stores;
+CREATE POLICY "Vendors can delete their own stores"
+  ON public.stores
+  FOR DELETE
+  TO authenticated
+  USING (auth.uid() = vendor_id); -- Ensure this checks against vendor_id
+
+
+-- Grant usage on public schema to anon and authenticated roles
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+
+-- Grant permissions on tables to authenticated role (RLS will further restrict)
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.vendors TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.stores TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.social_links TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.products TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.product_images TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.customers TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.orders TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.order_items TO authenticated;
+
+-- Allow execution of helper functions
+GRANT EXECUTE ON FUNCTION public.update_updated_at_column() TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.handle_new_user() TO authenticated; -- Only authenticated users trigger this via auth
+
+-- Enable RLS for other tables if not already enabled (examples)
+-- ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+-- Define policies for products, orders, etc., ensuring they check store_id and then vendor_id of the store.
+-- Example product policies:
+-- CREATE POLICY "Vendors can manage products in their own stores" ON public.products
+--   FOR ALL TO authenticated USING (
+--     store_id IN (SELECT id FROM public.stores WHERE vendor_id = auth.uid())
+--   ) WITH CHECK (
+--     store_id IN (SELECT id FROM public.stores WHERE vendor_id = auth.uid())
+--   );
+
+```
