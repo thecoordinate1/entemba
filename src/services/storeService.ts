@@ -41,11 +41,11 @@ export interface StoreFromSupabase {
 
 // Helper to upload store logo
 async function uploadStoreLogo(userId: string, storeId: string, file: File): Promise<{ publicUrl: string | null, error: Error | null }> {
-  const filePath = `store-logos/${userId}/${storeId}/${Date.now()}_${file.name}`;
-  console.log(`[storeService.uploadStoreLogo] Uploading to: ${filePath}`);
+  const pathWithinBucket = `${userId}/${storeId}/${Date.now()}_${file.name}`;
+  console.log(`[storeService.uploadStoreLogo] Uploading to: store-logos/${pathWithinBucket}`);
   const { error: uploadError } = await supabase.storage
     .from('store-logos') // Ensure this bucket name is correct and RLS is set up
-    .upload(filePath, file, {
+    .upload(pathWithinBucket, file, {
       cacheControl: '3600',
       upsert: true,
     });
@@ -55,17 +55,17 @@ async function uploadStoreLogo(userId: string, storeId: string, file: File): Pro
     let message = 'Failed to upload store logo.';
     if (uploadError.message && typeof uploadError.message === 'string' && uploadError.message.trim() !== '') {
         message = uploadError.message;
-    } else if (Object.keys(uploadError).length === 0) { // Check for empty error object
-        message = 'Store logo upload failed. This might be due to bucket RLS policies or storage configuration issues. Ensure the store-logos bucket exists and policies allow uploads for the authenticated user for the path: ' + filePath;
+    } else if (Object.keys(uploadError).length === 0) {
+        message = 'Store logo upload failed. This might be due to bucket RLS policies or storage configuration issues. Ensure the store-logos bucket exists and policies allow uploads for the authenticated user for the path: ' + pathWithinBucket;
     } else {
-        message = `Supabase storage error during logo upload: ${JSON.stringify(uploadError)}`;
+        message = `Supabase storage error during logo upload. Details: ${JSON.stringify(uploadError)}`;
     }
     const constructedError = new Error(message);
-    console.error('[storeService.uploadStoreLogo] Constructed error to be returned:', constructedError);
+    // console.error('[storeService.uploadStoreLogo] Constructed error to be returned:', constructedError);
     return { publicUrl: null, error: constructedError };
   }
 
-  const { data } = supabase.storage.from('store-logos').getPublicUrl(filePath);
+  const { data } = supabase.storage.from('store-logos').getPublicUrl(pathWithinBucket);
   if (!data?.publicUrl) {
     console.error('[storeService.uploadStoreLogo] Failed to get public URL for logo.');
     return { publicUrl: null, error: new Error('Failed to get public URL for logo.') };
@@ -99,6 +99,7 @@ export async function getStoresByUserId(userId: string): Promise<{ data: StoreFr
     return { data: [], error: null };
   }
 
+  // Fetch social links separately for each store
   const storesWithSocialLinks = await Promise.all(
     storesData.map(async (store) => {
       const { data: socialLinksData, error: socialLinksError } = await supabase
@@ -118,6 +119,7 @@ export async function getStoresByUserId(userId: string): Promise<{ data: StoreFr
   return { data: storesWithSocialLinks as StoreFromSupabase[], error: null };
 }
 
+
 export async function createStore(
   userId: string,
   storeData: StorePayload,
@@ -132,8 +134,8 @@ export async function createStore(
     category: storeData.category,
     status: storeData.status,
     location: storeData.location,
-    logo_url: null, // Will be updated after upload if successful
-    data_ai_hint: null, // Will be updated after upload if successful
+    logo_url: null, 
+    data_ai_hint: null, 
   };
 
   const { data: newStore, error: createStoreError } = await supabase
@@ -152,7 +154,7 @@ export async function createStore(
       } else if (Object.keys(createStoreError).length === 0) {
         message = 'Store creation failed. This likely indicates a Row Level Security policy is preventing the operation or the read-back of the inserted row. Ensure RLS SELECT policy for `vendor_id = auth.uid()` exists on `stores` table.';
       } else {
-        message = `Supabase error during store insert: ${JSON.stringify(createStoreError)}`;
+        message = `Supabase error during store insert. Details: ${JSON.stringify(createStoreError)}`;
       }
     } else if (!newStore) {
       message = 'Failed to create store record or retrieve it after insert. This strongly suggests an RLS SELECT policy on the `stores` table (e.g., `vendor_id = auth.uid()`) is missing or incorrect, or the insert itself failed silently.';
@@ -170,18 +172,14 @@ export async function createStore(
     const { publicUrl: uploadedLogoUrl, error: logoUploadError } = await uploadStoreLogo(userId, newStore.id, logoFile);
 
     if (logoUploadError) {
-      console.error('[storeService.createStore] Logo upload failed for new store:', logoUploadError.message); // Log the message of the Error object
-      // If logo upload fails, we still created the store.
-      // Propagate the error so the UI can inform the user.
-      // But we'll return the store data we have so far, without the logo.
-      // It's better to throw the error so the UI knows the full operation wasn't successful.
+      console.error('[storeService.createStore] Logo upload failed for new store:', logoUploadError.message);
       return { data: currentStoreData, error: logoUploadError };
     }
     if (uploadedLogoUrl) {
       logoUrlToSave = uploadedLogoUrl;
       finalDataAiHint = storeData.data_ai_hint;
     }
-  } else if (storeData.logo_url) {
+  } else if (storeData.logo_url) { // If a logo URL was provided directly (e.g. from a previous value if editing, or manually entered)
     logoUrlToSave = storeData.logo_url;
     finalDataAiHint = storeData.data_ai_hint;
   }
@@ -196,13 +194,15 @@ export async function createStore(
       .single();
 
     if (updateLogoError || !updatedStoreWithLogo) {
-      console.warn('[storeService.createStore] Error updating store with logo URL and hint:', updateLogoError?.message || 'No error message');
+      console.warn('[storeService.createStore] Error updating store with logo URL and hint:', updateLogoError?.message || 'No error message. Could be RLS on update or select.');
+      // Don't overwrite currentStoreData if update fails, but log the issue.
     } else {
       console.log(`[storeService.createStore] Store ${newStore.id} successfully updated with logo info.`);
-      currentStoreData = { ...updatedStoreWithLogo, social_links: [] };
+      currentStoreData = { ...updatedStoreWithLogo, social_links: currentStoreData.social_links }; // Preserve existing social links if any
     }
   }
 
+  // Handle social links
   if (storeData.social_links && storeData.social_links.length > 0) {
     const socialLinksToInsert = storeData.social_links.map(link => ({
       store_id: newStore.id,
@@ -213,13 +213,16 @@ export async function createStore(
     const { data: insertedSocialLinks, error: socialLinksError } = await supabase
       .from('social_links')
       .insert(socialLinksToInsert)
-      .select('platform, url');
+      .select('platform, url'); // Ensure we select what we need
+      
     if (socialLinksError) {
       console.warn('[storeService.createStore] Error inserting social links:', socialLinksError.message);
+      // Continue, social links are not critical for store creation failure
     } else {
       currentStoreData.social_links = insertedSocialLinks || [];
     }
   }
+
 
   console.log('[storeService.createStore] Successfully created/updated store parts:', currentStoreData);
   return { data: currentStoreData, error: null };
@@ -246,7 +249,7 @@ export async function updateStore(
     }
     if (publicUrl) {
       newLogoUrl = publicUrl;
-      newAiHint = storeData.data_ai_hint; // Use hint from form if new logo uploaded
+      newAiHint = storeData.data_ai_hint; 
     }
   }
 
@@ -288,6 +291,7 @@ export async function updateStore(
   }
 
   console.log(`[storeService.updateStore] Store ${storeId} details updated. Managing social links.`);
+  // Delete existing social links for the store first
   const { error: deleteSocialLinksError } = await supabase
     .from('social_links')
     .delete()
@@ -295,6 +299,7 @@ export async function updateStore(
 
   if (deleteSocialLinksError) {
     console.warn('[storeService.updateStore] Error deleting existing social links:', deleteSocialLinksError.message);
+    // Decide if this is a critical error. For now, we'll proceed.
   }
 
   let insertedSocialLinksData: { platform: string, url: string }[] = [];
@@ -329,6 +334,9 @@ export async function updateStore(
 
 export async function deleteStore(storeId: string, userId: string): Promise<{ error: Error | null }> {
   console.log(`[storeService.deleteStore] Attempting to delete store ID: ${storeId} for vendor ID: ${userId}`);
+
+  // Add logic here to delete associated storage files (e.g., logo) if necessary before deleting the store record.
+  // For now, just deleting the DB record.
 
   const { error } = await supabase
     .from('stores')

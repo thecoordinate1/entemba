@@ -1,3 +1,4 @@
+
 // src/services/userService.ts
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
@@ -14,27 +15,28 @@ export interface VendorProfile {
 }
 
 export async function getCurrentVendorProfile(userId: string): Promise<{ profile: VendorProfile | null, error: any }> {
+  console.log("[userService.getCurrentVendorProfile] Fetching profile for userId:", userId);
   if (!userId) {
-    console.error("getCurrentVendorProfile: User ID is required.");
+    console.error("[userService.getCurrentVendorProfile] User ID is required.");
     return { profile: null, error: { message: "User ID is required." } };
   }
 
   const { data, error } = await supabase
-    .from('vendors') // Ensure this table name matches your Supabase schema
+    .from('vendors') 
     .select('*')
     .eq('id', userId)
     .single();
 
-  if (error && error.code !== 'PGRST116') { // PGRST116: No rows found, not necessarily an error for a profile check
-    console.error('Error fetching vendor profile:', error);
+  if (error && error.code !== 'PGRST116') { 
+    console.error('[userService.getCurrentVendorProfile] Error fetching vendor profile:', JSON.stringify(error, null, 2));
     return { profile: null, error };
   }
   
   if (!data) {
-    // console.log('No vendor profile found for user ID:', userId);
-    return { profile: null, error: null }; // Or error: { message: 'Profile not found' } if that's preferred
+    console.log('[userService.getCurrentVendorProfile] No vendor profile found for user ID:', userId);
+    return { profile: null, error: null };
   }
-
+  console.log("[userService.getCurrentVendorProfile] Profile fetched:", data);
   return { profile: data as VendorProfile, error: null };
 }
 
@@ -42,28 +44,26 @@ export async function updateCurrentVendorProfile(
   userId: string,
   updates: {
     display_name?: string;
-    email?: string; // Ensure email is part of updates if it's meant to be updatable here
+    email?: string; 
     avatar_url?: string;
   }
 ): Promise<{ profile: VendorProfile | null, error: any }> {
+  console.log("[userService.updateCurrentVendorProfile] Updating profile for userId:", userId, "with updates:", updates);
   if (!userId) {
-    console.error("updateCurrentVendorProfile: User ID is required.");
+    console.error("[userService.updateCurrentVendorProfile] User ID is required.");
     return { profile: null, error: { message: "User ID is required for update." } };
   }
 
-  // Prevent updating primary key or other restricted fields if 'updates' could contain them
   const allowedUpdates: Partial<VendorProfile> = {};
   if (updates.display_name !== undefined) allowedUpdates.display_name = updates.display_name;
-  if (updates.email !== undefined) allowedUpdates.email = updates.email; // Add email if updatable
+  if (updates.email !== undefined) allowedUpdates.email = updates.email; 
   if (updates.avatar_url !== undefined) allowedUpdates.avatar_url = updates.avatar_url;
   
   if (Object.keys(allowedUpdates).length === 0) {
-    console.warn("updateCurrentVendorProfile: No valid fields to update.");
-    // Optionally fetch and return current profile if no updates are made
-    // return getCurrentVendorProfile(userId); 
-    return { profile: null, error: {message: "No valid fields to update."}};
+    console.warn("[userService.updateCurrentVendorProfile] No valid fields to update.");
+    const currentProfile = await getCurrentVendorProfile(userId);
+    return { profile: currentProfile.profile, error: {message: "No valid fields to update."}};
   }
-
 
   const { data, error } = await supabase
     .from('vendors')
@@ -73,10 +73,10 @@ export async function updateCurrentVendorProfile(
     .single();
 
   if (error) {
-    console.error('Error updating vendor profile:', error);
+    console.error('[userService.updateCurrentVendorProfile] Error updating vendor profile:', JSON.stringify(error, null, 2));
     return { profile: null, error };
   }
-
+  console.log("[userService.updateCurrentVendorProfile] Profile updated successfully:", data);
   return { profile: data as VendorProfile, error: null };
 }
 
@@ -85,28 +85,37 @@ export async function uploadAvatar(userId: string, file: File): Promise<{ public
     return { publicUrl: null, error: { message: "User ID and file are required for avatar upload." } };
   }
 
-  const filePath = `user-avatars/${userId}/${file.name}-${Date.now()}`; // Add timestamp to avoid overwriting with same name
+  const pathWithinBucket = `${userId}/${file.name}-${Date.now()}`;
+  console.log(`[userService.uploadAvatar] Uploading avatar to: user-avatars/${pathWithinBucket}`);
   
   const { error: uploadError } = await supabase.storage
-    .from('user-avatars') // Ensure this bucket name is correct ('user-avatars')
-    .upload(filePath, file, {
+    .from('user-avatars') 
+    .upload(pathWithinBucket, file, {
       cacheControl: '3600',
-      upsert: true, // Using upsert: true is fine if you want to overwrite
+      upsert: true, 
     });
 
   if (uploadError) {
-    console.error('Error uploading avatar:', uploadError);
-    return { publicUrl: null, error: uploadError };
+    console.error('[userService.uploadAvatar] Raw Supabase upload error:', JSON.stringify(uploadError, null, 2));
+    let message = 'Failed to upload avatar.';
+    if (uploadError.message && typeof uploadError.message === 'string' && uploadError.message.trim() !== '') {
+        message = uploadError.message;
+    } else if (Object.keys(uploadError).length === 0) {
+        message = 'Avatar upload failed. This might be due to bucket RLS policies or storage configuration issues. Ensure the user-avatars bucket exists and policies allow uploads for the authenticated user for the path: ' + pathWithinBucket;
+    } else {
+        message = `Supabase storage error during avatar upload. Details: ${JSON.stringify(uploadError)}`;
+    }
+    return { publicUrl: null, error: new Error(message) };
   }
 
   const { data } = supabase.storage
     .from('user-avatars')
-    .getPublicUrl(filePath);
+    .getPublicUrl(pathWithinBucket);
 
   if (!data?.publicUrl) {
-    console.error('Failed to get public URL for uploaded avatar.');
+    console.error('[userService.uploadAvatar] Failed to get public URL for uploaded avatar.');
     return { publicUrl: null, error: { message: 'Failed to get public URL for avatar.'} };
   }
-  
+  console.log(`[userService.uploadAvatar] Avatar uploaded successfully. Public URL: ${data.publicUrl}`);
   return { publicUrl: data.publicUrl, error: null };
 }
