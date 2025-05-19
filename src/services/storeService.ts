@@ -23,7 +23,7 @@ export interface StorePayload { // For creating/updating store data
 
 export interface StoreFromSupabase {
   id: string;
-  vendor_id: string;
+  vendor_id: string; // Changed from user_id
   name: string;
   description: string;
   logo_url: string | null;
@@ -58,14 +58,14 @@ function getPathFromStorageUrl(url: string, bucketName: string): string | null {
 
 // Helper to upload store logo
 async function uploadStoreLogo(userId: string, storeId: string, file: File): Promise<{ publicUrl: string | null, error: Error | null }> {
-  const pathWithinBucket = `${userId}/${storeId}/${Date.now()}_${file.name}`;
+  const pathWithinBucket = `${userId}/${storeId}/${Date.now()}_${file.name}`; // Path within the bucket
   console.log(`[storeService.uploadStoreLogo] Uploading to: store-logos/${pathWithinBucket}`);
   
   const { error: uploadError } = await supabase.storage
-    .from('store-logos')
-    .upload(pathWithinBucket, file, {
+    .from('store-logos') // Bucket name
+    .upload(pathWithinBucket, file, { // Path within bucket
       cacheControl: '3600',
-      upsert: true, // True to overwrite if file with same name exists (good for logos)
+      upsert: true,
     });
 
   if (uploadError) {
@@ -74,19 +74,19 @@ async function uploadStoreLogo(userId: string, storeId: string, file: File): Pro
     if (uploadError.message && typeof uploadError.message === 'string' && uploadError.message.trim() !== '') {
         message = uploadError.message;
     } else if (Object.keys(uploadError).length === 0) { // Check if error object is empty
-        message = 'Store logo upload failed. This might be due to bucket RLS policies or storage configuration issues. Ensure the store-logos bucket exists and policies allow uploads for the authenticated user for the path: ' + pathWithinBucket;
+        message = `Store logo upload failed due to an empty error object from Supabase. This often indicates an RLS policy issue on the 'store-logos' bucket or misconfiguration. Path: ${pathWithinBucket}`;
     } else {
         message = `Supabase storage error during logo upload. Details: ${JSON.stringify(uploadError)}`;
     }
     const constructedError = new Error(message);
-    console.error('[storeService.uploadStoreLogo] Constructed error to be returned:', constructedError.message, "Original Supabase Error:", uploadError);
+    console.error('[storeService.uploadStoreLogo] Constructed error to be returned:', constructedError.message, "Original Supabase Error (again):", uploadError);
     return { publicUrl: null, error: constructedError };
   }
 
   const { data } = supabase.storage.from('store-logos').getPublicUrl(pathWithinBucket);
   if (!data?.publicUrl) {
     console.error('[storeService.uploadStoreLogo] Failed to get public URL for logo.');
-    return { publicUrl: null, error: new Error('Failed to get public URL for logo.') };
+    return { publicUrl: null, error: new Error('Failed to get public URL for logo after upload.') };
   }
   console.log(`[storeService.uploadStoreLogo] Successfully uploaded. Public URL: ${data.publicUrl}`);
   return { publicUrl: data.publicUrl, error: null };
@@ -142,13 +142,28 @@ export async function getStoreById(storeId: string, userId: string): Promise<{ d
     .single();
 
   if (storeError) {
-    console.error(`[storeService.getStoreById] Error fetching store ${storeId}:`, storeError);
-    return { data: null, error: new Error(storeError.message || 'Failed to fetch store.') };
+    let message = `Failed to fetch store ${storeId}.`;
+    if (storeError.message && typeof storeError.message === 'string' && storeError.message.trim() !== '') {
+        message = storeError.message;
+    } else if (Object.keys(storeError).length === 0) { // Check if error object is empty
+        message = `Error fetching store ${storeId}. This strongly indicates an RLS SELECT policy issue on the 'stores' table preventing access, or the store does not exist/match vendor_id. Please verify RLS.`;
+    } else {
+        message = `Supabase error fetching store ${storeId}. Details: ${JSON.stringify(storeError)}`;
+    }
+    console.error(`[storeService.getStoreById] Error fetching store ${storeId}:`, message, 'Original Supabase Error:', JSON.stringify(storeError, null, 2));
+    return { data: null, error: new Error(message) };
   }
+  
   if (!storeData) {
-    return { data: null, error: new Error('Store not found or access denied.') };
+    // This case implies storeError was null, but storeData is also null.
+    // .single() should return an error (PGRST116) if no rows, or multiple rows are found.
+    // If it's null without an error, it's unusual but could still point to an RLS issue
+    // where the query is technically valid but RLS filters out the result.
+    console.warn(`[storeService.getStoreById] No store data returned for store ${storeId} and user ${userId}, despite no explicit Supabase error. This is highly indicative of an RLS SELECT policy issue on the 'stores' table, or the store does not exist / not owned by user.`);
+    return { data: null, error: new Error('Store not found or access denied. Please verify RLS SELECT policies on the "stores" table and ensure the store exists and is owned by the user.') };
   }
 
+  // Fetch social links separately
   const { data: socialLinksData, error: socialLinksError } = await supabase
     .from('social_links')
     .select('platform, url')
@@ -156,7 +171,8 @@ export async function getStoreById(storeId: string, userId: string): Promise<{ d
 
   if (socialLinksError) {
     console.warn(`[storeService.getStoreById] Error fetching social links for store ${storeId}:`, socialLinksError.message);
-     return { data: { ...storeData, social_links: [] } as StoreFromSupabase, error: null }; // Return store data even if social links fail
+     // Return store data even if social links fail, but log the warning.
+     return { data: { ...storeData, social_links: [] } as StoreFromSupabase, error: null };
   }
 
   return { data: { ...storeData, social_links: socialLinksData || [] } as StoreFromSupabase, error: null };
@@ -189,7 +205,6 @@ export async function createStore(
   
   console.log("[storeService.createStore] Supabase insert response:", { newStore: JSON.stringify(newStore), createStoreError: JSON.stringify(createStoreError, null, 2) });
 
-
   if (createStoreError || !newStore) {
     let message = 'Failed to create store record.';
     let details: any = createStoreError;
@@ -198,13 +213,13 @@ export async function createStore(
       if (createStoreError.message && typeof createStoreError.message === 'string' && createStoreError.message.trim() !== '') {
         message = createStoreError.message;
       } else if (Object.keys(createStoreError).length === 0) {
-        message = 'Store creation failed. This likely indicates a Row Level Security policy is preventing the operation or the read-back of the inserted row. Ensure RLS SELECT policy for `vendor_id = auth.uid()` exists on `stores` table.';
-        details = { reason: "RLS or data constraint issue", supabaseError: createStoreError };
+        message = 'Store creation failed. This likely indicates a Row Level Security policy is preventing the operation or the read-back of the inserted row. Ensure RLS INSERT and SELECT policies for `vendor_id = auth.uid()` exist on `stores` table.';
+        details = { reason: "RLS or data constraint issue, empty error object from Supabase", supabaseError: createStoreError };
       } else {
         message = `Supabase error during store insert. Details: ${JSON.stringify(createStoreError)}`;
       }
-    } else if (!newStore) {
-      message = 'Failed to create store record or retrieve it after insert. This strongly suggests an RLS SELECT policy on the `stores` table (e.g., `vendor_id = auth.uid()`) is missing or incorrect, or the insert itself failed silently.';
+    } else if (!newStore) { // createStoreError is null/undefined but newStore is also null
+      message = 'Failed to create store record or retrieve it after insert. This strongly suggests an RLS SELECT policy on the `stores` table (e.g., `vendor_id = auth.uid()`) is missing or incorrect, preventing read-back of the newly inserted row.';
       details = { reason: "Failed to retrieve after insert, likely RLS SELECT policy missing/incorrect" };
     }
     console.error('[storeService.createStore] Error creating store. Message:', message, "Original Supabase Error:", JSON.stringify(createStoreError, null, 2) || 'No specific Supabase error object returned.');
@@ -223,7 +238,6 @@ export async function createStore(
 
     if (logoUploadError) {
       console.warn('[storeService.createStore] Store created, but logo upload failed:', logoUploadError.message);
-      // Return the created store data but also the error related to logo upload
       const errorToReturn = new Error(`Store created, but logo upload failed: ${logoUploadError.message}`);
       (errorToReturn as any).details = logoUploadError;
       return { data: currentStoreData, error: errorToReturn };
@@ -231,11 +245,12 @@ export async function createStore(
     if (uploadedLogoUrl) {
       logoUrlToSave = uploadedLogoUrl;
     }
-  } else if (storeData.logo_url) {
-    logoUrlToSave = storeData.logo_url;
+  } else if (storeData.logo_url) { // If no new file, but a URL was in the payload (e.g. user cleared logo)
+    logoUrlToSave = storeData.logo_url; // This could be null if they cleared it
   }
 
-  if (logoUrlToSave && (logoUrlToSave !== newStore.logo_url || finalDataAiHint !== newStore.data_ai_hint )) {
+
+  if (logoUrlToSave !== newStore.logo_url || finalDataAiHint !== newStore.data_ai_hint ) {
     console.log(`[storeService.createStore] Updating store ${newStore.id} with logo_url: ${logoUrlToSave} and hint: ${finalDataAiHint}`);
     const { data: updatedStoreWithLogo, error: updateLogoError } = await supabase
       .from('stores')
@@ -284,22 +299,20 @@ export async function updateStore(
 ): Promise<{ data: StoreFromSupabase | null, error: Error | null }> {
   console.log(`[storeService.updateStore] Attempting to update store ID: ${storeId} for vendor ID: ${userId}`, { storeData, hasLogoFile: !!logoFile });
 
-  let newLogoUrl = storeData.logo_url; // Start with existing or provided URL (could be from form if user didn't change logo)
+  let newLogoUrl = storeData.logo_url; 
   let newAiHint = storeData.data_ai_hint;
 
   if (logoFile) {
     console.log(`[storeService.updateStore] New logo file provided for store ${storeId}, attempting to upload.`);
     const { publicUrl, error: uploadError } = await uploadStoreLogo(userId, storeId, logoFile);
     if (uploadError) {
-      console.error('[storeService.updateStore] Error updating store logo:', uploadError.message);
+      console.error('[storeService.updateStore] Error updating store logo:', uploadError.message, uploadError);
       return { data: null, error: new Error(`Logo upload failed: ${uploadError.message}`) };
     }
-    if (publicUrl) {
-      newLogoUrl = publicUrl;
-      // Use new hint from form if new logo uploaded, otherwise keep existing from storeData
-      newAiHint = storeData.data_ai_hint || ''; 
-    }
+    newLogoUrl = publicUrl; // Will be null if upload failed but no error thrown somehow, or actual URL.
+    newAiHint = storeData.data_ai_hint || ''; 
   }
+
 
   const storeUpdates = {
     name: storeData.name,
@@ -307,7 +320,7 @@ export async function updateStore(
     category: storeData.category,
     status: storeData.status,
     location: storeData.location,
-    logo_url: newLogoUrl,
+    logo_url: newLogoUrl, // This could be the newly uploaded URL, existing one, or null if cleared & no new upload
     data_ai_hint: newAiHint,
     updated_at: new Date().toISOString(),
   };
@@ -317,7 +330,7 @@ export async function updateStore(
     .from('stores')
     .update(storeUpdates)
     .eq('id', storeId)
-    .eq('vendor_id', userId) // Ensure user owns the store
+    .eq('vendor_id', userId) 
     .select('id, vendor_id, name, description, logo_url, data_ai_hint, status, category, location, created_at, updated_at')
     .single();
 
@@ -327,15 +340,17 @@ export async function updateStore(
         if (updateStoreError.message && typeof updateStoreError.message === 'string' && updateStoreError.message.trim() !== '') {
             message = updateStoreError.message;
         } else if (Object.keys(updateStoreError).length === 0) {
-            message = 'Store update failed. This might be due to RLS policies or data constraints preventing read-back.';
+            message = `Store update failed (empty error object). This strongly suggests an RLS policy issue on the 'stores' table preventing update or read-back. Store ID: ${storeId}`;
         } else {
-            message = `Supabase error during store update. Details: ${JSON.stringify(updateStoreError)}`;
+            message = `Supabase error during store update. Store ID: ${storeId}. Details: ${JSON.stringify(updateStoreError)}`;
         }
     } else if (!updatedStoreCore) {
-        message = 'Failed to update store or retrieve it after update. Ensure store exists and RLS allows operation for this vendor.';
+        message = `Failed to update store or retrieve it after update (no data returned). Ensure store exists, RLS allows operation for this vendor, and you have SELECT permissions. Store ID: ${storeId}`;
     }
-    console.error('[storeService.updateStore] Error updating store details:', message, 'Original Supabase Error:', JSON.stringify(updateStoreError, null, 2));
-    return { data: null, error: new Error(message) };
+    console.error('[storeService.updateStore] Error updating store details. Message:', message, 'Original Supabase Error:', JSON.stringify(updateStoreError, null, 2));
+    const errorToReturn = new Error(message);
+    (errorToReturn as any).details = updateStoreError;
+    return { data: null, error: errorToReturn };
   }
 
   console.log(`[storeService.updateStore] Store ${storeId} details updated. Managing social links.`);
@@ -347,7 +362,6 @@ export async function updateStore(
 
   if (deleteSocialLinksError) {
     console.warn('[storeService.updateStore] Error deleting existing social links:', deleteSocialLinksError.message);
-    // Non-fatal, proceed
   }
 
   let insertedSocialLinksData: { platform: string, url: string }[] = [];
@@ -365,7 +379,6 @@ export async function updateStore(
 
     if (insertSocialLinksError) {
       console.warn('[storeService.updateStore] Error inserting new social links:', insertSocialLinksError.message);
-      // Non-fatal
     } else {
       insertedSocialLinksData = newLinks || [];
     }
@@ -385,19 +398,18 @@ export async function deleteStore(storeId: string, userId: string): Promise<{ er
   console.log(`[storeService.deleteStore] Attempting to delete store ID: ${storeId} for vendor ID: ${userId}`);
 
   try {
-    // 1. Fetch store details to get logo URL and verify ownership
     const { data: storeDetails, error: fetchError } = await supabase
       .from('stores')
       .select('logo_url, vendor_id')
       .eq('id', storeId)
       .single();
 
-    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116: "Query response is empty" (store not found)
+    if (fetchError && fetchError.code !== 'PGRST116') {
       console.error('[storeService.deleteStore] Error fetching store details for deletion:', fetchError);
       return { error: new Error(`Failed to fetch store details before deletion: ${fetchError.message}`) };
     }
-    if (!storeDetails) { // Store not found (PGRST116 or simply no data)
-      console.warn(`[storeService.deleteStore] Store ${storeId} not found or access denied, assuming already deleted or not owned.`);
+    if (!storeDetails) {
+      console.warn(`[storeService.deleteStore] Store ${storeId} not found, access denied, or already deleted. No further action taken for this store ID.`);
       return { error: null }; 
     }
     if (storeDetails.vendor_id !== userId) {
@@ -405,7 +417,6 @@ export async function deleteStore(storeId: string, userId: string): Promise<{ er
         return { error: new Error('Access denied: You do not own this store.') };
     }
 
-    // 2. Delete Store Logo from Storage
     if (storeDetails.logo_url) {
       const logoPath = getPathFromStorageUrl(storeDetails.logo_url, 'store-logos');
       if (logoPath) {
@@ -419,7 +430,6 @@ export async function deleteStore(storeId: string, userId: string): Promise<{ er
       }
     }
 
-    // 3. Fetch all products of the store to get their images
     const { data: products, error: productsError } = await supabase
       .from('products')
       .select('id')
@@ -431,7 +441,6 @@ export async function deleteStore(storeId: string, userId: string): Promise<{ er
 
     if (products && products.length > 0) {
       const productIds = products.map(p => p.id);
-
       const { data: productImages, error: productImagesError } = await supabase
         .from('product_images')
         .select('image_url')
@@ -447,7 +456,7 @@ export async function deleteStore(storeId: string, userId: string): Promise<{ er
           .filter(path => path !== null) as string[];
 
         if (imagePathsToDelete.length > 0) {
-          console.log(`[storeService.deleteStore] Deleting product images from bucket 'product-images':`, imagePathsToDelete.length);
+          console.log(`[storeService.deleteStore] Deleting ${imagePathsToDelete.length} product images from bucket 'product-images'.`);
           const { error: bulkImageDeleteError } = await supabase.storage
             .from('product-images') 
             .remove(imagePathsToDelete);
@@ -458,7 +467,6 @@ export async function deleteStore(storeId: string, userId: string): Promise<{ er
       }
     }
 
-    // 5. Delete the store record from the database
     console.log(`[storeService.deleteStore] Deleting store record ${storeId} from database.`);
     const { error: deleteStoreDbError } = await supabase
       .from('stores')
@@ -468,13 +476,17 @@ export async function deleteStore(storeId: string, userId: string): Promise<{ er
 
     if (deleteStoreDbError) {
       let message = 'Failed to delete store from database.';
-       if (deleteStoreDbError.message) {
+       if (deleteStoreDbError.message && typeof deleteStoreDbError.message === 'string' && deleteStoreDbError.message.trim() !== '') {
         message = deleteStoreDbError.message;
       } else if (Object.keys(deleteStoreDbError).length === 0) {
-        message = 'Store deletion failed. This might be due to Row Level Security policies or data constraints.';
+        message = 'Store deletion from database failed (empty error object). This might be due to RLS policies or data constraints.';
+      } else {
+         message = `Supabase error deleting store from database. Details: ${JSON.stringify(deleteStoreDbError)}`;
       }
-      console.error('[storeService.deleteStore] Error deleting store from database:', message, 'Original Supabase Error:', JSON.stringify(deleteStoreDbError, null, 2));
-      return { error: new Error(message) };
+      console.error('[storeService.deleteStore] Error deleting store from database. Message:', message, 'Original Supabase Error:', JSON.stringify(deleteStoreDbError, null, 2));
+      const errorToReturn = new Error(message);
+      (errorToReturn as any).details = deleteStoreDbError;
+      return { error: errorToReturn };
     }
 
     console.log(`[storeService.deleteStore] Store ${storeId} and its associated data successfully processed for deletion.`);
@@ -489,4 +501,4 @@ export async function deleteStore(storeId: string, userId: string): Promise<{ er
   }
 }
 
-    
+      
