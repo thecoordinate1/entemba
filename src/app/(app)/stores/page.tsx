@@ -45,8 +45,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import type { Store as MockStoreType, SocialLink as MockSocialLinkType } from "@/lib/mockData"; // Using mock types for local state rendering
-import { storeStatusColors } from "@/lib/mockData"; // Using mock types for local state rendering
+import type { Store as MockStoreType, SocialLink as MockSocialLinkType } from "@/lib/mockData"; 
+import { storeStatusColors } from "@/lib/mockData"; 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
@@ -56,8 +56,8 @@ import type { User } from '@supabase/supabase-js';
 import { 
     createStore, 
     getStoresByUserId, 
-    // updateStore, TODO: Implement and use for edit
-    // deleteStore, TODO: Implement and use for delete
+    updateStore,
+    deleteStore,
     type StorePayload, 
     type StoreFromSupabase, 
     type SocialLinkPayload as StoreSocialLinkPayload 
@@ -95,6 +95,21 @@ const socialIconMap: Record<MockSocialLinkType["platform"], React.ElementType> =
   Other: LinkIconLucide,
 };
 
+// Helper to map StoreFromSupabase to MockStoreType for UI compatibility
+const mapStoreFromSupabaseToMockStore = (store: StoreFromSupabase): MockStoreType => ({
+  id: store.id,
+  user_id: store.vendor_id, // Ensure this mapping is correct if MockStoreType still uses user_id
+  name: store.name,
+  description: store.description,
+  logo: store.logo_url || "https://placehold.co/200x100.png?text=No+Logo",
+  dataAiHint: store.data_ai_hint || "store logo",
+  status: store.status as MockStoreType["status"], // Assuming status values are compatible
+  category: store.category,
+  socialLinks: store.social_links.map(sl => ({ platform: sl.platform as MockSocialLinkType["platform"], url: sl.url })),
+  location: store.location || undefined,
+  createdAt: new Date(store.created_at).toISOString().split("T")[0],
+});
+
 
 export default function StoresPage() {
   const [stores, setStores] = React.useState<MockStoreType[]>([]); 
@@ -122,29 +137,16 @@ export default function StoresPage() {
       const { data: { user } } = await supabase.auth.getUser();
       setAuthUser(user);
       if (user) {
-        const { data: userStores, error } = await getStoresByUserId(user.id);
+        const { data: userStoresFromSupabase, error } = await getStoresByUserId(user.id);
         if (error) {
           toast({ variant: "destructive", title: "Error fetching stores", description: error.message });
           setStores([]);
-        } else if (userStores) {
-          // Map StoreFromSupabase to MockStoreType for local state compatibility
-          const mappedStores: MockStoreType[] = userStores.map(s => ({
-            id: s.id,
-            user_id: s.user_id,
-            name: s.name,
-            description: s.description,
-            logo: s.logo_url || "https://placehold.co/200x100.png?text=No+Logo",
-            dataAiHint: s.data_ai_hint || "store logo",
-            status: s.status,
-            category: s.category,
-            socialLinks: s.social_links.map(sl => ({ platform: sl.platform as MockSocialLinkType["platform"], url: sl.url })),
-            location: s.location || undefined,
-            createdAt: new Date(s.created_at).toISOString().split("T")[0],
-          }));
+        } else if (userStoresFromSupabase) {
+          const mappedStores: MockStoreType[] = userStoresFromSupabase.map(mapStoreFromSupabaseToMockStore);
           setStores(mappedStores);
         }
       } else {
-        setStores([]); // No user, no stores
+        setStores([]); 
       }
       setIsLoading(false);
     };
@@ -190,7 +192,7 @@ export default function StoresPage() {
     setFormLogoSlot({
       file: null,
       previewUrl: store.logo,
-      dataUri: store.logo,
+      dataUri: store.logo, // Keep original URL if no new file
       hint: store.dataAiHint || "",
     });
     setIsEditDialogOpen(true);
@@ -206,38 +208,19 @@ export default function StoresPage() {
     resetLogoSlot();
   };
 
-  const processAndValidateFormData = async (): Promise<StorePayload | null> => {
+  const processAndValidateFormData = (): StorePayload | null => {
     if (!formStoreName || !formStoreDescription || !formStoreCategory) {
         toast({variant: "destructive", title: "Missing Fields", description: "Name, Description, and Category are required."});
         return null;
     }
 
-    let logoDataUriForPayload: string | undefined | null = selectedStore?.logo; 
-    let logoDataAiHintForPayload: string | undefined | null = selectedStore?.dataAiHint;
-
-    if (formLogoSlot.file) {
-      try {
-        // For actual Supabase upload, the URL will come from Supabase Storage
-        // Here, we're still using data URI for payload to be compatible with service expecting it.
-        // The service function `createStore` (or `updateStore`) should handle the actual upload.
-        logoDataUriForPayload = await fileToDataUri(formLogoSlot.file);
-        logoDataAiHintForPayload = formLogoSlot.hint || `store logo`;
-      } catch (error) {
-        console.error("Error converting logo to data URI:", error);
-        toast({ variant: "destructive", title: "Logo Processing Error", description: "Could not process the logo." });
-        throw error; 
-      }
-    } else if (formLogoSlot.dataUri !== selectedStore?.logo) { 
-        logoDataUriForPayload = formLogoSlot.dataUri;
-        logoDataAiHintForPayload = formLogoSlot.hint;
-    }
-
-
+    // Note: logo_url for payload will be handled by the service if a new file is uploaded.
+    // If editing and no new file, existing logo_url will be used.
     return {
       name: formStoreName,
       description: formStoreDescription,
-      logo_url: logoDataUriForPayload, // This might be a data URI or an existing URL if not changed
-      data_ai_hint: logoDataAiHintForPayload,
+      logo_url: formLogoSlot.dataUri, // Pass current data URI (could be old URL or null)
+      data_ai_hint: formLogoSlot.hint,
       category: formStoreCategory,
       status: formStoreStatus,
       location: formStoreLocation || null,
@@ -254,7 +237,7 @@ export default function StoresPage() {
     }
     setIsSubmitting(true);
     try {
-      const storePayload = await processAndValidateFormData();
+      const storePayload = processAndValidateFormData();
       if (!storePayload) {
           setIsSubmitting(false);
           return;
@@ -263,33 +246,23 @@ export default function StoresPage() {
       const { data: newStoreFromBackend, error } = await createStore(authUser.id, storePayload, formLogoSlot.file);
       
       if (error) {
-        throw error;
+        console.error("Error from createStore service:", error.message, (error as any).details);
+        toast({ variant: "destructive", title: "Error Creating Store", description: error.message || "An unexpected error occurred." });
+        setIsSubmitting(false);
+        return;
       }
 
       if (newStoreFromBackend) {
-        // Map StoreFromSupabase to MockStoreType for local state update
-        const newStoreMapped: MockStoreType = {
-            id: newStoreFromBackend.id,
-            user_id: newStoreFromBackend.user_id,
-            name: newStoreFromBackend.name,
-            description: newStoreFromBackend.description,
-            logo: newStoreFromBackend.logo_url || "https://placehold.co/200x100.png?text=No+Logo",
-            dataAiHint: newStoreFromBackend.data_ai_hint || "store logo",
-            status: newStoreFromBackend.status,
-            category: newStoreFromBackend.category,
-            socialLinks: newStoreFromBackend.social_links?.map(sl => ({ platform: sl.platform as MockSocialLinkType["platform"], url: sl.url })),
-            location: newStoreFromBackend.location || undefined,
-            createdAt: new Date(newStoreFromBackend.created_at).toISOString().split("T")[0],
-        };
+        const newStoreMapped = mapStoreFromSupabaseToMockStore(newStoreFromBackend);
         setStores(prevStores => [newStoreMapped, ...prevStores]);
         toast({ title: "Store Created", description: `${newStoreMapped.name} has been successfully created.` });
         setIsAddDialogOpen(false);
         resetFormFields();
       } else {
-        toast({ variant: "destructive", title: "Error", description: "Could not create store on the backend." });
+        toast({ variant: "destructive", title: "Error", description: "Could not create store. Received no data from backend." });
       }
     } catch (error) {
-      console.error("Failed to add store:", error);
+      console.error("Failed to add store (catch block):", error);
       if (error instanceof Error) {
         toast({ variant: "destructive", title: "Error Creating Store", description: error.message });
       } else {
@@ -308,43 +281,41 @@ export default function StoresPage() {
     }
     setIsSubmitting(true);
     try {
-        const storePayload = await processAndValidateFormData();
+        const storePayload = processAndValidateFormData();
         if (!storePayload) {
             setIsSubmitting(false);
             return;
         }
-
-        // TODO: Implement updateStore in storeService.ts and call it here
-        // const { data: updatedStoreFromBackend, error } = await updateStore(selectedStore.id, authUser.id, storePayload, formLogoSlot.file);
-        // if (error) throw error;
-        // if (updatedStoreFromBackend) {
-        //     const updatedStoreMapped: MockStoreType = { /* map StoreFromSupabase to MockStoreType */ };
-        //     setStores(prevStores => prevStores.map(s => s.id === selectedStore.id ? updatedStoreMapped : s));
-        //     toast({ title: "Store Updated", description: `${updatedStoreMapped.name} has been successfully updated.` });
-        // } else {
-        //     toast({ variant: "destructive", title: "Error", description: "Could not update store on the backend." });
-        // }
-
-        // Mock logic for now:
-        const updatedStoreForMock: MockStoreType = {
-            ...selectedStore,
-            name: storePayload.name,
-            description: storePayload.description,
-            logo: formLogoSlot.previewUrl || selectedStore.logo, // Use preview URL if available for immediate UI update
-            dataAiHint: storePayload.data_ai_hint || selectedStore.dataAiHint,
-            status: storePayload.status,
-            category: storePayload.category,
-            socialLinks: storePayload.social_links?.map(sl => ({ platform: sl.platform as MockSocialLinkType["platform"], url: sl.url })),
-            location: storePayload.location || undefined,
+        
+        // If no new logo file is selected, but a logo URL was already there, pass it along.
+        // The service function handles this. If formLogoSlot.file is null, it means user didn't pick a new file.
+        // If formLogoSlot.dataUri is the original URL, it's passed. If it's null (user cleared it), it's null.
+        const payloadForUpdate: StorePayload = {
+            ...storePayload,
+            logo_url: formLogoSlot.file ? undefined : formLogoSlot.dataUri, // Let service handle if new file
         };
-        setStores(prevStores => prevStores.map(s => s.id === selectedStore.id ? updatedStoreForMock : s));
-        toast({ title: "Store Updated (Mock)", description: `${updatedStoreForMock.name} has been successfully updated.` });
 
-        setIsEditDialogOpen(false);
-        setSelectedStore(null);
-        resetFormFields();
+        const { data: updatedStoreFromBackend, error } = await updateStore(selectedStore.id, authUser.id, payloadForUpdate, formLogoSlot.file);
+        
+        if (error) {
+            console.error("Error from updateStore service:", error.message, (error as any).details);
+            toast({ variant: "destructive", title: "Error Updating Store", description: error.message || "An unexpected error occurred." });
+            setIsSubmitting(false);
+            return;
+        }
+
+        if (updatedStoreFromBackend) {
+            const updatedStoreMapped = mapStoreFromSupabaseToMockStore(updatedStoreFromBackend);
+            setStores(prevStores => prevStores.map(s => s.id === selectedStore.id ? updatedStoreMapped : s));
+            toast({ title: "Store Updated", description: `${updatedStoreMapped.name} has been successfully updated.` });
+            setIsEditDialogOpen(false);
+            setSelectedStore(null);
+            resetFormFields();
+        } else {
+            toast({ variant: "destructive", title: "Error", description: "Could not update store. Received no data from backend." });
+        }
     } catch (error) {
-      console.error("Failed to edit store:", error);
+      console.error("Failed to edit store (catch block):", error);
        if (error instanceof Error) {
         toast({ variant: "destructive", title: "Error Updating Store", description: error.message });
       } else {
@@ -359,20 +330,19 @@ export default function StoresPage() {
     if (!selectedStore || !authUser) return;
     setIsSubmitting(true);
     try {
-        // TODO: Implement deleteStore in storeService.ts and call it here
-        // const { error } = await deleteStore(selectedStore.id, authUser.id);
-        // if (error) throw error;
-        // setStores(prevStores => prevStores.filter(s => s.id !== selectedStore.id));
-        // toast({ title: "Store Deleted", description: `${selectedStore.name} has been successfully deleted.` });
-
-        // Mock Logic
-        setStores(prevStores => prevStores.filter(s => s.id !== selectedStore!.id));
-        toast({ title: "Store Deleted (Mock)", description: `${selectedStore.name} has been successfully deleted.`, variant: "destructive" });
-
+        const { error } = await deleteStore(selectedStore.id, authUser.id);
+        if (error) {
+             console.error("Error from deleteStore service:", error.message, (error as any).details);
+            toast({ variant: "destructive", title: "Error Deleting Store", description: error.message || "An unexpected error occurred." });
+        } else {
+            setStores(prevStores => prevStores.filter(s => s.id !== selectedStore!.id));
+            toast({ title: "Store Deleted", description: `${selectedStore.name} has been successfully deleted.`, variant: "default" }); // Use default for success
+        }
         setIsDeleteDialogOpen(false);
         setSelectedStore(null);
     } catch (error) {
-         toast({ variant: "destructive", title: "Error Deleting Store", description: "An unexpected error occurred."});
+        console.error("Failed to delete store (catch block):", error);
+        toast({ variant: "destructive", title: "Error Deleting Store", description: "An unexpected error occurred."});
     } finally {
         setIsSubmitting(false);
     }
@@ -426,6 +396,7 @@ export default function StoresPage() {
               height={128}
               className="rounded-md object-contain h-32 w-32 border"
               data-ai-hint={formLogoSlot.hint || "store logo"}
+              unoptimized={formLogoSlot.previewUrl?.startsWith('blob:')}
             />
           </div>
         )}
@@ -566,7 +537,7 @@ export default function StoresPage() {
                     src={store.logo || "https://placehold.co/200x100.png?text=No+Logo"}
                     width={200}
                     data-ai-hint={store.dataAiHint || "store logo"}
-                    unoptimized={store.logo?.startsWith('blob:')} // Prevent optimization for blob URLs
+                    unoptimized={store.logo?.startsWith('blob:')} 
                 />
                 <div className="pt-4 flex items-center justify-between">
                     <CardTitle className="text-xl">{store.name}</CardTitle>
