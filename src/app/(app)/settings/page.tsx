@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import NextImage from "next/image";
 import type { User as AuthUser } from '@supabase/supabase-js';
 
@@ -16,7 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { initialStores, type Store, type SocialLink } from "@/lib/mockData";
+import type { SocialLink as MockSocialLinkType } from "@/lib/mockData"; // Using MockStoreType for status temporarily
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
@@ -24,9 +24,10 @@ import { Instagram, Facebook, Twitter, Link as LinkIcon, Palette, User, Shield, 
 
 import { createClient } from "@/lib/supabase/client";
 import { getCurrentVendorProfile, updateCurrentVendorProfile, uploadAvatar, type VendorProfile } from "@/services/userService";
+import { getStoreById, updateStore, type StoreFromSupabase, type SocialLinkPayload, type StorePayload } from "@/services/storeService";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const socialIconMap: Record<SocialLink["platform"], React.ElementType> = {
+const socialIconMap: Record<MockSocialLinkType["platform"], React.ElementType> = {
   Instagram: Instagram,
   Facebook: Facebook,
   Twitter: Twitter,
@@ -47,29 +48,31 @@ const fileToDataUri = (file: File): Promise<string> => {
 export default function SettingsPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const storeIdFromUrl = searchParams.get("storeId");
   const supabase = createClient();
 
   const [authUser, setAuthUser] = React.useState<AuthUser | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = React.useState(true);
+  const [isLoadingStore, setIsLoadingStore] = React.useState(false);
 
   // User profile state
   const [userName, setUserName] = React.useState("");
   const [userEmail, setUserEmail] = React.useState("");
-  const [userAvatar, setUserAvatar] = React.useState<string | null>(null); // Stores the actual URL of the avatar
+  const [userAvatar, setUserAvatar] = React.useState<string | null>(null); 
   const [avatarFile, setAvatarFile] = React.useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = React.useState<string | null>(null); // For object URL preview
+  const [avatarPreview, setAvatarPreview] = React.useState<string | null>(null); 
 
   // Store settings state
-  const [selectedStore, setSelectedStore] = React.useState<Store | null>(null);
+  const [selectedStore, setSelectedStore] = React.useState<StoreFromSupabase | null>(null);
   const [storeName, setStoreName] = React.useState("");
   const [storeDescription, setStoreDescription] = React.useState("");
   const [storeCategory, setStoreCategory] = React.useState("");
   const [storeLocation, setStoreLocation] = React.useState("");
-  const [storeStatus, setStoreStatus] = React.useState<Store["status"]>("Inactive");
-  const [storeSocialLinks, setStoreSocialLinks] = React.useState<SocialLink[]>([]);
+  const [storeStatus, setStoreStatus] = React.useState<StoreFromSupabase["status"]>("Inactive");
+  const [storeSocialLinks, setStoreSocialLinks] = React.useState<SocialLinkPayload[]>([]);
   
-  const [storeLogo, setStoreLogo] = React.useState<string>(""); 
+  const [storeLogo, setStoreLogo] = React.useState<string | null>(null); 
   const [logoFile, setLogoFile] = React.useState<File | null>(null);
   const [logoPreview, setLogoPreview] = React.useState<string | null>(null);
   const [storeDataAiHint, setStoreDataAiHint] = React.useState<string>("");
@@ -98,48 +101,57 @@ export default function SettingsPage() {
           setUserAvatar(profile.avatar_url || user.user_metadata?.avatar_url || null);
           setAvatarPreview(profile.avatar_url || user.user_metadata?.avatar_url || null);
         } else {
-          // Fallback if no vendor profile exists yet
           setUserName(user.user_metadata?.display_name || user.email || "");
           setUserEmail(user.email || "");
           setUserAvatar(user.user_metadata?.avatar_url || null);
           setAvatarPreview(user.user_metadata?.avatar_url || null);
-          if (error) {
-            console.warn("Error fetching vendor profile, using auth data as fallback:", error.message);
-          }
+          if (error) console.warn("Error fetching vendor profile, using auth data as fallback:", error.message);
         }
       } else {
-        // No user logged in, clear profile fields
-        setUserName("");
-        setUserEmail("");
-        setUserAvatar(null);
-        setAvatarPreview(null);
+        setUserName(""); setUserEmail(""); setUserAvatar(null); setAvatarPreview(null);
       }
       setIsLoadingProfile(false);
     };
     fetchUserAndProfile();
   }, [supabase]);
   
+  // Fetch Selected Store Details
   React.useEffect(() => {
-    if (storeIdFromUrl) {
-      const foundStore = initialStores.find(s => s.id === storeIdFromUrl);
-      if (foundStore) {
-        setSelectedStore(foundStore);
-        setStoreName(foundStore.name);
-        setStoreDescription(foundStore.description);
-        setStoreCategory(foundStore.category);
-        setStoreLocation(foundStore.location || "");
-        setStoreStatus(foundStore.status);
-        setStoreSocialLinks(foundStore.socialLinks || []);
-        setStoreLogo(foundStore.logo);
-        setLogoPreview(foundStore.logo);
-        setStoreDataAiHint(foundStore.dataAiHint || "store logo");
+    const fetchStoreDetails = async () => {
+      if (storeIdFromUrl && authUser) {
+        setIsLoadingStore(true);
+        const { data: storeDetails, error } = await getStoreById(storeIdFromUrl, authUser.id);
+        if (error) {
+          toast({ variant: "destructive", title: "Error Fetching Store", description: error.message });
+          setSelectedStore(null);
+          // Reset form fields if store not found or error
+          setStoreName(""); setStoreDescription(""); setStoreCategory(""); setStoreLocation(""); 
+          setStoreStatus("Inactive"); setStoreSocialLinks([]); setStoreLogo(null); 
+          setLogoPreview(null); setStoreDataAiHint("");
+        } else if (storeDetails) {
+          setSelectedStore(storeDetails);
+          setStoreName(storeDetails.name);
+          setStoreDescription(storeDetails.description);
+          setStoreCategory(storeDetails.category);
+          setStoreLocation(storeDetails.location || "");
+          setStoreStatus(storeDetails.status);
+          setStoreSocialLinks(storeDetails.social_links || []);
+          setStoreLogo(storeDetails.logo_url);
+          setLogoPreview(storeDetails.logo_url);
+          setStoreDataAiHint(storeDetails.data_ai_hint || "store logo");
+        }
+        setIsLoadingStore(false);
       } else {
-        setSelectedStore(null); // Reset if store not found
+        setSelectedStore(null); 
+         // Reset form fields if no storeId or no authUser
+         setStoreName(""); setStoreDescription(""); setStoreCategory(""); setStoreLocation(""); 
+         setStoreStatus("Inactive"); setStoreSocialLinks([]); setStoreLogo(null); 
+         setLogoPreview(null); setStoreDataAiHint("");
       }
-    } else {
-      setSelectedStore(null); // Reset if no storeId in URL
-    }
-  }, [storeIdFromUrl]);
+    };
+    fetchStoreDetails();
+  }, [storeIdFromUrl, authUser, toast]);
+
 
   const applyTheme = (themeValue: string, showToast: boolean = true) => {
     localStorage.setItem('theme', themeValue);
@@ -173,7 +185,7 @@ export default function SettingsPage() {
       if (avatarPreview && (avatarPreview.startsWith('blob:') || avatarFile)) {
         URL.revokeObjectURL(avatarPreview);
       }
-      setAvatarPreview(userAvatar); // Revert to original/saved avatar
+      setAvatarPreview(userAvatar); 
     }
   };
 
@@ -183,23 +195,22 @@ export default function SettingsPage() {
       toast({ variant: "destructive", title: "Not Authenticated", description: "You must be logged in to update your profile." });
       return;
     }
-
-    let newAvatarUrl = userAvatar; // Start with current avatar URL
+    setIsLoadingProfile(true);
+    let newAvatarUrl = userAvatar; 
 
     if (avatarFile) {
       const { publicUrl, error: uploadError } = await uploadAvatar(authUser.id, avatarFile);
       if (uploadError) {
         toast({ variant: "destructive", title: "Avatar Upload Failed", description: uploadError.message || "Could not process the image." });
+        setIsLoadingProfile(false);
         return;
       }
-      if (publicUrl) {
-        newAvatarUrl = publicUrl;
-      }
+      if (publicUrl) newAvatarUrl = publicUrl;
     }
 
     const { profile, error: updateError } = await updateCurrentVendorProfile(authUser.id, {
       display_name: userName,
-      email: userEmail, // Assuming email can be updated; if not, remove this
+      email: userEmail, 
       avatar_url: newAvatarUrl,
     });
 
@@ -207,15 +218,15 @@ export default function SettingsPage() {
       toast({ variant: "destructive", title: "Profile Update Failed", description: updateError.message || "Could not save profile changes." });
     } else {
       toast({ title: "Profile Updated", description: "Your profile information has been saved." });
-      // Update local state to reflect saved changes
       if (profile) {
         setUserName(profile.display_name || "");
         setUserEmail(profile.email || "");
         setUserAvatar(profile.avatar_url || null);
-        setAvatarPreview(profile.avatar_url || null); // Show the new data URI/URL
+        setAvatarPreview(profile.avatar_url || null); 
       }
-      setAvatarFile(null); // Reset file input state
+      setAvatarFile(null); 
     }
+    setIsLoadingProfile(false);
   };
   
   const handleLogoFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -237,65 +248,56 @@ export default function SettingsPage() {
         toast({ variant: "destructive", title: "Error", description: "No store selected or user not authenticated." });
         return;
     }
+    setIsLoadingStore(true);
 
-    let finalLogoUrl = selectedStore.logo;
-    if (logoFile) {
-        // Here you would upload logoFile to Supabase storage, similar to avatar
-        // For mock: const { publicUrl, error } = await uploadStoreLogo(authUser.id, selectedStore.id, logoFile);
-        // For now, we'll simulate with a data URI or keep existing
-        try {
-            finalLogoUrl = await fileToDataUri(logoFile); // Placeholder for actual upload URL
-        } catch (error) {
-             toast({ variant: "destructive", title: "Logo Upload Failed", description: "Could not process the logo image." });
-            return;
-        }
-    }
-
-
-    const updatedStoreData: Partial<Store> = {
+    const payload: StorePayload = {
         name: storeName,
         description: storeDescription,
         category: storeCategory,
-        location: storeLocation || undefined,
+        location: storeLocation || null,
         status: storeStatus,
-        socialLinks: storeSocialLinks.filter(link => link.url.trim() !== ''),
-        logo: finalLogoUrl, // Use the uploaded/updated logo URL
-        dataAiHint: storeDataAiHint,
+        social_links: storeSocialLinks.filter(link => link.url.trim() !== ''),
+        logo_url: logoPreview, // Pass current preview; service handles if it's old or new data URI
+        data_ai_hint: storeDataAiHint,
     };
     
-    // In a real app, you'd call a service function like:
-    // const { updatedStore, error } = await updateStoreService(selectedStore.id, updatedStoreData);
+    const { data: updatedStore, error } = await updateStore(selectedStore.id, authUser.id, payload, logoFile);
     
-    // Mock update:
-    const storeIndex = initialStores.findIndex(s => s.id === selectedStore.id);
-    if (storeIndex !== -1) {
-        initialStores[storeIndex] = { ...initialStores[storeIndex], ...updatedStoreData } as Store;
-        setSelectedStore(initialStores[storeIndex]); // Update local state
-        setStoreLogo(finalLogoUrl); // Reflect new logo
-        setLogoPreview(finalLogoUrl);
-        setLogoFile(null);
+    if (error) {
+        toast({ variant: "destructive", title: "Store Update Failed", description: error.message });
+    } else if (updatedStore) {
+        toast({ title: "Store Settings Updated", description: `${updatedStore.name} settings have been saved.` });
+        setSelectedStore(updatedStore);
+        setStoreLogo(updatedStore.logo_url);
+        setLogoPreview(updatedStore.logo_url);
+        setLogoFile(null); 
     }
-
-    toast({ title: "Store Settings Updated", description: `${storeName} settings have been saved.` });
+    setIsLoadingStore(false);
   };
 
-  const handleSocialLinkChange = (index: number, platform: SocialLink["platform"], url: string) => {
-    const newLinks = [...storeSocialLinks];
-    let targetLink = newLinks.find(l => l.platform === platform);
-    if (targetLink) {
-        if (url.trim() === "") newLinks.splice(newLinks.indexOf(targetLink), 1);
-        else targetLink.url = url;
-    } else if (url.trim() !== "") {
-        newLinks.push({ platform, url });
-    }
-    setStoreSocialLinks(newLinks);
+  const handleSocialLinkChange = (platform: SocialLinkPayload["platform"], url: string) => {
+    setStoreSocialLinks(prevLinks => {
+        const existingLinkIndex = prevLinks.findIndex(link => link.platform === platform);
+        if (existingLinkIndex > -1) {
+            if (url.trim() === "") { 
+                return prevLinks.filter(link => link.platform !== platform);
+            }
+            const updatedLinks = [...prevLinks];
+            updatedLinks[existingLinkIndex] = { ...updatedLinks[existingLinkIndex], url };
+            return updatedLinks;
+        } else if (url.trim() !== "") { 
+            return [...prevLinks, { platform, url }];
+        }
+        return prevLinks; 
+    });
   };
   
-  const getSocialUrl = (platform: SocialLink["platform"]) => storeSocialLinks.find(link => link.platform === platform)?.url || "";
+  const getSocialUrl = (platform: SocialLinkPayload["platform"]) => storeSocialLinks.find(link => link.platform === platform)?.url || "";
 
   const handlePasswordChange = (e: React.FormEvent) => {
     e.preventDefault();
-    toast({ title: "Password Changed", description: "Your password has been successfully updated." });
+    // Placeholder - actual password change should call Supabase auth.updateUser({ password: newPassword })
+    toast({ title: "Password Changed", description: "Your password has been successfully updated (Placeholder)." });
     (e.target as HTMLFormElement).reset();
   };
 
@@ -312,7 +314,7 @@ export default function SettingsPage() {
       <Tabs defaultValue="profile" className="w-full">
         <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 mb-6">
           <TabsTrigger value="profile"><User className="mr-2 h-4 w-4 inline-block md:hidden lg:inline-block"/>Profile</TabsTrigger>
-          <TabsTrigger value="store" disabled={!selectedStore}><Building className="mr-2 h-4 w-4 inline-block md:hidden lg:inline-block"/>Store</TabsTrigger>
+          <TabsTrigger value="store"><Building className="mr-2 h-4 w-4 inline-block md:hidden lg:inline-block"/>Store</TabsTrigger>
           <TabsTrigger value="appearance"><Palette className="mr-2 h-4 w-4 inline-block md:hidden lg:inline-block"/>Appearance</TabsTrigger>
           <TabsTrigger value="account"><Shield className="mr-2 h-4 w-4 inline-block md:hidden lg:inline-block"/>Account</TabsTrigger>
           <TabsTrigger value="billing"><CreditCard className="mr-2 h-4 w-4 inline-block md:hidden lg:inline-block"/>Billing</TabsTrigger>
@@ -334,7 +336,7 @@ export default function SettingsPage() {
                   </div>
                   <Skeleton className="h-10 w-full" />
                   <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-24" />
+                  <Button disabled className="mt-4"> <Skeleton className="h-5 w-20" /> </Button>
                 </div>
               ) : (
                 <form onSubmit={handleProfileUpdate} className="space-y-6">
@@ -356,7 +358,7 @@ export default function SettingsPage() {
                     <Label htmlFor="email">Email</Label>
                     <Input id="email" type="email" value={userEmail} onChange={(e) => setUserEmail(e.target.value)} />
                   </div>
-                  <Button type="submit">Update Profile</Button>
+                  <Button type="submit" disabled={isLoadingProfile}> {isLoadingProfile ? "Updating..." : "Update Profile"} </Button>
                 </form>
               )}
             </CardContent>
@@ -372,12 +374,22 @@ export default function SettingsPage() {
                 {selectedStore ? `Manage settings for ${selectedStore.name}.` : "Select a store from the sidebar to manage its settings."}
               </CardDescription>
             </CardHeader>
-            {selectedStore ? (
+            {isLoadingStore ? (
+                 <CardContent>
+                    <div className="space-y-6">
+                        <Skeleton className="h-32 w-32 rounded-md mx-auto" />
+                        <Skeleton className="h-10 w-full" />
+                        <Skeleton className="h-20 w-full" />
+                        <Skeleton className="h-10 w-1/2" />
+                        <Button disabled className="mt-4"> <Skeleton className="h-5 w-20" /> </Button>
+                    </div>
+                 </CardContent>
+            ) : selectedStore ? (
               <CardContent>
                 <form onSubmit={handleStoreSettingsUpdate} className="space-y-6">
                   <div className="flex flex-col items-center space-y-4">
                      {logoPreview ? (
-                        <NextImage src={logoPreview} alt={`${storeName} logo preview`} width={128} height={128} className="rounded-md object-contain h-32 w-32 border" data-ai-hint={storeDataAiHint || "store logo"} />
+                        <NextImage src={logoPreview} alt={`${storeName} logo preview`} width={128} height={128} className="rounded-md object-contain h-32 w-32 border" data-ai-hint={storeDataAiHint || "store logo"} unoptimized={logoPreview?.startsWith('blob:')} />
                       ) : (
                         <div className="h-32 w-32 rounded-md border bg-muted flex items-center justify-center">
                           <UploadCloud className="h-12 w-12 text-muted-foreground" />
@@ -413,7 +425,7 @@ export default function SettingsPage() {
                    </div>
                    <div className="grid gap-2">
                         <Label htmlFor="storeStatus">Status</Label>
-                        <Select value={storeStatus} onValueChange={(value: Store["status"]) => setStoreStatus(value)}>
+                        <Select value={storeStatus} onValueChange={(value: StoreFromSupabase["status"]) => setStoreStatus(value)}>
                             <SelectTrigger id="storeStatus">
                                 <SelectValue placeholder="Select status" />
                             </SelectTrigger>
@@ -427,26 +439,27 @@ export default function SettingsPage() {
 
                     <Separator />
                     <h4 className="text-md font-medium">Social Links</h4>
-                    {(["Instagram", "Facebook", "Twitter"] as const).map((platform, index) => {
-                       const IconComp = socialIconMap[platform];
+                    {(["Instagram", "Facebook", "Twitter", "TikTok", "LinkedIn", "Other"] as const).map((platform) => {
+                       const IconComp = socialIconMap[platform as MockSocialLinkType["platform"]] || LinkIcon;
                        return (
                         <div key={platform} className="grid gap-2">
                             <Label htmlFor={`social${platform}`} className="flex items-center"><IconComp className="mr-2 h-4 w-4 text-muted-foreground"/> {platform} URL</Label>
                             <Input 
                                 id={`social${platform}`} 
                                 value={getSocialUrl(platform)} 
-                                onChange={(e) => handleSocialLinkChange(index, platform, e.target.value)}
-                                placeholder={`https://${platform.toLowerCase()}.com/yourstore`}
+                                onChange={(e) => handleSocialLinkChange(platform, e.target.value)}
+                                placeholder={`https://${platform.toLowerCase().replace(/\s+/g, '')}.com/yourstore`}
                             />
                         </div>
                        );
                     })}
-                  <Button type="submit">Update Store Settings</Button>
+                  <Button type="submit" disabled={isLoadingStore}> {isLoadingStore ? "Saving..." : "Update Store Settings"} </Button>
                 </form>
               </CardContent>
             ) : (
                 <CardContent>
-                    <p className="text-muted-foreground">Select a store from the sidebar to manage its settings, or create a new store if you don't have one.</p>
+                    <p className="text-muted-foreground">No store selected or found. Please select a store from the sidebar, or ensure the store ID in the URL is correct and you have access to it.</p>
+                    <Button onClick={() => router.push('/stores')} className="mt-4">Go to Stores Page</Button>
                 </CardContent>
             )}
           </Card>
