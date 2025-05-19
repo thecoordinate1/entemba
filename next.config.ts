@@ -22,6 +22,12 @@ const nextConfig: NextConfig = {
         hostname: 'placehold.co',
         port: '',
         pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'noympgnaetcrtpdlkkry.supabase.co', // Added Supabase hostname
+        port: '',
+        pathname: '/**',
       }
     ],
   },
