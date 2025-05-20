@@ -9,16 +9,12 @@ const supabase = createClient();
 function getPathFromStorageUrl(url: string, bucketName: string): string | null {
   try {
     const urlObj = new URL(url);
-    // Path for public URLs: /storage/v1/object/public/{bucket_name}/{actual_path_in_bucket}
-    // Path for signed URLs (less common for display, but good to be aware): /storage/v1/object/sign/{bucket_name}/{actual_path_in_bucket}
     const publicPathPrefix = `/storage/v1/object/public/${bucketName}/`;
     const signedPathPrefix = `/storage/v1/object/sign/${bucketName}/`;
 
     if (urlObj.pathname.startsWith(publicPathPrefix)) {
       return urlObj.pathname.substring(publicPathPrefix.length);
     } else if (urlObj.pathname.startsWith(signedPathPrefix)) {
-      // For signed URLs, the actual path might be followed by query params for the signature.
-      // We only need the path part.
       const pathWithoutQuery = urlObj.pathname.substring(signedPathPrefix.length);
       return pathWithoutQuery.split('?')[0];
     }
@@ -37,19 +33,20 @@ export interface ProductImagePayload { // For creating/updating product images
   order: number;
 }
 
-export interface ProductPayload { // For creating/updating product data
+// Aligned with database schema (snake_case)
+export interface ProductPayload {
   name: string;
   category: string;
   price: number;
-  orderPrice?: number | null;
+  order_price?: number | null;
   stock: number;
   status: 'Active' | 'Draft' | 'Archived';
   description?: string | null;
-  fullDescription: string;
+  full_description: string; // snake_case
   sku?: string | null;
   tags?: string[] | null;
-  weight_kg?: number | null; // Ensure consistency with schema
-  dimensions_cm?: { length: number; width: number; height: number } | null; // Ensure consistency
+  weight_kg?: number | null;
+  dimensions_cm?: { length: number; width: number; height: number } | null;
 }
 
 export interface ProductImageFromSupabase {
@@ -67,11 +64,11 @@ export interface ProductFromSupabase {
   name: string;
   category: string;
   price: number;
-  orderPrice?: number | null;
+  order_price?: number | null;
   stock: number;
   status: 'Active' | 'Draft' | 'Archived';
   description?: string | null;
-  fullDescription: string;
+  full_description: string; // snake_case
   sku?: string | null;
   tags?: string[] | null;
   weight_kg?: number | null;
@@ -94,7 +91,7 @@ async function uploadProductImage(
     .from('product-images')
     .upload(pathWithinBucket, imageFile, {
       cacheControl: '3600',
-      upsert: true, // true to overwrite if file with same path exists (e.g. re-upload)
+      upsert: true,
     });
 
   if (uploadError) {
@@ -117,7 +114,7 @@ export async function getProductsByStoreId(storeId: string): Promise<{ data: Pro
 
   const { data: productsData, error: productsError } = await supabase
     .from('products')
-    .select('*, product_images(*)') // Nested select for images
+    .select('*, product_images(*)')
     .eq('store_id', storeId)
     .order('created_at', { ascending: false });
 
@@ -132,36 +129,57 @@ export async function getProductsByStoreId(storeId: string): Promise<{ data: Pro
 
 
 export async function createProduct(
-  userId: string, // For RLS checks if needed, though store_id is primary for products
+  userId: string,
   storeId: string,
-  productData: ProductPayload,
-  imageFilesWithHints: { file: File; hint: string }[]
+  productData: ProductPayload, // Expects snake_case keys from preparePayload
+  imageFilesWithHints: { file: File; hint: string; order: number }[]
 ): Promise<{ data: ProductFromSupabase | null; error: Error | null }> {
   console.log(`[productService.createProduct] Attempting for store ID: ${storeId}`, { productData, imageCount: imageFilesWithHints.length });
 
+  // Explicitly construct the object for insertion with snake_case keys
+  const productInsertData: { [key: string]: any } = {
+    store_id: storeId,
+    name: productData.name,
+    category: productData.category,
+    price: productData.price,
+    stock: productData.stock,
+    status: productData.status,
+    full_description: productData.full_description, // Ensure this uses the snake_case key
+  };
+
+  // Add optional fields if they are present in productData
+  if (productData.order_price !== undefined) productInsertData.order_price = productData.order_price;
+  if (productData.description !== undefined) productInsertData.description = productData.description;
+  if (productData.sku !== undefined) productInsertData.sku = productData.sku;
+  if (productData.tags !== undefined) productInsertData.tags = productData.tags;
+  if (productData.weight_kg !== undefined) productInsertData.weight_kg = productData.weight_kg;
+  if (productData.dimensions_cm !== undefined) productInsertData.dimensions_cm = productData.dimensions_cm;
+
   const { data: newProduct, error: createProductError } = await supabase
     .from('products')
-    .insert({
-      store_id: storeId,
-      ...productData,
-    })
-    .select('*, product_images!left(*)') // Select product and attempt to join images (will be empty initially)
+    .insert(productInsertData) // Use the explicitly mapped object
+    .select('*, product_images!left(*)')
     .single();
 
   if (createProductError || !newProduct) {
-    console.error('[productService.createProduct] Error creating product record:', JSON.stringify(createProductError, null, 2));
-    const message = createProductError?.message || 'Failed to create product record or retrieve it. Check RLS on products table.';
+    let message = 'Failed to create product record or retrieve it.';
+    if (createProductError) {
+        message = createProductError.message || message;
+        console.error('[productService.createProduct] Error creating product record:', JSON.stringify(createProductError, null, 2));
+    } else {
+        console.error('[productService.createProduct] Error: newProduct is null after insert, but no Supabase error object. Check RLS SELECT policies.');
+        message = 'Failed to retrieve product after insert. Check RLS SELECT policies on products table.';
+    }
     return { data: null, error: new Error(message) };
   }
 
   const uploadedImages: ProductImageFromSupabase[] = [];
   if (imageFilesWithHints && imageFilesWithHints.length > 0) {
     for (let i = 0; i < imageFilesWithHints.length; i++) {
-      const { file, hint } = imageFilesWithHints[i];
+      const { file, hint, order } = imageFilesWithHints[i];
       const { publicUrl, error: uploadError } = await uploadProductImage(storeId, newProduct.id, file);
       if (uploadError || !publicUrl) {
         console.warn(`[productService.createProduct] Failed to upload image ${i + 1}:`, uploadError?.message);
-        // Decide if you want to stop or continue. For now, we continue and log.
         continue;
       }
       const { data: newDbImage, error: dbImageError } = await supabase
@@ -170,7 +188,7 @@ export async function createProduct(
           product_id: newProduct.id,
           image_url: publicUrl,
           data_ai_hint: hint,
-          order: i,
+          order: order,
         })
         .select('*')
         .single();
@@ -185,7 +203,7 @@ export async function createProduct(
   
   const finalProductData: ProductFromSupabase = {
     ...newProduct,
-    product_images: uploadedImages.sort((a, b) => a.order - b.order), // Ensure correct order
+    product_images: uploadedImages.sort((a, b) => a.order - b.order),
   };
 
   console.log('[productService.createProduct] Successfully created product:', finalProductData.id);
@@ -195,28 +213,49 @@ export async function createProduct(
 
 export async function updateProduct(
   productId: string,
-  userId: string, // For RLS checks
-  storeId: string, // For RLS checks and image path
-  productData: ProductPayload,
-  imagesToSet: { file?: File; hint: string; existingUrl?: string; id?: string }[] // Represents the desired final state of images
+  userId: string,
+  storeId: string,
+  productData: ProductPayload, // Expects snake_case keys
+  imagesToSet: { file?: File; hint: string; existingUrl?: string; id?: string; order: number }[]
 ): Promise<{ data: ProductFromSupabase | null; error: Error | null }> {
   console.log(`[productService.updateProduct] Updating product ID: ${productId} for store ID: ${storeId}`);
 
-  // 1. Update core product details
+  const productUpdateData: { [key: string]: any } = {
+    name: productData.name,
+    category: productData.category,
+    price: productData.price,
+    stock: productData.stock,
+    status: productData.status,
+    full_description: productData.full_description, // Ensure this uses the snake_case key
+  };
+
+  if (productData.order_price !== undefined) productUpdateData.order_price = productData.order_price;
+  if (productData.description !== undefined) productUpdateData.description = productData.description;
+  if (productData.sku !== undefined) productUpdateData.sku = productData.sku;
+  if (productData.tags !== undefined) productUpdateData.tags = productData.tags;
+  if (productData.weight_kg !== undefined) productUpdateData.weight_kg = productData.weight_kg;
+  if (productData.dimensions_cm !== undefined) productUpdateData.dimensions_cm = productData.dimensions_cm;
+
   const { data: updatedCoreProduct, error: coreUpdateError } = await supabase
     .from('products')
-    .update(productData)
+    .update(productUpdateData) // Use the explicitly mapped object
     .eq('id', productId)
-    .eq('store_id', storeId) // Ensure user owns the store this product belongs to (via RLS on products table)
+    .eq('store_id', storeId)
     .select('*')
     .single();
 
   if (coreUpdateError || !updatedCoreProduct) {
-    console.error('[productService.updateProduct] Error updating core product details:', JSON.stringify(coreUpdateError, null, 2));
-    return { data: null, error: new Error(coreUpdateError?.message || 'Failed to update product details. Check RLS.') };
+    let message = 'Failed to update product details.';
+    if (coreUpdateError) {
+        message = coreUpdateError.message || message;
+        console.error('[productService.updateProduct] Error updating core product details:', JSON.stringify(coreUpdateError, null, 2));
+    } else {
+        console.error('[productService.updateProduct] Error: updatedCoreProduct is null after update, but no Supabase error object. Check RLS policies.');
+         message = 'Failed to retrieve product after update. Check RLS SELECT policies on products table.';
+    }
+    return { data: null, error: new Error(message) };
   }
 
-  // 2. Fetch current product images for deletion from storage
   const { data: oldDbImages, error: fetchOldImagesError } = await supabase
     .from('product_images')
     .select('id, image_url')
@@ -224,10 +263,8 @@ export async function updateProduct(
 
   if (fetchOldImagesError) {
     console.warn('[productService.updateProduct] Error fetching old images for deletion:', fetchOldImagesError.message);
-    // Continue, but storage might not be cleaned up
   }
 
-  // 3. Delete old images from Supabase Storage
   if (oldDbImages && oldDbImages.length > 0) {
     const oldImagePaths = oldDbImages
       .map(img => getPathFromStorageUrl(img.image_url, 'product-images'))
@@ -242,10 +279,6 @@ export async function updateProduct(
     }
   }
 
-  // 4. Delete all existing rows from product_images for this product
-  // (Cascade delete should handle this if ON DELETE CASCADE is set on product_images.product_id FK,
-  // but explicit deletion ensures it if not, or if for some reason cascade is not desired here)
-  // For a "replace all" strategy, direct deletion is cleaner.
   const { error: deleteOldDbImagesError } = await supabase
     .from('product_images')
     .delete()
@@ -253,40 +286,32 @@ export async function updateProduct(
 
   if (deleteOldDbImagesError) {
     console.warn('[productService.updateProduct] Error deleting old image records from DB:', deleteOldDbImagesError.message);
-    // Potentially problematic if new images can't be inserted due to old ones still existing on a unique constraint.
-    // However, we are re-inserting, so this is mainly for cleanup.
   }
   
-  // 5. Upload new images and prepare records for all images to set
   const newProductImageRecords: ProductImagePayload[] = [];
-  for (let i = 0; i < imagesToSet.length; i++) {
-    const imgData = imagesToSet[i];
+  for (const imgData of imagesToSet) {
     let imageUrl = imgData.existingUrl;
 
-    if (imgData.file) { // New file to upload
+    if (imgData.file) {
       const { publicUrl, error: uploadError } = await uploadProductImage(storeId, productId, imgData.file);
       if (uploadError || !publicUrl) {
-        console.warn(`[productService.updateProduct] Failed to upload new image ${i + 1}:`, uploadError?.message);
-        // If an upload fails, you might want to skip this image or handle the error more gracefully
-        // For now, we'll skip it if it's a new file and upload failed.
-        // If it was meant to replace an existingUrl, and upload failed, existingUrl won't be used.
-        if (!imgData.existingUrl) continue; // Skip if it was purely a new image that failed
-        imageUrl = imgData.existingUrl; // Fallback to existing if it was a replacement attempt that failed
+        console.warn(`[productService.updateProduct] Failed to upload new image for order ${imgData.order}:`, uploadError?.message);
+        if (!imgData.existingUrl) continue; 
+        imageUrl = imgData.existingUrl; 
       } else {
         imageUrl = publicUrl;
       }
     }
 
-    if (imageUrl) { // Only add if we have a URL (either existing or newly uploaded)
+    if (imageUrl) {
       newProductImageRecords.push({
         image_url: imageUrl,
         data_ai_hint: imgData.hint,
-        order: i,
+        order: imgData.order,
       });
     }
   }
 
-  // 6. Insert new product_images records
   if (newProductImageRecords.length > 0) {
     const imageRecordsToInsert = newProductImageRecords.map(imgRec => ({
       product_id: productId,
@@ -300,19 +325,16 @@ export async function updateProduct(
 
     if (insertNewImagesError) {
       console.error('[productService.updateProduct] Error inserting new image records:', insertNewImagesError.message);
-      // Return the core product data but indicate image update might have failed partially
       return { data: { ...updatedCoreProduct, product_images: [] } as ProductFromSupabase, error: new Error(`Core product updated, but image processing failed: ${insertNewImagesError.message}`) };
     }
     updatedCoreProduct.product_images = insertedImages || [];
   } else {
-    updatedCoreProduct.product_images = []; // No images to set
+    updatedCoreProduct.product_images = [];
   }
 
-  // Sort images by order before returning
   if (updatedCoreProduct.product_images) {
     updatedCoreProduct.product_images.sort((a: any, b: any) => (a.order as number) - (b.order as number));
   }
-
 
   console.log(`[productService.updateProduct] Successfully updated product ID: ${productId}`);
   return { data: updatedCoreProduct as ProductFromSupabase, error: null };
@@ -321,12 +343,11 @@ export async function updateProduct(
 
 export async function deleteProduct(
   productId: string,
-  userId: string, // For RLS check on product ownership (via store)
-  storeId: string // For RLS check and image path
+  userId: string, 
+  storeId: string
 ): Promise<{ error: Error | null }> {
   console.log(`[productService.deleteProduct] Attempting to delete product ID: ${productId} from store ID: ${storeId}`);
 
-  // 1. Fetch all product images for this product to delete from storage
   const { data: images, error: fetchImagesError } = await supabase
     .from('product_images')
     .select('image_url')
@@ -334,10 +355,8 @@ export async function deleteProduct(
 
   if (fetchImagesError) {
     console.warn('[productService.deleteProduct] Error fetching product images for deletion:', fetchImagesError.message);
-    // Proceed with deleting the product record anyway, storage cleanup might be incomplete.
   }
 
-  // 2. Delete images from Supabase Storage
   if (images && images.length > 0) {
     const imagePaths = images
       .map(img => getPathFromStorageUrl(img.image_url, 'product-images'))
@@ -352,14 +371,11 @@ export async function deleteProduct(
     }
   }
 
-  // 3. Delete the product from the 'products' table.
-  // RLS policies on 'products' should ensure user owns the store.
-  // ON DELETE CASCADE on 'product_images.product_id' FK should delete associated DB image records.
   const { error: deleteProductError } = await supabase
     .from('products')
     .delete()
     .eq('id', productId)
-    .eq('store_id', storeId); // Ensure correct store context for deletion
+    .eq('store_id', storeId); 
 
   if (deleteProductError) {
     console.error('[productService.deleteProduct] Error deleting product from database:', JSON.stringify(deleteProductError, null, 2));
@@ -370,21 +386,20 @@ export async function deleteProduct(
   return { error: null };
 }
 
-// Get a single product by ID (useful for product detail page)
 export async function getProductById(productId: string): Promise<{ data: ProductFromSupabase | null; error: Error | null }> {
   console.log('[productService.getProductById] Fetching product by ID:', productId);
 
   const { data: productData, error: productError } = await supabase
     .from('products')
-    .select('*, product_images(*, id, image_url, data_ai_hint, order)') // Ensure product_images include id
+    .select('*, product_images(*, id, image_url, data_ai_hint, order)')
     .eq('id', productId)
-    .order('order', { foreignTable: 'product_images', ascending: true }) // Order images
+    .order('order', { foreignTable: 'product_images', ascending: true })
     .single();
 
   if (productError) {
     console.error('[productService.getProductById] Supabase fetch product error:', productError);
     let message = productError.message || 'Failed to fetch product.';
-    if (productError.code === 'PGRST116') { // Not found
+    if (productError.code === 'PGRST116') {
         message = 'Product not found or access denied.';
     }
     return { data: null, error: new Error(message) };
@@ -397,4 +412,3 @@ export async function getProductById(productId: string): Promise<{ data: Product
   console.log('[productService.getProductById] Fetched product:', productData?.id);
   return { data: productData as ProductFromSupabase | null, error: null };
 }
-

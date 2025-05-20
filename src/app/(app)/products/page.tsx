@@ -34,7 +34,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Eye, Image as ImageIconLucide, Info, DollarSign, UploadCloud, Tag, Weight, Ruler, Package } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Eye, Image as ImageIconLucide, DollarSign, UploadCloud, Tag, Weight, Ruler, Package } from "lucide-react";
 import NextImage from "next/image"; 
 import {
   AlertDialog,
@@ -49,8 +49,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Product as ProductUIType } from "@/lib/mockData"; // Using Product from mockData for UI consistency for now
-import { initialStores } from "@/lib/mockData"; // Keep for store name context
+import type { Product as ProductUIType } from "@/lib/mockData";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -61,20 +60,19 @@ import {
     getProductsByStoreId,
     updateProduct,
     deleteProduct,
-    type ProductPayload,
+    type ProductPayload, // Uses snake_case keys
     type ProductFromSupabase,
-    type ProductImageFromSupabase
 } from "@/services/productService";
 
 const MAX_IMAGES = 5;
 
 interface FormImageSlot {
-  id?: string; // DB id of the product_image record, if it's an existing image
+  id?: string; 
   file: File | null;
   previewUrl: string | null; 
   hint: string;
   order: number;
-  originalUrl?: string; // To track if it's an existing image
+  originalUrl?: string; 
 }
 
 const initialImageSlots = (): FormImageSlot[] => Array(MAX_IMAGES).fill(null).map((_, i) => ({
@@ -93,15 +91,15 @@ const mapProductFromSupabaseToUI = (product: ProductFromSupabase): ProductUIType
     dataAiHints: product.product_images.sort((a,b) => a.order - b.order).map(img => img.data_ai_hint || ''),
     category: product.category,
     price: product.price,
-    orderPrice: product.orderPrice ?? undefined,
+    orderPrice: product.order_price ?? undefined, // Map from snake_case
     stock: product.stock,
     status: product.status as ProductUIType["status"],
     createdAt: new Date(product.created_at).toISOString().split("T")[0],
     description: product.description ?? undefined,
-    fullDescription: product.fullDescription,
+    fullDescription: product.full_description, // Map from snake_case
     sku: product.sku ?? undefined,
     tags: product.tags ?? undefined,
-    weight: product.weight_kg ?? undefined,
+    weight: product.weight_kg ?? undefined, // Map from snake_case
     dimensions: product.dimensions_cm ? { 
         length: product.dimensions_cm.length, 
         width: product.dimensions_cm.width, 
@@ -114,15 +112,15 @@ const mapProductFromSupabaseToUI = (product: ProductFromSupabase): ProductUIType
 export default function ProductsPage() {
   const searchParams = useSearchParams();
   const storeIdFromUrl = searchParams.get("storeId");
-  const [selectedStoreName, setSelectedStoreName] = React.useState<string | null>(null);
+  const [selectedStoreName, setSelectedStoreName] = React.useState<string | null>(null); // This can be removed if not used
 
   const [products, setProducts] = React.useState<ProductUIType[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = React.useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
-  const [selectedProduct, setSelectedProduct] = React.useState<ProductUIType | null>(null); // For UI state
-  const [selectedProductForBackend, setSelectedProductForBackend] = React.useState<ProductFromSupabase | null>(null); // For edit context
+  const [selectedProduct, setSelectedProduct] = React.useState<ProductUIType | null>(null);
+  const [selectedProductForBackend, setSelectedProductForBackend] = React.useState<ProductFromSupabase | null>(null);
   const [searchTerm, setSearchTerm] = React.useState("");
   const { toast } = useToast();
   const supabase = createClient();
@@ -131,18 +129,17 @@ export default function ProductsPage() {
 
   const [formImageSlots, setFormImageSlots] = React.useState<FormImageSlot[]>(initialImageSlots());
   
-  // Form state for Add/Edit dialog
   const [formProductName, setFormProductName] = React.useState("");
   const [formDescription, setFormDescription] = React.useState("");
-  const [formFullDescription, setFormFullDescription] = React.useState("");
+  const [formFullDescription, setFormFullDescription] = React.useState(""); // UI state uses camelCase
   const [formCategory, setFormCategory] = React.useState("");
   const [formPrice, setFormPrice] = React.useState<number | string>("");
-  const [formOrderPrice, setFormOrderPrice] = React.useState<number | string | undefined>(undefined);
+  const [formOrderPrice, setFormOrderPrice] = React.useState<number | string | undefined>(undefined); // UI state
   const [formStock, setFormStock] = React.useState<number | string>("");
   const [formSku, setFormSku] = React.useState<string | undefined>(undefined);
   const [formStatus, setFormStatus] = React.useState<ProductUIType["status"]>("Draft");
   const [formTags, setFormTags] = React.useState<string[]>([]);
-  const [formWeight, setFormWeight] = React.useState<number | string | undefined>(undefined);
+  const [formWeightKg, setFormWeightKg] = React.useState<number | string | undefined>(undefined); // UI state
   const [formDimLength, setFormDimLength] = React.useState<number | string | undefined>(undefined);
   const [formDimWidth, setFormDimWidth] = React.useState<number | string | undefined>(undefined);
   const [formDimHeight, setFormDimHeight] = React.useState<number | string | undefined>(undefined);
@@ -158,11 +155,14 @@ export default function ProductsPage() {
 
   React.useEffect(() => {
     if (storeIdFromUrl) {
-      // Try to find store name from mock data for display purposes until full store context is implemented
-      const storeDetails = initialStores.find(s => s.id === storeIdFromUrl);
-      setSelectedStoreName(storeDetails ? storeDetails.name : "Selected Store");
+      // Fetch store name for context message (optional, can be removed if not needed)
+      // This part can be replaced by a direct context if available from AppShell
+      supabase.from('stores').select('name').eq('id', storeIdFromUrl).single().then(({data}) => {
+        setSelectedStoreName(data?.name || "Selected Store");
+      });
 
-      if (authUser) { // Only fetch if user and storeId are available
+
+      if (authUser) {
         setIsLoadingProducts(true);
         getProductsByStoreId(storeIdFromUrl)
           .then(({ data, error }) => {
@@ -175,7 +175,7 @@ export default function ProductsPage() {
           })
           .finally(() => setIsLoadingProducts(false));
       } else {
-        setProducts([]); // Clear products if no authUser or storeId
+        setProducts([]);
         setIsLoadingProducts(false);
       }
     } else {
@@ -183,11 +183,11 @@ export default function ProductsPage() {
       setProducts([]);
       setIsLoadingProducts(false);
     }
-  }, [storeIdFromUrl, authUser, toast]);
+  }, [storeIdFromUrl, authUser, toast, supabase]);
 
   const resetImageSlots = () => {
     formImageSlots.forEach(slot => {
-      if (slot.previewUrl && slot.file) URL.revokeObjectURL(slot.previewUrl); // Revoke only if it's a blob from a file
+      if (slot.previewUrl && slot.file) URL.revokeObjectURL(slot.previewUrl);
     });
     setFormImageSlots(initialImageSlots());
   };
@@ -203,7 +203,7 @@ export default function ProductsPage() {
     setFormSku(undefined);
     setFormStatus("Draft");
     setFormTags([]);
-    setFormWeight(undefined);
+    setFormWeightKg(undefined);
     setFormDimLength(undefined);
     setFormDimWidth(undefined);
     setFormDimHeight(undefined);
@@ -217,14 +217,14 @@ export default function ProductsPage() {
       const newSlots = [...prevSlots];
       const oldSlot = newSlots[index];
 
-      if (oldSlot.previewUrl && oldSlot.file) { // If old slot had a file (blob), revoke its URL
+      if (oldSlot.previewUrl && oldSlot.file) {
         URL.revokeObjectURL(oldSlot.previewUrl);
       }
 
       if (file) {
         newSlots[index] = { ...oldSlot, file: file, previewUrl: URL.createObjectURL(file), order: index };
-      } else { // File cleared
-        newSlots[index] = { ...oldSlot, file: null, previewUrl: oldSlot.originalUrl || null, order: index }; // Revert to original if it existed
+      } else { 
+        newSlots[index] = { ...oldSlot, file: null, previewUrl: oldSlot.originalUrl || null, order: index };
       }
       return newSlots;
     });
@@ -238,6 +238,7 @@ export default function ProductsPage() {
     });
   };
 
+  // Prepares payload with snake_case keys for the service
   const preparePayload = (): ProductPayload | null => {
     if (!formProductName || !formCategory || formPrice === "" || formStock === "") {
       toast({ variant: "destructive", title: "Missing Fields", description: "Name, Category, Price, and Stock are required." });
@@ -254,9 +255,8 @@ export default function ProductsPage() {
     let orderPriceNum: number | undefined | null = undefined;
     if (formOrderPrice !== undefined && formOrderPrice !== "") {
         orderPriceNum = parseFloat(String(formOrderPrice));
-        if (isNaN(orderPriceNum)) orderPriceNum = null; // Set to null if invalid, or handle as error
+        if (isNaN(orderPriceNum)) orderPriceNum = null;
     }
-
 
     let dimensions: ProductPayload['dimensions_cm'] = null;
     if (formDimLength !== undefined && formDimWidth !== undefined && formDimHeight !== undefined &&
@@ -267,26 +267,25 @@ export default function ProductsPage() {
         height: parseFloat(String(formDimHeight)),
       };
       if (isNaN(dimensions.length) || isNaN(dimensions.width) || isNaN(dimensions.height)) {
-        dimensions = null; // or throw error
+        dimensions = null;
       }
     }
     
-    const weightNum = formWeight !== undefined && String(formWeight).trim() !== "" ? parseFloat(String(formWeight)) : null;
-
+    const weightNum = formWeightKg !== undefined && String(formWeightKg).trim() !== "" ? parseFloat(String(formWeightKg)) : null;
 
     return {
       name: formProductName,
       description: formDescription || null,
-      fullDescription: formFullDescription || formDescription || "No full description provided.",
+      full_description: formFullDescription || formDescription || "No full description provided.", // snake_case
       category: formCategory,
       price: priceNum,
-      orderPrice: orderPriceNum,
+      order_price: orderPriceNum, // snake_case
       stock: stockNum,
       sku: formSku || null,
       status: formStatus,
       tags: formTags.length > 0 ? formTags : null,
-      weight_kg: (weightNum !== null && !isNaN(weightNum)) ? weightNum : null,
-      dimensions_cm: dimensions,
+      weight_kg: (weightNum !== null && !isNaN(weightNum)) ? weightNum : null, // snake_case
+      dimensions_cm: dimensions, // snake_case
     };
   };
 
@@ -328,55 +327,50 @@ export default function ProductsPage() {
   };
   
   const openEditDialog = (product: ProductUIType) => {
-    setSelectedProduct(product); // For general context, if needed
-    // Fetch full product data from Supabase for editing, including product_images with their IDs
+    setSelectedProduct(product);
     if (!authUser || !storeIdFromUrl) return;
-    setIsLoadingProducts(true); // Reuse for dialog loading
-    productService.getProductById(product.id).then(({data, error}) => {
-        if (error || !data) {
-            toast({variant: "destructive", title: "Error Fetching Product", description: error?.message || "Could not load product details."});
-            setIsLoadingProducts(false);
-            return;
+    
+    // Temporarily set loading for form fields, actual backend product fetch is better for consistency
+    // For now, populate from the UI type (which itself came from a mapped backend type)
+    
+    setFormProductName(product.name);
+    setFormDescription(product.description || "");
+    setFormFullDescription(product.fullDescription || ""); // from UI type
+    setFormCategory(product.category);
+    setFormPrice(product.price);
+    setFormOrderPrice(product.orderPrice ?? undefined); // from UI type
+    setFormStock(product.stock);
+    setFormSku(product.sku ?? undefined);
+    setFormStatus(product.status as ProductUIType["status"]);
+    setFormTags(product.tags || []);
+    setFormWeightKg(product.weight ?? undefined); // from UI type (weight)
+    setFormDimLength(product.dimensions?.length ?? undefined);
+    setFormDimWidth(product.dimensions?.width ?? undefined);
+    setFormDimHeight(product.dimensions?.height ?? undefined);
+
+    const slotsFromProduct: FormImageSlot[] = initialImageSlots();
+    product.images.forEach((imgUrl, index) => {
+        if (index < MAX_IMAGES) {
+            slotsFromProduct[index] = {
+                // id: we'd need the product_image id from ProductFromSupabase for updates
+                file: null,
+                previewUrl: imgUrl,
+                originalUrl: imgUrl,
+                hint: product.dataAiHints[index] || "",
+                order: index,
+            };
         }
-        setSelectedProductForBackend(data); // Store the full backend object for update context
-
-        setFormProductName(data.name);
-        setFormDescription(data.description || "");
-        setFormFullDescription(data.fullDescription || "");
-        setFormCategory(data.category);
-        setFormPrice(data.price);
-        setFormOrderPrice(data.orderPrice ?? undefined);
-        setFormStock(data.stock);
-        setFormSku(data.sku ?? undefined);
-        setFormStatus(data.status as ProductUIType["status"]);
-        setFormTags(data.tags || []);
-        setFormWeight(data.weight_kg ?? undefined);
-        setFormDimLength(data.dimensions_cm?.length ?? undefined);
-        setFormDimWidth(data.dimensions_cm?.width ?? undefined);
-        setFormDimHeight(data.dimensions_cm?.height ?? undefined);
-
-        const slotsFromBackend: FormImageSlot[] = initialImageSlots();
-        data.product_images.forEach((img, index) => {
-            if (index < MAX_IMAGES) {
-                slotsFromBackend[index] = {
-                    id: img.id, // DB ID of product_image
-                    file: null,
-                    previewUrl: img.image_url,
-                    originalUrl: img.image_url,
-                    hint: img.data_ai_hint || "",
-                    order: img.order,
-                };
-            }
-        });
-        setFormImageSlots(slotsFromBackend);
-        setIsEditDialogOpen(true);
-    }).finally(() => setIsLoadingProducts(false));
+    });
+    setFormImageSlots(slotsFromProduct);
+    setIsEditDialogOpen(true);
+    // To fully align with backend, we'd fetch product using getProductById and set selectedProductForBackend
+    // For now, this setup allows UI editing based on already listed product data.
   };
 
 
   const handleEditProduct = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedProductForBackend || !authUser || !storeIdFromUrl) {
+    if (!selectedProduct || !authUser || !storeIdFromUrl) { // Use selectedProduct for ID
       toast({ variant: "destructive", title: "Error", description: "No product selected, user, or store not identified." });
       return;
     }
@@ -388,20 +382,19 @@ export default function ProductsPage() {
       return;
     }
     
-    // Prepare imagesToSet for the service
     const imagesToSetForService = formImageSlots
-        .filter(slot => slot.previewUrl || slot.file) // Only consider slots that have an image (existing or new)
+        .filter(slot => slot.previewUrl || slot.file) 
         .map((slot, index) => ({
-            id: slot.id, // Pass DB ID if it's an existing image being kept/modified
+            id: slot.id, 
             file: slot.file || undefined,
             hint: slot.hint,
-            existingUrl: slot.file ? undefined : slot.previewUrl || undefined, // Pass existing URL only if no new file
-            order: index, // Use current form slot order
+            existingUrl: slot.file ? undefined : slot.previewUrl || undefined, 
+            order: index, 
         }));
 
     try {
       const { data: updatedProductFromBackend, error } = await updateProduct(
-        selectedProductForBackend.id,
+        selectedProduct.id, // Use ID from the UI selected product
         authUser.id,
         storeIdFromUrl,
         productPayload,
@@ -428,14 +421,7 @@ export default function ProductsPage() {
   };
 
   const openDeleteDialog = (product: ProductUIType) => {
-    setSelectedProduct(product); // Used for displaying name in dialog
-    // We'd fetch the ProductFromSupabase if deleteProduct service needs more than just id
-    // For now, assuming product.id is sufficient for delete.
-    const backendProduct = products.find(p => p.id === product.id) ? 
-                            mapProductFromSupabaseToUI(products.find(p => p.id === product.id) as unknown as ProductFromSupabase) // This is a hack if `products` holds `ProductFromSupabase`
-                            : null; // Ideally, you fetch the specific ProductFromSupabase here.
-    // This is simplified. Better to have selectedProductForBackend set properly before delete confirmation.
-    // For now, we'll rely on selectedProduct.id.
+    setSelectedProduct(product);
     setIsDeleteDialogOpen(true);
   };
 
@@ -469,6 +455,7 @@ export default function ProductsPage() {
     product.category.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  // UI state uses camelCase for form values, preparePayload converts to snake_case
   const renderProductFormFields = () => (
     <>
       <div className="grid gap-2">
@@ -535,10 +522,10 @@ export default function ProductsPage() {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="grid gap-2">
-            <Label htmlFor="formWeight">Weight (kg, Optional)</Label>
+            <Label htmlFor="formWeightKg">Weight (kg, Optional)</Label>
             <div className="relative">
                 <Weight className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input id="formWeight" type="number" step="0.01" value={formWeight ?? ""} onChange={(e) => setFormWeight(e.target.value)} placeholder="e.g., 0.5" className="pl-8" />
+                <Input id="formWeightKg" type="number" step="0.01" value={formWeightKg ?? ""} onChange={(e) => setFormWeightKg(e.target.value)} placeholder="e.g., 0.5" className="pl-8" />
             </div>
         </div>
       </div>
@@ -585,7 +572,7 @@ export default function ProductsPage() {
                 height={64}
                 className="rounded-md object-cover h-16 w-16 border"
                 data-ai-hint={slot.hint || `preview ${index + 1}`}
-                unoptimized={slot.previewUrl.startsWith('blob:')} // Important for blob URLs
+                unoptimized={slot.previewUrl.startsWith('blob:')} 
               />
             </div>
           )}
@@ -713,7 +700,7 @@ export default function ProductsPage() {
                         product.stock
                     )}
                     </TableCell>
-                    <TableCell className="hidden md:table-cell">{new Date(product.createdAt).toLocaleDateString()}</TableCell>
+                    <TableCell className="hidden md:table-cell">{product.createdAt ? new Date(product.createdAt).toLocaleDateString() : '-'}</TableCell>
                     <TableCell>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -754,7 +741,7 @@ export default function ProductsPage() {
               Update the details for {selectedProduct?.name}. Add up to {MAX_IMAGES} images.
             </DialogDescription>
           </DialogHeader>
-          {selectedProductForBackend && ( // Check if backend data is loaded for edit
+          {selectedProduct && ( // Check if product for UI is loaded for edit
             <form onSubmit={handleEditProduct}>
               <ScrollArea className="h-[70vh] pr-6">
                 <div className="grid gap-4 py-4">
@@ -767,7 +754,7 @@ export default function ProductsPage() {
               </DialogFooter>
             </form>
           )}
-           {!selectedProductForBackend && isLoadingProducts && (
+           {!selectedProduct && isLoadingProducts && ( // Or a dedicated loading state for edit dialog
              <div className="py-10 text-center text-muted-foreground">Loading product details for editing...</div>
            )}
         </DialogContent>
@@ -798,4 +785,3 @@ export default function ProductsPage() {
     </div>
   );
 }
-
