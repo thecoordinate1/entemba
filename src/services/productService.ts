@@ -92,18 +92,16 @@ async function uploadProductImage(
 ): Promise<{ publicUrl: string | null; error: Error | null }> {
   const pathWithinBucket = `${storeId}/${productId}/${Date.now()}_${imageFile.name}`;
   
-  // Log values before upload attempt
   const { data: { user: currentUser } } = await supabase.auth.getUser();
   const currentAuthUserId = currentUser?.id;
-  console.log(`[productService.uploadProductImage] Attempting to upload. StoreID: ${storeId}, ProductID: ${productId}, Path: ${pathWithinBucket}`);
-  console.log(`[productService.uploadProductImage] Current Auth User ID: ${currentAuthUserId}`);
+  console.log(`[productService.uploadProductImage] Attempting to upload. StoreID: ${storeId}, ProductID: ${productId}, Path: ${pathWithinBucket}, AuthUserID: ${currentAuthUserId}`);
 
 
   const { error: uploadError } = await supabase.storage
     .from('product-images') // Bucket name
-    .upload(pathWithinBucket, imageFile, { // Path *within* the bucket
+    .upload(pathWithinBucket, imageFile, {
       cacheControl: '3600',
-      upsert: true, // Using upsert true is fine
+      upsert: true, 
     });
 
   if (uploadError) {
@@ -128,7 +126,7 @@ export async function getProductsByStoreId(storeId: string): Promise<{ data: Pro
 
   const { data: productsData, error: productsError } = await supabase
     .from('products')
-    .select('*, product_images(*)') // Keep this simple for now, order images client-side or in a view later if needed
+    .select('*, product_images(*)') 
     .eq('store_id', storeId)
     .order('created_at', { ascending: false });
 
@@ -145,20 +143,19 @@ export async function getProductsByStoreId(storeId: string): Promise<{ data: Pro
     });
   }
 
-  console.log('[productService.getProductsByStoreId] Fetched products:', productsData?.length);
+  console.log('[productService.getProductsByStoreId] Fetched products count:', productsData?.length);
   return { data: productsData as ProductFromSupabase[] | null, error: null };
 }
 
 
 export async function createProduct(
-  userId: string, // For context, though storeId is key for product table
+  userId: string, 
   storeId: string,
   productData: ProductPayload, 
   imageFilesWithHints: { file: File; hint: string; order: number }[]
 ): Promise<{ data: ProductFromSupabase | null; error: Error | null }> {
   console.log(`[productService.createProduct] Attempting for store ID: ${storeId}`, { productData, imageCount: imageFilesWithHints.length });
 
-  // Explicitly construct the object for insertion with snake_case keys
   const productInsertData: { [key: string]: any } = {
     store_id: storeId,
     name: productData.name,
@@ -167,19 +164,18 @@ export async function createProduct(
     stock: productData.stock,
     status: productData.status,
     full_description: productData.full_description,
+    order_price: productData.order_price,
+    description: productData.description,
+    sku: productData.sku,
+    tags: productData.tags,
+    weight_kg: productData.weight_kg,
+    dimensions_cm: productData.dimensions_cm,
   };
-
-  if (productData.order_price !== undefined) productInsertData.order_price = productData.order_price;
-  if (productData.description !== undefined) productInsertData.description = productData.description;
-  if (productData.sku !== undefined) productInsertData.sku = productData.sku;
-  if (productData.tags !== undefined) productInsertData.tags = productData.tags;
-  if (productData.weight_kg !== undefined) productInsertData.weight_kg = productData.weight_kg;
-  if (productData.dimensions_cm !== undefined) productInsertData.dimensions_cm = productData.dimensions_cm;
 
   const { data: newProduct, error: createProductError } = await supabase
     .from('products')
     .insert(productInsertData)
-    .select('*, product_images!left(*)') // Fetch with images if possible, though we'll re-fetch/set
+    .select('*, product_images!left(*)') 
     .single();
 
   if (createProductError || !newProduct) {
@@ -188,14 +184,14 @@ export async function createProduct(
     if (createProductError) {
         if (createProductError.message && typeof createProductError.message === 'string' && createProductError.message.trim() !== '') {
             message = createProductError.message;
-        } else if (Object.keys(createProductError).length === 0) { // Check if error object is empty
-            message = `Product creation failed (empty error object). This likely indicates an RLS policy issue on the 'products' table preventing the operation or read-back. Ensure RLS INSERT and SELECT policies for this store_id exist.`;
+        } else if (Object.keys(createProductError).length === 0) { 
+            message = `Product creation failed (empty error object). This likely indicates an RLS policy issue on the 'products' table preventing the operation or read-back.`;
             details = { reason: "RLS or data constraint issue, empty error object from Supabase", supabaseError: createProductError };
         } else {
             message = `Supabase error during product insert. Details: ${JSON.stringify(createProductError)}`;
         }
-    } else { // createProductError is null/undefined but newProduct is also null
-        message = 'Failed to retrieve product after insert. This strongly suggests an RLS SELECT policy on the `products` table for this store_id is missing or incorrect, preventing read-back of the newly inserted row.';
+    } else { 
+        message = 'Failed to retrieve product after insert. This strongly suggests an RLS SELECT policy on the `products` table is missing or incorrect.';
         details = { reason: "Failed to retrieve after insert, likely RLS SELECT policy missing/incorrect" };
     }
     console.error('[productService.createProduct] Error creating product record:', message, "Original Supabase Error:", JSON.stringify(createProductError, null, 2));
@@ -211,8 +207,6 @@ export async function createProduct(
       const { publicUrl, error: uploadError } = await uploadProductImage(storeId, newProduct.id, file);
       if (uploadError || !publicUrl) {
         console.warn(`[productService.createProduct] Failed to upload image ${i + 1}:`, uploadError?.message);
-        // Decide if you want to continue creating the product without this image or return an error
-        // For now, we'll skip this image and continue
         continue;
       }
       const { data: newDbImage, error: dbImageError } = await supabase
@@ -246,10 +240,10 @@ export async function createProduct(
 
 export async function updateProduct(
   productId: string,
-  userId: string, // For context/future RLS checks related to user if needed
-  storeId: string, // Key for ownership and image path
-  productData: ProductPayload, // Expects snake_case keys
-  imagesToSet: { file?: File; hint: string; existingUrl?: string; id?: string; order: number }[] // Updated to manage existing vs new
+  userId: string, 
+  storeId: string, 
+  productData: ProductPayload, 
+  imagesToSet: { file?: File; hint: string; existingUrl?: string; id?: string; order: number }[] 
 ): Promise<{ data: ProductFromSupabase | null; error: Error | null }> {
   console.log(`[productService.updateProduct] Updating product ID: ${productId} for store ID: ${storeId}`);
 
@@ -260,22 +254,22 @@ export async function updateProduct(
     stock: productData.stock,
     status: productData.status,
     full_description: productData.full_description,
+    order_price: productData.order_price,
+    description: productData.description,
+    sku: productData.sku,
+    tags: productData.tags,
+    weight_kg: productData.weight_kg,
+    dimensions_cm: productData.dimensions_cm,
+    updated_at: new Date().toISOString(),
   };
-  if (productData.order_price !== undefined) productUpdateData.order_price = productData.order_price;
-  if (productData.description !== undefined) productUpdateData.description = productData.description;
-  if (productData.sku !== undefined) productUpdateData.sku = productData.sku;
-  if (productData.tags !== undefined) productUpdateData.tags = productData.tags;
-  if (productData.weight_kg !== undefined) productUpdateData.weight_kg = productData.weight_kg;
-  if (productData.dimensions_cm !== undefined) productUpdateData.dimensions_cm = productData.dimensions_cm;
-  productUpdateData.updated_at = new Date().toISOString();
 
 
   const { data: updatedCoreProduct, error: coreUpdateError } = await supabase
     .from('products')
     .update(productUpdateData)
     .eq('id', productId)
-    .eq('store_id', storeId) // Ensure user owns this product via store_id
-    .select('*') // Select all columns from products table
+    .eq('store_id', storeId) 
+    .select('*') 
     .single();
 
   if (coreUpdateError || !updatedCoreProduct) {
@@ -290,8 +284,7 @@ export async function updateProduct(
     return { data: null, error: new Error(message) };
   }
 
-  // --- Image Management: Replace All Strategy ---
-  // 1. Fetch old images to delete from storage
+  
   const { data: oldDbImages, error: fetchOldImagesError } = await supabase
     .from('product_images')
     .select('id, image_url')
@@ -299,10 +292,9 @@ export async function updateProduct(
 
   if (fetchOldImagesError) {
     console.warn('[productService.updateProduct] Error fetching old images for deletion:', fetchOldImagesError.message);
-    // Proceed, but old images might not be cleaned up from storage
   }
 
-  // 2. Delete old images from storage (if fetched)
+  
   if (oldDbImages && oldDbImages.length > 0) {
     const oldImagePaths = oldDbImages
       .map(img => getPathFromStorageUrl(img.image_url, 'product-images'))
@@ -317,7 +309,7 @@ export async function updateProduct(
     }
   }
 
-  // 3. Delete old image records from 'product_images' table
+  
   const { error: deleteOldDbImagesError } = await supabase
     .from('product_images')
     .delete()
@@ -325,29 +317,25 @@ export async function updateProduct(
 
   if (deleteOldDbImagesError) {
     console.warn('[productService.updateProduct] Error deleting old image records from DB:', deleteOldDbImagesError.message);
-    // This is more critical, as it could lead to orphaned DB entries if not handled.
-    // Depending on requirements, you might want to return an error here.
   }
   
-  // 4. Upload new images and create new records
+  
   const newProductImageRecords: ProductImageFromSupabase[] = [];
   for (const imgData of imagesToSet) {
-    let imageUrl = imgData.existingUrl; // If it's an existing image being kept
+    let imageUrl = imgData.existingUrl; 
 
-    if (imgData.file) { // If it's a new file to upload
+    if (imgData.file) { 
       const { publicUrl, error: uploadError } = await uploadProductImage(storeId, productId, imgData.file);
       if (uploadError || !publicUrl) {
         console.warn(`[productService.updateProduct] Failed to upload new image for order ${imgData.order}:`, uploadError?.message);
-        // If upload fails but there was an existing URL (e.g., user tried to replace but failed),
-        // you might decide to keep the existingUrl or skip. For now, we'll try to use existing if upload fails.
-        if (!imgData.existingUrl) continue; // If no existing and upload failed, skip.
+        if (!imgData.existingUrl) continue; 
         imageUrl = imgData.existingUrl; 
       } else {
-        imageUrl = publicUrl; // Upload succeeded
+        imageUrl = publicUrl; 
       }
     }
 
-    if (imageUrl) { // If we have a URL (either new or existing)
+    if (imageUrl) { 
       const { data: insertedImage, error: insertError } = await supabase
         .from('product_images')
         .insert({
@@ -379,12 +367,11 @@ export async function updateProduct(
 
 export async function deleteProduct(
   productId: string,
-  userId: string, // For context/future RLS checks
-  storeId: string // Key for RLS on product and image path
+  userId: string, 
+  storeId: string 
 ): Promise<{ error: Error | null }> {
   console.log(`[productService.deleteProduct] Attempting to delete product ID: ${productId} from store ID: ${storeId}`);
 
-  // 1. Fetch all product_images for the product to get their storage URLs
   const { data: images, error: fetchImagesError } = await supabase
     .from('product_images')
     .select('image_url')
@@ -392,32 +379,27 @@ export async function deleteProduct(
 
   if (fetchImagesError) {
     console.warn('[productService.deleteProduct] Error fetching product images for deletion:', fetchImagesError.message);
-    // Decide if you want to proceed with deleting the product record even if images can't be fetched for deletion
   }
 
-  // 2. Delete images from storage (if fetched)
   if (images && images.length > 0) {
     const imagePaths = images
       .map(img => getPathFromStorageUrl(img.image_url, 'product-images'))
-      .filter(path => path !== null) as string[]; // Filter out nulls if getPathFromStorageUrl fails
+      .filter(path => path !== null) as string[]; 
     
     if (imagePaths.length > 0) {
       console.log('[productService.deleteProduct] Deleting images from storage:', imagePaths);
       const { error: storageDeleteError } = await supabase.storage.from('product-images').remove(imagePaths);
       if (storageDeleteError) {
-        // Log the error but don't necessarily stop the DB deletion unless critical
         console.warn('[productService.deleteProduct] Error deleting images from storage:', storageDeleteError.message);
       }
     }
   }
 
-  // 3. Delete the main product record from 'products' table
-  // The ON DELETE CASCADE on product_images.product_id FK should handle deleting DB records for product_images
   const { error: deleteProductError } = await supabase
     .from('products')
     .delete()
     .eq('id', productId)
-    .eq('store_id', storeId); // Ensure correct ownership/store context for RLS
+    .eq('store_id', storeId); 
 
   if (deleteProductError) {
     console.error('[productService.deleteProduct] Error deleting product from database:', JSON.stringify(deleteProductError, null, 2));
@@ -433,14 +415,14 @@ export async function getProductById(productId: string): Promise<{ data: Product
 
   const { data: productData, error: productError } = await supabase
     .from('products')
-    .select('*, product_images(*)') // Simpler select, order on client or in a view
+    .select('*, product_images(*)') 
     .eq('id', productId)
     .single();
 
   if (productError) {
     console.error('[productService.getProductById] Supabase fetch product error:', productError);
     let message = productError.message || 'Failed to fetch product.';
-    if (productError.code === 'PGRST116') { // " relazione «...» non esiste o la ricerca non ha prodotto risultati "
+    if (productError.code === 'PGRST116') { 
         message = 'Product not found or access denied.';
     }
     return { data: null, error: new Error(message) };

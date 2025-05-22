@@ -3,14 +3,13 @@
 
 import * as React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import Image from "next/image";
-import { initialProducts, type Product } from "@/lib/mockData";
+import NextImage from "next/image"; // Renamed to avoid conflict with Image from lucide-react
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Edit, Star, Tag, Weight, Ruler, ShoppingCart, DollarSign, UploadCloud } from "lucide-react";
+import { ArrowLeft, Edit, Star, Tag, Weight, Ruler, ShoppingCart, DollarSign, UploadCloud, Image as ImageIconLucide } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +17,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,31 +25,63 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
+import { createClient } from '@/lib/supabase/client';
+import type { User } from '@supabase/supabase-js';
+import { 
+    getProductById, 
+    updateProduct, 
+    type ProductPayload, 
+    type ProductFromSupabase, 
+    type ProductImageFromSupabase 
+} from "@/services/productService";
+import type { Product as ProductUIType } from "@/lib/mockData"; // Using this as the target UI type for now
 
 const MAX_IMAGES = 5;
 
-interface ImageSlot {
+interface FormImageSlot {
+  id?: string; // ID of existing product_image record, if applicable
   file: File | null;
-  previewUrl: string | null;
-  dataUri: string | null; 
+  previewUrl: string | null; 
   hint: string;
+  order: number;
+  originalUrl?: string; // The URL from Supabase, if it's an existing image
 }
 
-const initialImageSlots = (): ImageSlot[] => Array(MAX_IMAGES).fill(null).map(() => ({
+const initialImageSlots = (): FormImageSlot[] => Array(MAX_IMAGES).fill(null).map((_, i) => ({
   file: null,
   previewUrl: null,
-  dataUri: null,
   hint: "",
+  order: i,
 }));
 
-const fileToDataUri = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+
+// Helper to map backend product to UI product type
+const mapProductFromSupabaseToUI = (product: ProductFromSupabase): ProductUIType => {
+  return {
+    id: product.id,
+    name: product.name,
+    images: product.product_images.sort((a,b) => a.order - b.order).map(img => img.image_url),
+    dataAiHints: product.product_images.sort((a,b) => a.order - b.order).map(img => img.data_ai_hint || ''),
+    category: product.category,
+    price: product.price,
+    orderPrice: product.order_price ?? undefined,
+    stock: product.stock,
+    status: product.status as ProductUIType["status"],
+    createdAt: new Date(product.created_at).toISOString().split("T")[0],
+    description: product.description ?? undefined,
+    fullDescription: product.full_description,
+    sku: product.sku ?? undefined,
+    tags: product.tags ?? undefined,
+    weight: product.weight_kg ?? undefined,
+    dimensions: product.dimensions_cm ? { 
+        length: product.dimensions_cm.length, 
+        width: product.dimensions_cm.width, 
+        height: product.dimensions_cm.height 
+    } : undefined,
+  };
 };
+
 
 export default function ProductDetailPage() {
   const params = useParams();
@@ -59,162 +89,275 @@ export default function ProductDetailPage() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const productId = params.id as string;
+  const storeIdFromUrl = searchParams.get("storeId");
 
-  const [product, setProduct] = React.useState<Product | null>(null);
+  const supabase = createClient();
+  const [authUser, setAuthUser] = React.useState<User | null>(null);
+
+  const [product, setProduct] = React.useState<ProductUIType | null>(null);
+  const [isLoadingProduct, setIsLoadingProduct] = React.useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
+  
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = React.useState(0);
   
-  const [editFormImageSlots, setEditFormImageSlots] = React.useState<ImageSlot[]>(initialImageSlots());
+  const [formImageSlots, setFormImageSlots] = React.useState<FormImageSlot[]>(initialImageSlots());
+  
+  // Form state for edit dialog
+  const [formProductName, setFormProductName] = React.useState<string>("");
+  const [formDescription, setFormDescription] = React.useState<string>("");
+  const [formFullDescription, setFormFullDescription] = React.useState<string>("");
+  const [formCategory, setFormCategory] = React.useState<string>("");
+  const [formPrice, setFormPrice] = React.useState<number | string>("");
+  const [formOrderPrice, setFormOrderPrice] = React.useState<number | string | undefined>(undefined);
+  const [formStock, setFormStock] = React.useState<number | string>("");
+  const [formSku, setFormSku] = React.useState<string | undefined>(undefined);
+  const [formStatus, setFormStatus] = React.useState<ProductUIType["status"]>("Draft");
+  const [formTags, setFormTags] = React.useState<string[]>([]);
+  const [formWeightKg, setFormWeightKg] = React.useState<number | string | undefined>(undefined); 
+  const [formDimLength, setFormDimLength] = React.useState<number | string | undefined>(undefined);
+  const [formDimWidth, setFormDimWidth] = React.useState<number | string | undefined>(undefined);
+  const [formDimHeight, setFormDimHeight] = React.useState<number | string | undefined>(undefined);
+
 
   React.useEffect(() => {
-    const foundProduct = initialProducts.find((p) => p.id === productId);
-    if (foundProduct) {
-      setProduct(foundProduct);
-      setSelectedImageIndex(0);
-      const slots = initialImageSlots().map((slot, i) => {
-        if (foundProduct.images && foundProduct.images[i]) {
-          return {
-            file: null,
-            previewUrl: foundProduct.images[i],
-            dataUri: foundProduct.images[i],
-            hint: foundProduct.dataAiHints[i] || "",
-          };
-        }
-        return slot;
-      });
-      setEditFormImageSlots(slots);
-    } else {
-      console.error("Product not found");
-    }
-  }, [productId]);
+    supabase.auth.getUser().then(({ data: { user } }) => setAuthUser(user));
+  }, [supabase]);
 
-  const resetEditImageSlots = () => {
-    editFormImageSlots.forEach(slot => {
-      if (slot.previewUrl && slot.file) URL.revokeObjectURL(slot.previewUrl);
-    });
-    if (product) {
-        const slots = initialImageSlots().map((slot, i) => {
-            if (product.images && product.images[i]) {
-              return { file: null, previewUrl: product.images[i], dataUri: product.images[i], hint: product.dataAiHints[i] || "" };
-            }
-            return slot;
-          });
-        setEditFormImageSlots(slots);
-    } else {
-        setEditFormImageSlots(initialImageSlots());
-    }
-  };
+  React.useEffect(() => {
+    if (productId) {
+      setIsLoadingProduct(true);
+      getProductById(productId)
+        .then(({ data, error }) => {
+          if (error) {
+            toast({ variant: "destructive", title: "Error Fetching Product", description: error.message });
+            setProduct(null);
+          } else if (data) {
+            const uiProduct = mapProductFromSupabaseToUI(data);
+            setProduct(uiProduct);
+            setSelectedImageIndex(0);
+            // Initialize form fields and image slots for edit dialog when product loads
+            setFormProductName(uiProduct.name);
+            setFormDescription(uiProduct.description || "");
+            setFormFullDescription(uiProduct.fullDescription);
+            setFormCategory(uiProduct.category);
+            setFormPrice(uiProduct.price);
+            setFormOrderPrice(uiProduct.orderPrice ?? "");
+            setFormStock(uiProduct.stock);
+            setFormSku(uiProduct.sku ?? "");
+            setFormStatus(uiProduct.status);
+            setFormTags(uiProduct.tags || []);
+            setFormWeightKg(uiProduct.weight ?? "");
+            setFormDimLength(uiProduct.dimensions?.length ?? "");
+            setFormDimWidth(uiProduct.dimensions?.width ?? "");
+            setFormDimHeight(uiProduct.dimensions?.height ?? "");
+            
+            const slotsFromProduct: FormImageSlot[] = initialImageSlots();
+            uiProduct.images.forEach((imgUrl, index) => {
+                if (index < MAX_IMAGES) {
+                    const originalImageInfo = data.product_images.find(pi => pi.image_url === imgUrl && pi.order === index);
+                    slotsFromProduct[index] = {
+                        id: originalImageInfo?.id, 
+                        file: null,
+                        previewUrl: imgUrl,
+                        originalUrl: imgUrl, 
+                        hint: uiProduct.dataAiHints[index] || "",
+                        order: index,
+                    };
+                }
+            });
+            setFormImageSlots(slotsFromProduct);
 
-  const handleEditImageFileChange = (index: number, event: React.ChangeEvent<HTMLInputElement>) => {
+          } else {
+            toast({ variant: "destructive", title: "Product Not Found" });
+            setProduct(null);
+          }
+        })
+        .finally(() => setIsLoadingProduct(false));
+    } else {
+      setIsLoadingProduct(false);
+      setProduct(null);
+    }
+  }, [productId, toast]);
+
+
+  const handleImageFileChange = (index: number, event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    setEditFormImageSlots(prevSlots => {
+    setFormImageSlots(prevSlots => {
       const newSlots = [...prevSlots];
       const oldSlot = newSlots[index];
-      if (oldSlot.previewUrl && oldSlot.file) URL.revokeObjectURL(oldSlot.previewUrl);
+
+      if (oldSlot.previewUrl && oldSlot.file) { // Revoke if it's an object URL from a previous file selection
+        URL.revokeObjectURL(oldSlot.previewUrl);
+      }
 
       if (file) {
-        newSlots[index] = { ...oldSlot, file, previewUrl: URL.createObjectURL(file), dataUri: null };
-      } else {
-        newSlots[index] = { ...oldSlot, file: null, previewUrl: oldSlot.dataUri ? oldSlot.dataUri : null };
+        newSlots[index] = { ...oldSlot, file: file, previewUrl: URL.createObjectURL(file), order: index };
+      } else { 
+        // If file is removed, revert to original URL if it exists, otherwise null
+        newSlots[index] = { ...oldSlot, file: null, previewUrl: oldSlot.originalUrl || null, order: index };
       }
       return newSlots;
     });
   };
-
-  const handleEditImageHintChange = (index: number, hint: string) => {
-    setEditFormImageSlots(prevSlots => {
+  
+  const handleImageHintChange = (index: number, hint: string) => {
+    setFormImageSlots(prevSlots => {
       const newSlots = [...prevSlots];
-      newSlots[index] = { ...newSlots[index], hint };
+      newSlots[index] = { ...newSlots[index], hint: hint };
       return newSlots;
     });
   };
 
+  const openEditDialog = () => {
+    if (!product) return;
+    // Form state should already be set by useEffect when product loads or changes
+    // This function now mainly just opens the dialog
+    setIsEditDialogOpen(true);
+  };
+  
+  const resetAndCloseEditDialog = () => {
+    setIsEditDialogOpen(false);
+    // Optionally, re-initialize form fields if product data might have changed elsewhere,
+    // or rely on the main useEffect to keep form state in sync.
+    // For simplicity, we assume the main useEffect handles form state.
+  };
+
+
+  const preparePayloadForUpdate = (): ProductPayload | null => {
+    if (!formProductName || !formCategory || formPrice === "" || formStock === "") {
+      toast({ variant: "destructive", title: "Missing Fields", description: "Name, Category, Price, and Stock are required." });
+      return null;
+    }
+    const priceNum = parseFloat(String(formPrice));
+    const stockNum = parseInt(String(formStock));
+
+    if (isNaN(priceNum) || isNaN(stockNum)) {
+        toast({ variant: "destructive", title: "Invalid Input", description: "Price and Stock must be valid numbers." });
+        return null;
+    }
+    
+    let orderPriceNum: number | undefined | null = undefined;
+    if (formOrderPrice !== undefined && String(formOrderPrice).trim() !== "") {
+        orderPriceNum = parseFloat(String(formOrderPrice));
+        if (isNaN(orderPriceNum)) orderPriceNum = null;
+    }
+
+    let dimensions: ProductPayload['dimensions_cm'] = null;
+    if (formDimLength !== undefined && String(formDimLength).trim() !== "" && 
+        formDimWidth !== undefined && String(formDimWidth).trim() !== "" && 
+        formDimHeight !== undefined && String(formDimHeight).trim() !== "") {
+      const length = parseFloat(String(formDimLength));
+      const width = parseFloat(String(formDimWidth));
+      const height = parseFloat(String(formDimHeight));
+      if (!isNaN(length) && !isNaN(width) && !isNaN(height)) {
+        dimensions = { length, width, height };
+      }
+    }
+    
+    const weightNum = formWeightKg !== undefined && String(formWeightKg).trim() !== "" ? parseFloat(String(formWeightKg)) : null;
+
+    return {
+      name: formProductName,
+      description: formDescription || null,
+      full_description: formFullDescription || formDescription || "No full description provided.",
+      category: formCategory,
+      price: priceNum,
+      order_price: orderPriceNum,
+      stock: stockNum,
+      sku: formSku || null,
+      status: formStatus,
+      tags: formTags.length > 0 ? formTags : null,
+      weight_kg: (weightNum !== null && !isNaN(weightNum)) ? weightNum : null,
+      dimensions_cm: dimensions,
+    };
+  };
 
   const handleEditProduct = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!product) return;
-    const formData = new FormData(event.currentTarget);
-    
-    const updatedImageUris: string[] = [];
-    const updatedDataAiHints: string[] = [];
+    if (!product || !authUser || !storeIdFromUrl) {
+      toast({ variant: "destructive", title: "Error", description: "Product data, user, or store ID missing." });
+      return;
+    }
+    setIsSubmitting(true);
 
-    for (const slot of editFormImageSlots) {
-      if (slot.file) {
-        try {
-          const dataUri = await fileToDataUri(slot.file);
-          updatedImageUris.push(dataUri);
-          updatedDataAiHints.push(slot.hint || `product image ${updatedImageUris.length}`);
-        } catch (error) {
-          console.error("Error converting file to data URI:", error);
-          toast({ variant: "destructive", title: "Image Error", description: "Failed to process an image."});
-          return; 
-        }
-      } else if (slot.dataUri) { 
-        updatedImageUris.push(slot.dataUri);
-        updatedDataAiHints.push(slot.hint || `product image ${updatedImageUris.length}`);
+    const productPayload = preparePayloadForUpdate();
+    if (!productPayload) {
+      setIsSubmitting(false);
+      return;
+    }
+    
+    const imagesToSetForService = formImageSlots
+        .filter(slot => slot.previewUrl || slot.file) 
+        .map((slot, index) => ({
+            id: slot.id, 
+            file: slot.file || undefined,
+            hint: slot.hint,
+            existingUrl: slot.file ? undefined : slot.previewUrl || undefined, 
+            order: index, 
+        }));
+
+    try {
+      const { data: updatedProductFromBackend, error } = await updateProduct(
+        product.id, 
+        authUser.id,
+        storeIdFromUrl,
+        productPayload,
+        imagesToSetForService
+      );
+
+      if (error || !updatedProductFromBackend) {
+        toast({ variant: "destructive", title: "Error Updating Product", description: error?.message || "Could not update product." });
+      } else {
+        const updatedProductUI = mapProductFromSupabaseToUI(updatedProductFromBackend);
+        setProduct(updatedProductUI); // Update local state with new product data
+        setSelectedImageIndex(0); // Reset selected image
+        toast({ title: "Product Updated", description: `${updatedProductUI.name} has been successfully updated.` });
+        resetAndCloseEditDialog();
       }
+    } catch (e) {
+        console.error("Error in handleEditProduct:", e);
+        toast({ variant: "destructive", title: "Operation Failed", description: "An unexpected error occurred during update."});
+    } finally {
+      setIsSubmitting(false);
     }
-     if (updatedImageUris.length === 0) { 
-        updatedImageUris.push("https://placehold.co/400x300.png"); 
-        updatedDataAiHints.push("placeholder image");
-    }
-
-    const priceStr = formData.get("price") as string;
-    const price = parseFloat(priceStr);
-    const orderPriceStr = formData.get("orderPrice") as string;
-    let orderPrice: number | undefined = undefined;
-    if (orderPriceStr && orderPriceStr.trim() !== "" && !isNaN(parseFloat(orderPriceStr))) {
-        orderPrice = parseFloat(orderPriceStr);
-    }
-    const tagsStr = formData.get("tags") as string;
-    const tags = tagsStr ? tagsStr.split(",").map(tag => tag.trim()).filter(tag => tag) : undefined;
-    const weightStr = formData.get("weight") as string;
-    const weight = weightStr ? parseFloat(weightStr) : undefined;
-    const dimLengthStr = formData.get("dimLength") as string;
-    const dimWidthStr = formData.get("dimWidth") as string;
-    const dimHeightStr = formData.get("dimHeight") as string;
-    let dimensions: Product["dimensions"] = undefined;
-    if (dimLengthStr && dimWidthStr && dimHeightStr) {
-        dimensions = {
-            length: parseFloat(dimLengthStr),
-            width: parseFloat(dimWidthStr),
-            height: parseFloat(dimHeightStr),
-        };
-    }
-
-    const updatedProductData: Product = {
-      ...product,
-      name: formData.get("name") as string,
-      category: formData.get("category") as string,
-      price: price,
-      orderPrice: orderPrice,
-      stock: parseInt(formData.get("stock") as string),
-      status: formData.get("status") as Product["status"],
-      description: formData.get("description") as string,
-      fullDescription: formData.get("fullDescription") as string,
-      sku: formData.get("sku") as string || undefined,
-      images: updatedImageUris,
-      dataAiHints: updatedDataAiHints,
-      tags: tags,
-      weight: weight,
-      dimensions: dimensions,
-    };
-    
-    const productIndex = initialProducts.findIndex(p => p.id === product.id);
-    if (productIndex !== -1) {
-      initialProducts[productIndex] = updatedProductData;
-    }
-    setProduct(updatedProductData);
-    setSelectedImageIndex(0); 
-    setIsEditDialogOpen(false);
-    toast({ title: "Product Updated", description: `${updatedProductData.name} has been successfully updated.` });
   };
+
+
+  if (isLoadingProduct) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Skeleton className="h-10 w-40" /> {/* Back button placeholder */}
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col md:flex-row gap-6">
+              <div className="md:w-2/5"> <Skeleton className="aspect-[4/3] w-full rounded-lg" /> </div>
+              <div className="md:w-3/5 space-y-3">
+                <Skeleton className="h-8 w-3/4" /> <Skeleton className="h-6 w-1/4 ml-auto" />
+                <Skeleton className="h-5 w-full" /> <Skeleton className="h-5 w-2/3" />
+                <Skeleton className="h-10 w-1/2" />
+                <Skeleton className="h-6 w-1/3" />
+                <Skeleton className="h-12 w-full sm:w-auto" />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent> <Skeleton className="h-20 w-full" /> </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
 
   if (!product) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Loading product details or product not found...</p>
+      <div className="flex flex-col gap-6">
+        <Button variant="outline" onClick={() => router.push(`/products?${searchParams.toString()}`)} className="flex items-center gap-2 self-start">
+          <ArrowLeft className="h-4 w-4" />
+          Back to Products
+        </Button>
+        <div className="flex items-center justify-center h-full py-10 text-muted-foreground">
+          Product not found or you do not have access.
+        </div>
       </div>
     );
   }
@@ -228,7 +371,7 @@ export default function ProductDetailPage() {
     product.status === "Archived" ? "bg-slate-500/20 text-slate-700 dark:bg-slate-500/30 dark:text-slate-400 border-slate-500/30" :
     ""; 
 
-  const currentImage = product.images[selectedImageIndex] || "https://placehold.co/600x450.png?text=No+Image";
+  const currentImage = product.images[selectedImageIndex] || "https://placehold.co/600x450.png";
   const currentDataAiHint = product.dataAiHints[selectedImageIndex] || "product image";
 
   return (
@@ -238,20 +381,9 @@ export default function ProductDetailPage() {
           <ArrowLeft className="h-4 w-4" />
           Back to Products
         </Button>
-        <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => { setIsEditDialogOpen(isOpen); if (!isOpen) resetEditImageSlots();}}>
+        <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) resetAndCloseEditDialog(); else setIsEditDialogOpen(true);}}>
           <DialogTrigger asChild>
-            <Button onClick={() => { 
-                 if (product) {
-                    const slots = initialImageSlots().map((slot, i) => {
-                        if (product.images && product.images[i]) {
-                          return { file: null, previewUrl: product.images[i], dataUri: product.images[i], hint: product.dataAiHints[i] || "" };
-                        }
-                        return slot;
-                      });
-                    setEditFormImageSlots(slots);
-                 }
-                setIsEditDialogOpen(true);
-            }}>
+            <Button onClick={openEditDialog} disabled={!authUser || !storeIdFromUrl}>
               <Edit className="mr-2 h-4 w-4" /> Edit Product
             </Button>
           </DialogTrigger>
@@ -266,54 +398,52 @@ export default function ProductDetailPage() {
               <ScrollArea className="h-[70vh] pr-6">
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="edit-name">Name</Label>
-                    <Input id="edit-name" name="name" defaultValue={product.name} required />
+                    <Label htmlFor="formProductName">Name</Label>
+                    <Input id="formProductName" value={formProductName} onChange={(e) => setFormProductName(e.target.value)} required />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="edit-description">Short Description</Label>
-                    <Textarea id="edit-description" name="description" defaultValue={product.description} placeholder="A brief summary for product listings." />
+                    <Label htmlFor="formDescription">Short Description</Label>
+                    <Textarea id="formDescription" value={formDescription} onChange={(e) => setFormDescription(e.target.value)} placeholder="A brief summary for product listings." />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="edit-fullDescription">Full Description</Label>
-                    <Textarea id="edit-fullDescription" name="fullDescription" defaultValue={product.fullDescription} placeholder="Detailed product information for the product page." rows={5}/>
+                    <Label htmlFor="formFullDescription">Full Description</Label>
+                    <Textarea id="formFullDescription" value={formFullDescription} onChange={(e) => setFormFullDescription(e.target.value)} placeholder="Detailed product information for the product page." rows={3} required/>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="grid gap-2">
-                      <Label htmlFor="edit-category">Category</Label>
-                      <Input id="edit-category" name="category" defaultValue={product.category} required />
+                      <Label htmlFor="formCategory">Category</Label>
+                      <Input id="formCategory" value={formCategory} onChange={(e) => setFormCategory(e.target.value)} required />
                     </div>
                     <div className="grid gap-2">
-                      <Label htmlFor="edit-price">Regular Price</Label>
+                      <Label htmlFor="formPrice">Regular Price</Label>
                       <div className="relative">
                         <DollarSign className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input id="edit-price" name="price" type="number" step="0.01" defaultValue={product.price} required className="pl-8" />
+                        <Input id="formPrice" type="number" step="0.01" value={formPrice} onChange={(e) => setFormPrice(e.target.value)} required className="pl-8" />
                       </div>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="grid gap-2">
-                      <Label htmlFor="edit-orderPrice">Order Price (Optional)</Label>
+                      <Label htmlFor="formOrderPrice">Order Price (Optional)</Label>
                       <div className="relative">
                         <DollarSign className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input id="edit-orderPrice" name="orderPrice" type="number" step="0.01" defaultValue={product.orderPrice !== undefined ? product.orderPrice : ""} placeholder="Defaults to regular price" className="pl-8" />
+                        <Input id="formOrderPrice" type="number" step="0.01" value={formOrderPrice ?? ""} onChange={(e) => setFormOrderPrice(e.target.value)} placeholder="Defaults to regular price" className="pl-8" />
                       </div>
                     </div>
                     <div className="grid gap-2">
-                      <Label htmlFor="edit-stock">Stock</Label>
-                      <Input id="edit-stock" name="stock" type="number" defaultValue={product.stock} required />
+                      <Label htmlFor="formStock">Stock</Label>
+                      <Input id="formStock" type="number" value={formStock} onChange={(e) => setFormStock(e.target.value)} required />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="grid gap-2">
-                      <Label htmlFor="edit-sku">SKU</Label>
-                      <Input id="edit-sku" name="sku" defaultValue={product.sku || ""} />
+                      <Label htmlFor="formSku">SKU (Optional)</Label>
+                      <Input id="formSku" value={formSku ?? ""} onChange={(e) => setFormSku(e.target.value)} />
                     </div>
                     <div className="grid gap-2">
-                        <Label htmlFor="edit-status">Status</Label>
-                        <Select name="status" defaultValue={product.status}>
-                        <SelectTrigger id="edit-status">
-                            <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
+                        <Label htmlFor="formStatus">Status</Label>
+                        <Select name="status" value={formStatus} onValueChange={(value: ProductUIType["status"]) => setFormStatus(value)}>
+                        <SelectTrigger id="formStatus"> <SelectValue placeholder="Select status" /> </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="Active">Active</SelectItem>
                             <SelectItem value="Draft">Draft</SelectItem>
@@ -326,30 +456,30 @@ export default function ProductDetailPage() {
                   <Separator className="my-2"/>
                   <h4 className="font-medium text-sm col-span-full">Additional Details</h4>
                   <div className="grid gap-2">
-                    <Label htmlFor="tags">Tags (Optional, comma-separated)</Label>
-                    <Input id="tags" name="tags" defaultValue={product?.tags?.join(", ") || ""} placeholder="e.g., featured, summer, sale" />
+                    <Label htmlFor="formTags">Tags (Optional, comma-separated)</Label>
+                    <Input id="formTags" value={formTags.join(", ")} onChange={(e) => setFormTags(e.target.value.split(",").map(t => t.trim()).filter(t => t))} placeholder="e.g., featured, summer, sale" />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="grid gap-2">
-                        <Label htmlFor="weight">Weight (kg, Optional)</Label>
+                        <Label htmlFor="formWeightKg">Weight (kg, Optional)</Label>
                         <div className="relative">
                             <Weight className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                            <Input id="weight" name="weight" type="number" step="0.01" defaultValue={product?.weight || ""} placeholder="e.g., 0.5" className="pl-8" />
+                            <Input id="formWeightKg" type="number" step="0.01" value={formWeightKg ?? ""} onChange={(e) => setFormWeightKg(e.target.value)} placeholder="e.g., 0.5" className="pl-8" />
                         </div>
                     </div>
                   </div>
                   <div>
                     <Label>Dimensions (cm, Optional)</Label>
                     <div className="grid grid-cols-3 gap-2 mt-1">
-                        <Input name="dimLength" type="number" step="0.1" placeholder="Length" defaultValue={product?.dimensions?.length || ""} />
-                        <Input name="dimWidth" type="number" step="0.1" placeholder="Width" defaultValue={product?.dimensions?.width || ""} />
-                        <Input name="dimHeight" type="number" step="0.1" placeholder="Height" defaultValue={product?.dimensions?.height || ""}/>
+                        <Input name="dimLength" type="number" step="0.1" placeholder="Length" value={formDimLength ?? ""} onChange={(e) => setFormDimLength(e.target.value)} />
+                        <Input name="dimWidth" type="number" step="0.1" placeholder="Width" value={formDimWidth ?? ""} onChange={(e) => setFormDimWidth(e.target.value)} />
+                        <Input name="dimHeight" type="number" step="0.1" placeholder="Height" value={formDimHeight ?? ""} onChange={(e) => setFormDimHeight(e.target.value)} />
                     </div>
                   </div>
 
                   <Separator className="my-4"/>
                   <h4 className="font-medium text-md col-span-full">Product Images (up to {MAX_IMAGES})</h4>
-                  {editFormImageSlots.map((slot, index) => (
+                  {formImageSlots.map((slot, index) => (
                     <div key={`image-edit-${index}`} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-4 items-center border-b pb-3 mb-1">
                       <div className="grid gap-2">
                         <Label htmlFor={`edit-image_file_${index}`}>Image {index + 1}</Label>
@@ -358,7 +488,7 @@ export default function ProductDetailPage() {
                           name={`edit-image_file_${index}`} 
                           type="file"
                           accept="image/*"
-                          onChange={(e) => handleEditImageFileChange(index, e)}
+                          onChange={(e) => handleImageFileChange(index, e)}
                           className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
                         />
                       </div>
@@ -368,18 +498,20 @@ export default function ProductDetailPage() {
                           id={`edit-image_hint_${index}`} 
                           name={`edit-image_hint_${index}`} 
                           value={slot.hint}
-                          onChange={(e) => handleEditImageHintChange(index, e.target.value)}
+                          onChange={(e) => handleImageHintChange(index, e.target.value)}
                           placeholder="e.g., 'red car'"
                         />
                       </div>
                       {slot.previewUrl && (
                         <div className="mt-2 md:mt-0 md:self-end">
-                          <Image
+                          <NextImage
                             src={slot.previewUrl} 
                             alt={`Preview ${index + 1}`}
                             width={64}
                             height={64}
                             className="rounded-md object-cover h-16 w-16 border"
+                            data-ai-hint={slot.hint || `preview ${index + 1}`}
+                            unoptimized={slot.previewUrl.startsWith('blob:')}
                           />
                         </div>
                       )}
@@ -393,8 +525,8 @@ export default function ProductDetailPage() {
                 </div>
               </ScrollArea>
               <DialogFooter className="pt-4 border-t">
-                <Button type="button" variant="outline" onClick={() => {setIsEditDialogOpen(false); resetEditImageSlots();}}>Cancel</Button>
-                <Button type="submit">Save Changes</Button>
+                <Button type="button" variant="outline" onClick={resetAndCloseEditDialog} disabled={isSubmitting}>Cancel</Button>
+                <Button type="submit" disabled={isSubmitting || !authUser || !storeIdFromUrl}>{isSubmitting ? "Saving..." : "Save Changes"}</Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -405,21 +537,28 @@ export default function ProductDetailPage() {
         <CardHeader>
           <div className="flex flex-col md:flex-row gap-6">
             <div className="md:w-2/5">
-              <Image
-                src={currentImage}
-                alt={`${product.name} - image ${selectedImageIndex + 1}`}
-                width={600}
-                height={450}
-                className="rounded-lg object-cover aspect-[4/3] w-full border"
-                data-ai-hint={currentDataAiHint}
-                priority={selectedImageIndex === 0} 
-              />
+              {product.images.length > 0 ? (
+                <NextImage
+                  src={currentImage}
+                  alt={`${product.name} - image ${selectedImageIndex + 1}`}
+                  width={600}
+                  height={450}
+                  className="rounded-lg object-cover aspect-[4/3] w-full border"
+                  data-ai-hint={currentDataAiHint}
+                  priority={selectedImageIndex === 0} 
+                  unoptimized={currentImage?.startsWith('blob:')}
+                />
+              ) : (
+                <div className="rounded-lg object-cover aspect-[4/3] w-full border bg-muted flex items-center justify-center">
+                  <ImageIconLucide className="h-16 w-16 text-muted-foreground"/>
+                </div>
+              )}
               {product.images && product.images.length > 1 && (
                 <div className="mt-4 grid grid-cols-5 gap-2">
                   {product.images.map((imgUrl, index) => (
                     imgUrl && ( 
                        <button
-                        key={index}
+                        key={`thumb-${index}-${product.id}`}
                         onClick={() => setSelectedImageIndex(index)}
                         className={cn(
                           "rounded-md overflow-hidden border-2 focus:outline-none focus:ring-2 focus:ring-primary transition-all",
@@ -427,13 +566,14 @@ export default function ProductDetailPage() {
                         )}
                         aria-label={`View image ${index + 1} for ${product.name}`}
                       >
-                        <Image
+                        <NextImage
                           src={imgUrl}
                           alt={`${product.name} thumbnail ${index + 1}`}
                           width={100}
                           height={75}
                           className="object-cover aspect-[4/3] w-full h-full"
                           data-ai-hint={product.dataAiHints[index] || `thumbnail ${index + 1}`}
+                          unoptimized={imgUrl?.startsWith('blob:')}
                         />
                       </button>
                     )
