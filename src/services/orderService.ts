@@ -83,9 +83,22 @@ export async function getOrdersByStoreId(storeId: string): Promise<{ data: Order
     .order('order_date', { ascending: false });
 
   if (ordersError) {
-    console.error('[orderService.getOrdersByStoreId] Supabase fetch orders error:', ordersError);
-    return { data: null, error: new Error(ordersError.message || 'Failed to fetch orders.') };
+    let message = ordersError.message || 'Failed to fetch orders.';
+    if (Object.keys(ordersError).length === 0 || ordersError.message === '') {
+        message = `Failed to fetch orders for store ${storeId}. This often indicates a Row Level Security (RLS) policy issue on the 'orders' or 'order_items' tables, or a schema cache problem preventing the nested select. Please verify RLS policies and try refreshing the Supabase schema cache.`;
+    }
+    console.error('[orderService.getOrdersByStoreId] Supabase fetch orders error:', message, 'Original Supabase Error:', JSON.stringify(ordersError, null, 2));
+    const errorToReturn = new Error(message);
+    (errorToReturn as any).details = ordersError;
+    return { data: null, error: errorToReturn };
   }
+  
+  if (!ordersData) {
+    // This case might occur if RLS silently filters all results without an explicit error
+    console.warn(`[orderService.getOrdersByStoreId] No orders data returned for store ${storeId}, despite no explicit Supabase error. This could be due to RLS or no orders existing for this store.`);
+    return { data: [], error: null }; // Return empty array if no data but no error
+  }
+
 
   console.log('[orderService.getOrdersByStoreId] Fetched orders count:', ordersData?.length);
   return { data: ordersData as OrderFromSupabase[] | null, error: null };
@@ -97,10 +110,6 @@ export async function createOrder(
   itemsData: OrderItemPayload[]
 ): Promise<{ data: OrderFromSupabase | null; error: Error | null }> {
   console.log('[orderService.createOrder] Attempting to create order for store_id:', orderData.store_id);
-
-  // Supabase doesn't have true transactions for multiple table inserts via JS client in one go.
-  // We insert the order first, then the items. If item insertion fails, the order remains.
-  // For true atomicity, a database function (RPC) would be needed.
 
   const { data: newOrder, error: createOrderError } = await supabase
     .from('orders')
@@ -116,25 +125,29 @@ export async function createOrder(
       shipping_method: orderData.shipping_method,
       payment_method: orderData.payment_method,
       tracking_number: orderData.tracking_number,
-      // order_date is defaulted by DB
     })
     .select(`
       id, store_id, customer_id, customer_name, customer_email, order_date, total_amount, status, 
       shipping_address, billing_address, shipping_method, payment_method, tracking_number, 
       created_at, updated_at
-    `) // Exclude order_items for now, will add them separately
+    `) 
     .single();
 
   if (createOrderError || !newOrder) {
     let message = 'Failed to create order record.';
     if (createOrderError) {
         message = createOrderError.message || message;
-        console.error('[orderService.createOrder] Error creating order record:', JSON.stringify(createOrderError, null, 2));
+        if (Object.keys(createOrderError).length === 0 || createOrderError.message === '') {
+             message = `Failed to create order. This often indicates an RLS policy issue on the 'orders' table preventing the insert or read-back.`;
+        }
+        console.error('[orderService.createOrder] Error creating order record:', message, 'Original Supabase Error:', JSON.stringify(createOrderError, null, 2));
     } else {
-        message = 'Failed to retrieve order after insert. Check RLS SELECT policies on orders table.';
+        message = 'Failed to retrieve order after insert. This strongly suggests an RLS SELECT policy on the `orders` table is missing or incorrect.';
         console.error('[orderService.createOrder] Error: newOrder is null after insert.');
     }
-    return { data: null, error: new Error(message) };
+    const errorToReturn = new Error(message);
+    (errorToReturn as any).details = createOrderError;
+    return { data: null, error: errorToReturn };
   }
 
   const insertedOrderItems: OrderItemFromSupabase[] = [];
@@ -155,13 +168,17 @@ export async function createOrder(
       .select('*');
 
     if (itemsError) {
-      console.error('[orderService.createOrder] Error inserting order items. Order created but items failed:', JSON.stringify(itemsError, null, 2));
-      // Order is created, but items failed. Decide on error handling strategy.
-      // For now, return the created order but with an error indicating item failure.
+      let itemErrorMessage = itemsError.message || 'Failed to insert order items.';
+       if (Object.keys(itemsError).length === 0 || itemsError.message === '') {
+            itemErrorMessage = `Order ${newOrder.id} created, but failed to insert order items due to a likely RLS issue on 'order_items'.`;
+       }
+      console.error('[orderService.createOrder] Error inserting order items:', itemErrorMessage, 'Original Supabase Error:', JSON.stringify(itemsError, null, 2));
       const orderWithError = { ...newOrder, order_items: [] } as OrderFromSupabase;
+      const errorToReturn = new Error(itemErrorMessage);
+      (errorToReturn as any).details = itemsError;
       return { 
         data: orderWithError, 
-        error: new Error(`Order ${newOrder.id} created, but failed to insert order items: ${itemsError.message}`) 
+        error: errorToReturn 
       };
     }
     if (newItems) {
@@ -193,17 +210,27 @@ export async function getOrderById(orderId: string, storeId: string): Promise<{ 
       )
     `)
     .eq('id', orderId)
-    .eq('store_id', storeId) // Ensure the order belongs to the specified store
+    .eq('store_id', storeId) 
     .single();
 
   if (orderError) {
     let message = orderError.message || 'Failed to fetch order.';
-    if (orderError.code === 'PGRST116') { // Not found
+    if (orderError.code === 'PGRST116') { 
         message = 'Order not found or access denied for this store.';
+    } else if (Object.keys(orderError).length === 0 || orderError.message === '') {
+        message = `Failed to fetch order ${orderId}. This often indicates an RLS policy issue on 'orders' or 'order_items', or a schema cache problem. Please verify RLS policies and try refreshing the Supabase schema cache.`;
     }
-    console.error('[orderService.getOrderById] Supabase fetch order error:', orderError);
-    return { data: null, error: new Error(message) };
+    console.error('[orderService.getOrderById] Supabase fetch order error:', message, 'Original Supabase Error:', JSON.stringify(orderError, null, 2));
+    const errorToReturn = new Error(message);
+    (errorToReturn as any).details = orderError;
+    return { data: null, error: errorToReturn };
   }
+  
+  if (!orderData) {
+    console.warn(`[orderService.getOrderById] No order data returned for order ${orderId} and store ${storeId}, despite no explicit Supabase error. This is highly indicative of an RLS SELECT policy issue.`);
+    return { data: null, error: new Error('Order not found or access denied. Verify RLS SELECT policies and ensure the order exists and belongs to the store.') };
+  }
+
 
   console.log('[orderService.getOrderById] Fetched order:', orderData?.id);
   return { data: orderData as OrderFromSupabase | null, error: null };
@@ -212,7 +239,7 @@ export async function getOrderById(orderId: string, storeId: string): Promise<{ 
 
 export async function updateOrderStatus(
   orderId: string, 
-  storeId: string, // For RLS check or ensuring user owns the store associated with order
+  storeId: string, 
   status: OrderFromSupabase['status']
 ): Promise<{ data: OrderFromSupabase | null; error: Error | null }> {
   console.log(`[orderService.updateOrderStatus] Updating status for order ID: ${orderId} to ${status} for store ID: ${storeId}`);
@@ -221,7 +248,7 @@ export async function updateOrderStatus(
     .from('orders')
     .update({ status: status, updated_at: new Date().toISOString() })
     .eq('id', orderId)
-    .eq('store_id', storeId) // Ensure update happens only if store_id matches
+    .eq('store_id', storeId) 
     .select(`
       id, store_id, customer_id, customer_name, customer_email, order_date, total_amount, status, 
       shipping_address, billing_address, shipping_method, payment_method, tracking_number, 
@@ -237,17 +264,19 @@ export async function updateOrderStatus(
     let message = 'Failed to update order status.';
     if (updateError) {
         message = updateError.message || message;
-        console.error('[orderService.updateOrderStatus] Error updating order status:', JSON.stringify(updateError, null, 2));
+        if (Object.keys(updateError).length === 0 || updateError.message === '') {
+            message = `Failed to update order ${orderId}. This often indicates an RLS policy issue on 'orders' preventing the update or read-back.`;
+        }
+        console.error('[orderService.updateOrderStatus] Error updating order status:', message, 'Original Supabase Error:', JSON.stringify(updateError, null, 2));
     } else {
-        message = 'Failed to retrieve order after status update. Check RLS SELECT policies.';
+        message = 'Failed to retrieve order after status update. This strongly suggests an RLS SELECT policy on the `orders` table is missing or incorrect.';
         console.error('[orderService.updateOrderStatus] Error: updatedOrder is null after status update.');
     }
-    return { data: null, error: new Error(message) };
+    const errorToReturn = new Error(message);
+    (errorToReturn as any).details = updateError;
+    return { data: null, error: errorToReturn };
   }
   
   console.log(`[orderService.updateOrderStatus] Successfully updated status for order ID: ${orderId}`);
   return { data: updatedOrder as OrderFromSupabase, error: null };
 }
-
-// Future functions:
-// - deleteOrder (consider implications - usually orders are marked 'Cancelled' or archived, not hard deleted)
