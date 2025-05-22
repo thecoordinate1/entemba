@@ -60,7 +60,7 @@ import {
     getProductsByStoreId,
     updateProduct,
     deleteProduct,
-    type ProductPayload, // Uses snake_case keys
+    type ProductPayload, 
     type ProductFromSupabase,
 } from "@/services/productService";
 
@@ -91,15 +91,15 @@ const mapProductFromSupabaseToUI = (product: ProductFromSupabase): ProductUIType
     dataAiHints: product.product_images.sort((a,b) => a.order - b.order).map(img => img.data_ai_hint || ''),
     category: product.category,
     price: product.price,
-    orderPrice: product.order_price ?? undefined, // Map from snake_case
+    orderPrice: product.order_price ?? undefined,
     stock: product.stock,
     status: product.status as ProductUIType["status"],
     createdAt: new Date(product.created_at).toISOString().split("T")[0],
     description: product.description ?? undefined,
-    fullDescription: product.full_description, // Map from snake_case
+    fullDescription: product.full_description,
     sku: product.sku ?? undefined,
     tags: product.tags ?? undefined,
-    weight: product.weight_kg ?? undefined, // Map from snake_case
+    weight: product.weight_kg ?? undefined,
     dimensions: product.dimensions_cm ? { 
         length: product.dimensions_cm.length, 
         width: product.dimensions_cm.width, 
@@ -112,34 +112,33 @@ const mapProductFromSupabaseToUI = (product: ProductFromSupabase): ProductUIType
 export default function ProductsPage() {
   const searchParams = useSearchParams();
   const storeIdFromUrl = searchParams.get("storeId");
-  const [selectedStoreName, setSelectedStoreName] = React.useState<string | null>(null); // This can be removed if not used
+  const [selectedStoreName, setSelectedStoreName] = React.useState<string | null>(null); 
 
   const [products, setProducts] = React.useState<ProductUIType[]>([]);
-  const [isLoadingProducts, setIsLoadingProducts] = React.useState(true);
-  const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
+  const [isLoadingProducts, setIsLoadingProducts] = React.useState<boolean>(true);
+  const [isAddDialogOpen, setIsAddDialogOpen] = React.useState<boolean>(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = React.useState<boolean>(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState<boolean>(false);
   const [selectedProduct, setSelectedProduct] = React.useState<ProductUIType | null>(null);
-  const [selectedProductForBackend, setSelectedProductForBackend] = React.useState<ProductFromSupabase | null>(null);
-  const [searchTerm, setSearchTerm] = React.useState("");
+  const [searchTerm, setSearchTerm] = React.useState<string>("");
   const { toast } = useToast();
   const supabase = createClient();
   const [authUser, setAuthUser] = React.useState<User | null>(null);
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
 
   const [formImageSlots, setFormImageSlots] = React.useState<FormImageSlot[]>(initialImageSlots());
   
-  const [formProductName, setFormProductName] = React.useState("");
-  const [formDescription, setFormDescription] = React.useState("");
-  const [formFullDescription, setFormFullDescription] = React.useState(""); // UI state uses camelCase
-  const [formCategory, setFormCategory] = React.useState("");
+  const [formProductName, setFormProductName] = React.useState<string>("");
+  const [formDescription, setFormDescription] = React.useState<string>("");
+  const [formFullDescription, setFormFullDescription] = React.useState<string>("");
+  const [formCategory, setFormCategory] = React.useState<string>("");
   const [formPrice, setFormPrice] = React.useState<number | string>("");
-  const [formOrderPrice, setFormOrderPrice] = React.useState<number | string | undefined>(undefined); // UI state
+  const [formOrderPrice, setFormOrderPrice] = React.useState<number | string | undefined>(undefined);
   const [formStock, setFormStock] = React.useState<number | string>("");
   const [formSku, setFormSku] = React.useState<string | undefined>(undefined);
   const [formStatus, setFormStatus] = React.useState<ProductUIType["status"]>("Draft");
   const [formTags, setFormTags] = React.useState<string[]>([]);
-  const [formWeightKg, setFormWeightKg] = React.useState<number | string | undefined>(undefined); // UI state
+  const [formWeightKg, setFormWeightKg] = React.useState<number | string | undefined>(undefined); 
   const [formDimLength, setFormDimLength] = React.useState<number | string | undefined>(undefined);
   const [formDimWidth, setFormDimWidth] = React.useState<number | string | undefined>(undefined);
   const [formDimHeight, setFormDimHeight] = React.useState<number | string | undefined>(undefined);
@@ -155,8 +154,6 @@ export default function ProductsPage() {
 
   React.useEffect(() => {
     if (storeIdFromUrl) {
-      // Fetch store name for context message (optional, can be removed if not needed)
-      // This part can be replaced by a direct context if available from AppShell
       supabase.from('stores').select('name').eq('id', storeIdFromUrl).single().then(({data}) => {
         setSelectedStoreName(data?.name || "Selected Store");
       });
@@ -238,7 +235,6 @@ export default function ProductsPage() {
     });
   };
 
-  // Prepares payload with snake_case keys for the service
   const preparePayload = (): ProductPayload | null => {
     if (!formProductName || !formCategory || formPrice === "" || formStock === "") {
       toast({ variant: "destructive", title: "Missing Fields", description: "Name, Category, Price, and Stock are required." });
@@ -255,19 +251,18 @@ export default function ProductsPage() {
     let orderPriceNum: number | undefined | null = undefined;
     if (formOrderPrice !== undefined && formOrderPrice !== "") {
         orderPriceNum = parseFloat(String(formOrderPrice));
-        if (isNaN(orderPriceNum)) orderPriceNum = null;
+        if (isNaN(orderPriceNum)) orderPriceNum = null; // Explicitly set to null if NaN
     }
 
     let dimensions: ProductPayload['dimensions_cm'] = null;
-    if (formDimLength !== undefined && formDimWidth !== undefined && formDimHeight !== undefined &&
-        String(formDimLength).trim() !== "" && String(formDimWidth).trim() !== "" && String(formDimHeight).trim() !== "") {
-      dimensions = {
-        length: parseFloat(String(formDimLength)),
-        width: parseFloat(String(formDimWidth)),
-        height: parseFloat(String(formDimHeight)),
-      };
-      if (isNaN(dimensions.length) || isNaN(dimensions.width) || isNaN(dimensions.height)) {
-        dimensions = null;
+    if (formDimLength !== undefined && String(formDimLength).trim() !== "" && 
+        formDimWidth !== undefined && String(formDimWidth).trim() !== "" && 
+        formDimHeight !== undefined && String(formDimHeight).trim() !== "") {
+      const length = parseFloat(String(formDimLength));
+      const width = parseFloat(String(formDimWidth));
+      const height = parseFloat(String(formDimHeight));
+      if (!isNaN(length) && !isNaN(width) && !isNaN(height)) {
+        dimensions = { length, width, height };
       }
     }
     
@@ -276,16 +271,16 @@ export default function ProductsPage() {
     return {
       name: formProductName,
       description: formDescription || null,
-      full_description: formFullDescription || formDescription || "No full description provided.", // snake_case
+      full_description: formFullDescription || formDescription || "No full description provided.",
       category: formCategory,
       price: priceNum,
-      order_price: orderPriceNum, // snake_case
+      order_price: orderPriceNum,
       stock: stockNum,
       sku: formSku || null,
       status: formStatus,
       tags: formTags.length > 0 ? formTags : null,
-      weight_kg: (weightNum !== null && !isNaN(weightNum)) ? weightNum : null, // snake_case
-      dimensions_cm: dimensions, // snake_case
+      weight_kg: (weightNum !== null && !isNaN(weightNum)) ? weightNum : null,
+      dimensions_cm: dimensions,
     };
   };
 
@@ -329,21 +324,18 @@ export default function ProductsPage() {
   const openEditDialog = (product: ProductUIType) => {
     setSelectedProduct(product);
     if (!authUser || !storeIdFromUrl) return;
-    
-    // Temporarily set loading for form fields, actual backend product fetch is better for consistency
-    // For now, populate from the UI type (which itself came from a mapped backend type)
-    
+        
     setFormProductName(product.name);
     setFormDescription(product.description || "");
-    setFormFullDescription(product.fullDescription || ""); // from UI type
+    setFormFullDescription(product.fullDescription || ""); 
     setFormCategory(product.category);
     setFormPrice(product.price);
-    setFormOrderPrice(product.orderPrice ?? undefined); // from UI type
+    setFormOrderPrice(product.orderPrice ?? undefined); 
     setFormStock(product.stock);
     setFormSku(product.sku ?? undefined);
     setFormStatus(product.status as ProductUIType["status"]);
     setFormTags(product.tags || []);
-    setFormWeightKg(product.weight ?? undefined); // from UI type (weight)
+    setFormWeightKg(product.weight ?? undefined); 
     setFormDimLength(product.dimensions?.length ?? undefined);
     setFormDimWidth(product.dimensions?.width ?? undefined);
     setFormDimHeight(product.dimensions?.height ?? undefined);
@@ -352,7 +344,7 @@ export default function ProductsPage() {
     product.images.forEach((imgUrl, index) => {
         if (index < MAX_IMAGES) {
             slotsFromProduct[index] = {
-                // id: we'd need the product_image id from ProductFromSupabase for updates
+                id: product.dataAiHints[index]?.startsWith('imgid_') ? product.dataAiHints[index] : undefined, // Simplistic way to pass id if needed; adjust
                 file: null,
                 previewUrl: imgUrl,
                 originalUrl: imgUrl,
@@ -363,14 +355,12 @@ export default function ProductsPage() {
     });
     setFormImageSlots(slotsFromProduct);
     setIsEditDialogOpen(true);
-    // To fully align with backend, we'd fetch product using getProductById and set selectedProductForBackend
-    // For now, this setup allows UI editing based on already listed product data.
   };
 
 
   const handleEditProduct = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedProduct || !authUser || !storeIdFromUrl) { // Use selectedProduct for ID
+    if (!selectedProduct || !authUser || !storeIdFromUrl) { 
       toast({ variant: "destructive", title: "Error", description: "No product selected, user, or store not identified." });
       return;
     }
@@ -394,7 +384,7 @@ export default function ProductsPage() {
 
     try {
       const { data: updatedProductFromBackend, error } = await updateProduct(
-        selectedProduct.id, // Use ID from the UI selected product
+        selectedProduct.id, 
         authUser.id,
         storeIdFromUrl,
         productPayload,
@@ -410,7 +400,6 @@ export default function ProductsPage() {
         setIsEditDialogOpen(false);
         resetFormFields();
         setSelectedProduct(null);
-        setSelectedProductForBackend(null);
       }
     } catch (e) {
         console.error("Error in handleEditProduct:", e);
@@ -455,7 +444,6 @@ export default function ProductsPage() {
     product.category.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // UI state uses camelCase for form values, preparePayload converts to snake_case
   const renderProductFormFields = () => (
     <>
       <div className="grid gap-2">
@@ -733,7 +721,7 @@ export default function ProductsPage() {
         </Card>
       )}
 
-      <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => { setIsEditDialogOpen(isOpen); if(!isOpen) { resetFormFields(); setSelectedProduct(null); setSelectedProductForBackend(null); } }}>
+      <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => { setIsEditDialogOpen(isOpen); if(!isOpen) { resetFormFields(); setSelectedProduct(null); } }}>
         <DialogContent className="sm:max-w-3xl"> 
           <DialogHeader>
             <DialogTitle>Edit Product {selectedProduct?.name} {selectedStoreName ? `for ${selectedStoreName}` : ''}</DialogTitle>
@@ -741,7 +729,7 @@ export default function ProductsPage() {
               Update the details for {selectedProduct?.name}. Add up to {MAX_IMAGES} images.
             </DialogDescription>
           </DialogHeader>
-          {selectedProduct && ( // Check if product for UI is loaded for edit
+          {selectedProduct && ( 
             <form onSubmit={handleEditProduct}>
               <ScrollArea className="h-[70vh] pr-6">
                 <div className="grid gap-4 py-4">
@@ -749,12 +737,12 @@ export default function ProductsPage() {
                 </div>
               </ScrollArea>
               <DialogFooter className="pt-4 border-t">
-                <Button type="button" variant="outline" onClick={() => {setIsEditDialogOpen(false); resetFormFields(); setSelectedProduct(null); setSelectedProductForBackend(null);}} disabled={isSubmitting}>Cancel</Button>
+                <Button type="button" variant="outline" onClick={() => {setIsEditDialogOpen(false); resetFormFields(); setSelectedProduct(null);}} disabled={isSubmitting}>Cancel</Button>
                 <Button type="submit" disabled={isSubmitting || !authUser || !storeIdFromUrl}>{isSubmitting ? "Saving..." : "Save Changes"}</Button>
               </DialogFooter>
             </form>
           )}
-           {!selectedProduct && isLoadingProducts && ( // Or a dedicated loading state for edit dialog
+           {!selectedProduct && isLoadingProducts && ( 
              <div className="py-10 text-center text-muted-foreground">Loading product details for editing...</div>
            )}
         </DialogContent>
@@ -785,3 +773,4 @@ export default function ProductsPage() {
     </div>
   );
 }
+
