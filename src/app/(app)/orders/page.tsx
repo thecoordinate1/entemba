@@ -1,8 +1,8 @@
 
 "use client";
 
-import type { Order, OrderItem, OrderStatus, Store } from "@/lib/mockData";
-import { initialOrders, initialProducts, orderStatusColors, orderStatusIcons, initialStores } from "@/lib/mockData";
+import type { Order as OrderUIType, OrderItem as OrderItemUIType, OrderStatus, Store } from "@/lib/mockData"; // Using mockData types for UI consistency
+import { initialProducts, orderStatusColors, orderStatusIcons } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +38,9 @@ import Image from "next/image";
 import Link from "next/link";
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
+import { createClient } from '@/lib/supabase/client';
+import type { User } from '@supabase/supabase-js';
+import { getOrdersByStoreId, createOrder, updateOrderStatus, type OrderPayload, type OrderItemPayload, type OrderFromSupabase } from "@/services/orderService";
 
 
 interface NewOrderItemEntry {
@@ -60,13 +63,39 @@ const defaultNewOrderData = {
   status: "Pending" as OrderStatus,
 };
 
+const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
+  return {
+    id: order.id,
+    customerName: order.customer_name,
+    customerEmail: order.customer_email,
+    date: new Date(order.order_date).toISOString().split("T")[0],
+    total: order.total_amount,
+    status: order.status as OrderStatus,
+    itemsCount: order.order_items.reduce((sum, item) => sum + item.quantity, 0),
+    detailedItems: order.order_items.map(item => ({
+      productId: item.product_id || `deleted_${item.id}`, // Handle if product_id is null
+      name: item.product_name_snapshot,
+      quantity: item.quantity,
+      price: item.price_per_unit_snapshot,
+      image: item.product_image_url_snapshot || "https://placehold.co/50x50.png",
+      dataAiHint: item.data_ai_hint_snapshot || "product",
+    })),
+    shippingAddress: order.shipping_address,
+    billingAddress: order.billing_address,
+    shippingMethod: order.shipping_method || undefined,
+    paymentMethod: order.payment_method || undefined,
+    trackingNumber: order.tracking_number || undefined,
+  };
+};
+
 
 export default function OrdersPage() {
   const searchParams = useSearchParams();
-  const storeId = searchParams.get("storeId");
+  const storeIdFromUrl = searchParams.get("storeId");
   const [selectedStoreName, setSelectedStoreName] = React.useState<string | null>(null);
 
-  const [orders, setOrders] = React.useState<Order[]>(initialOrders);
+  const [orders, setOrders] = React.useState<OrderUIType[]>([]);
+  const [isLoadingOrders, setIsLoadingOrders] = React.useState(true);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<OrderStatus | "All">("All");
   const { toast } = useToast();
@@ -76,35 +105,65 @@ export default function OrdersPage() {
   const [newOrderItems, setNewOrderItems] = React.useState<NewOrderItemEntry[]>([]);
   const [selectedProductIdToAdd, setSelectedProductIdToAdd] = React.useState<string>("");
   const [quantityToAdd, setQuantityToAdd] = React.useState<number>(1);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  const supabase = createClient();
+  const [authUser, setAuthUser] = React.useState<User | null>(null);
 
   React.useEffect(() => {
-    if (storeId) {
-      const store = initialStores.find((s: Store) => s.id === storeId);
-      setSelectedStoreName(store ? store.name : "Unknown Store");
-    } else if (initialStores.length > 0) {
-        setSelectedStoreName(initialStores[0].name); 
-    }
-     else {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      setAuthUser(session?.user ?? null);
+    });
+    supabase.auth.getUser().then(({ data: { user } }) => setAuthUser(user));
+    return () => authListener.subscription.unsubscribe();
+  }, [supabase]);
+
+  React.useEffect(() => {
+    if (storeIdFromUrl) {
+      supabase.from('stores').select('name').eq('id', storeIdFromUrl).single().then(({data}) => {
+        setSelectedStoreName(data?.name || "Selected Store");
+      });
+
+      if (authUser) {
+        setIsLoadingOrders(true);
+        getOrdersByStoreId(storeIdFromUrl)
+          .then(({ data, error }) => {
+            if (error) {
+              toast({ variant: "destructive", title: "Error fetching orders", description: error.message });
+              setOrders([]);
+            } else if (data) {
+              setOrders(data.map(mapOrderFromSupabaseToUI));
+            }
+          })
+          .finally(() => setIsLoadingOrders(false));
+      } else {
+        setOrders([]);
+        setIsLoadingOrders(false);
+      }
+    } else {
       setSelectedStoreName("No Store Selected");
+      setOrders([]);
+      setIsLoadingOrders(false);
     }
-    // In a real app, orders would be fetched based on storeId here
-  }, [storeId]);
+  }, [storeIdFromUrl, authUser, toast, supabase]);
 
 
-  const handleUpdateStatus = (orderId: string, newStatus: OrderStatus) => {
-    const updatedOrders = orders.map((order) =>
-      order.id === orderId ? { ...order, status: newStatus } : order
-    );
-    setOrders(updatedOrders);
-    const orderIndex = initialOrders.findIndex(o => o.id === orderId);
-    if (orderIndex !== -1) {
-      initialOrders[orderIndex].status = newStatus;
+  const handleUpdateStatus = async (orderId: string, newStatus: OrderStatus) => {
+    if (!storeIdFromUrl) {
+        toast({ variant: "destructive", title: "Store Not Selected", description: "Cannot update order status without a selected store." });
+        return;
     }
-    toast({ title: "Order Status Updated", description: `Order ${orderId} status changed to ${newStatus}.` });
+    const { data: updatedOrderData, error } = await updateOrderStatus(orderId, storeIdFromUrl, newStatus);
+    if (error) {
+      toast({ variant: "destructive", title: "Error Updating Status", description: error.message });
+    } else if (updatedOrderData) {
+      const updatedOrderUI = mapOrderFromSupabaseToUI(updatedOrderData);
+      setOrders(prevOrders => prevOrders.map(o => o.id === orderId ? updatedOrderUI : o));
+      toast({ title: "Order Status Updated", description: `Order ${orderId} status changed to ${newStatus}.` });
+    }
   };
 
   const filteredOrders = orders.filter(order => {
-    // In a real app, orders would already be filtered by storeId from the backend
     const matchesSearch = order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           order.customerEmail.toLowerCase().includes(searchTerm.toLowerCase());
@@ -125,7 +184,8 @@ export default function OrdersPage() {
       toast({ title: "Invalid Input", description: "Please select a product and specify a valid quantity.", variant: "destructive" });
       return;
     }
-    const product = initialProducts.find(p => p.id === selectedProductIdToAdd);
+    // Assuming initialProducts is available and up-to-date; in a real app, fetch products for the current store
+    const product = initialProducts.find(p => p.id === selectedProductIdToAdd); 
     if (!product) {
       toast({ title: "Product Not Found", variant: "destructive" });
       return;
@@ -171,39 +231,52 @@ export default function OrdersPage() {
   }, [newOrderItems]);
 
 
-  const handleCreateOrder = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleCreateOrder = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!storeIdFromUrl || !authUser) {
+      toast({ variant: "destructive", title: "Error", description: "Store or user not identified." });
+      return;
+    }
     if (newOrderItems.length === 0) {
       toast({ title: "No Items", description: "Please add at least one product to the order.", variant: "destructive" });
       return;
     }
+    setIsSubmitting(true);
 
-    const finalOrderItems: OrderItem[] = newOrderItems.map(item => ({
-      productId: item.productId,
-      name: item.productName,
-      quantity: item.quantity,
-      price: item.unitPrice,
-      image: item.productImage,
-      dataAiHint: item.productDataAiHint,
-    }));
-
-    const newOrder: Order = {
-      id: `ORD_${Date.now()}`,
-      // storeId: storeId || initialStores[0]?.id || "default_store", // Associate with selected store
-      ...newOrderData,
-      trackingNumber: newOrderData.trackingNumber || undefined,
-      date: new Date().toISOString().split("T")[0],
-      total: calculateNewOrderTotal,
-      itemsCount: newOrderItems.reduce((sum, item) => sum + item.quantity, 0),
-      detailedItems: finalOrderItems,
-      billingAddress: newOrderData.billingAddress || newOrderData.shippingAddress,
+    const orderPayload: OrderPayload = {
+      store_id: storeIdFromUrl,
+      customer_name: newOrderData.customerName,
+      customer_email: newOrderData.customerEmail,
+      total_amount: calculateNewOrderTotal,
+      status: newOrderData.status,
+      shipping_address: newOrderData.shippingAddress,
+      billing_address: newOrderData.billingAddress || newOrderData.shippingAddress,
+      shipping_method: newOrderData.shippingMethod || null,
+      payment_method: newOrderData.paymentMethod || null,
+      tracking_number: newOrderData.trackingNumber || null,
     };
 
-    initialOrders.unshift(newOrder); 
-    setOrders([newOrder, ...orders]); 
-    setIsAddOrderDialogOpen(false);
-    toast({ title: "Order Created", description: `Order ${newOrder.id} has been successfully created for ${selectedStoreName || 'the current store'}.` });
-    resetAddOrderForm();
+    const itemsPayload: OrderItemPayload[] = newOrderItems.map(item => ({
+      product_id: item.productId,
+      product_name_snapshot: item.productName,
+      quantity: item.quantity,
+      price_per_unit_snapshot: item.unitPrice,
+      product_image_url_snapshot: item.productImage,
+      data_ai_hint_snapshot: item.productDataAiHint,
+    }));
+
+    const { data: newOrderFromBackend, error } = await createOrder(orderPayload, itemsPayload);
+
+    if (error || !newOrderFromBackend) {
+      toast({ variant: "destructive", title: "Error Creating Order", description: error?.message || "Could not create order." });
+    } else {
+      const newOrderUI = mapOrderFromSupabaseToUI(newOrderFromBackend);
+      setOrders(prev => [newOrderUI, ...prev]);
+      toast({ title: "Order Created", description: `Order ${newOrderUI.id} has been successfully created for ${selectedStoreName || 'the current store'}.` });
+      setIsAddOrderDialogOpen(false);
+      resetAddOrderForm();
+    }
+    setIsSubmitting(false);
   };
 
 
@@ -219,11 +292,12 @@ export default function OrdersPage() {
               className="pl-8 sm:w-[300px]"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              disabled={!storeIdFromUrl || !authUser}
             />
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" disabled={!storeIdFromUrl || !authUser}>
                 <Filter className="mr-2 h-4 w-4" /> 
                 {statusFilter === "All" ? "Filter Status" : statusFilter}
               </Button>
@@ -251,7 +325,7 @@ export default function OrdersPage() {
         </div>
         <Dialog open={isAddOrderDialogOpen} onOpenChange={(isOpen) => { setIsAddOrderDialogOpen(isOpen); if (!isOpen) resetAddOrderForm(); }}>
           <DialogTrigger asChild>
-            <Button>
+            <Button disabled={!storeIdFromUrl || !authUser}>
               <PlusCircle className="mr-2 h-4 w-4" /> Add Order
             </Button>
           </DialogTrigger>
@@ -317,7 +391,7 @@ export default function OrdersPage() {
                               <SelectValue placeholder="Choose a product..." />
                             </SelectTrigger>
                             <SelectContent>
-                              {initialProducts.filter(p => p.status === 'Active').map(product => (
+                              {initialProducts.filter(p => p.status === 'Active').map(product => ( // TODO: Fetch products for the selected store
                                 <SelectItem key={product.id} value={product.id}>
                                   {product.name} (${product.orderPrice !== undefined ? product.orderPrice.toFixed(2) : product.price.toFixed(2)})
                                 </SelectItem>
@@ -395,87 +469,97 @@ export default function OrdersPage() {
                 </div>
               </ScrollArea>
               <DialogFooter className="pt-4 mt-4 border-t px-6">
-                <Button type="button" variant="outline" onClick={() => {setIsAddOrderDialogOpen(false); resetAddOrderForm();}}>Cancel</Button>
-                <Button type="submit">Create Order</Button>
+                <Button type="button" variant="outline" onClick={() => {setIsAddOrderDialogOpen(false); resetAddOrderForm();}} disabled={isSubmitting}>Cancel</Button>
+                <Button type="submit" disabled={isSubmitting || !authUser || !storeIdFromUrl}>{isSubmitting ? "Creating..." : "Create Order"}</Button>
               </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
       </div>
-      {selectedStoreName && <p className="text-sm text-muted-foreground">Showing orders for store: <span className="font-semibold">{selectedStoreName}</span>. New orders will be added to this store.</p>}
+      
+      {!authUser && <p className="text-center text-muted-foreground py-4">Please sign in to manage orders.</p>}
+      {authUser && !storeIdFromUrl && <p className="text-center text-muted-foreground py-4">Please select a store to view orders.</p>}
+      {authUser && storeIdFromUrl && selectedStoreName && <p className="text-sm text-muted-foreground">Showing orders for store: <span className="font-semibold">{selectedStoreName}</span>. New orders will be added to this store.</p>}
 
+      {isLoadingOrders && authUser && storeIdFromUrl && (
+        <div className="text-center text-muted-foreground py-10">Loading orders...</div>
+      )}
 
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Order ID</TableHead>
-              <TableHead>Customer</TableHead>
-              <TableHead className="hidden md:table-cell">Date</TableHead>
-              <TableHead className="hidden md:table-cell text-right">Total</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>
-                <span className="sr-only">Actions</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredOrders.map((order) => {
-              const Icon = orderStatusIcons[order.status];
-              return (
-                <TableRow key={order.id}>
-                  <TableCell className="font-medium">{order.id}</TableCell>
-                  <TableCell>
-                    <div>{order.customerName}</div>
-                    <div className="text-xs text-muted-foreground hidden sm:block">{order.customerEmail}</div>
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">{new Date(order.date).toLocaleDateString()}</TableCell>
-                  <TableCell className="hidden md:table-cell text-right">${order.total.toFixed(2)}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={cn(orderStatusColors[order.status], "flex items-center gap-1.5 whitespace-nowrap")}>
-                      <Icon className="h-3.5 w-3.5" />
-                      {order.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button aria-haspopup="true" size="icon" variant="ghost">
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Toggle menu</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem asChild>
-                          <Link href={`/orders/${order.id}?${searchParams.toString()}`}>
-                             <Eye className="mr-2 h-4 w-4" /> View Order Details
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => toast({title: "Label Printed", description: `Shipping label for ${order.id} sent to printer.`})}>
-                          <Printer className="mr-2 h-4 w-4" /> Print Shipping Label
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel>Update Status</DropdownMenuLabel>
-                        {(Object.keys(orderStatusIcons) as OrderStatus[]).map(status => (
-                          order.status !== status && (
-                            <DropdownMenuItem key={status} onClick={() => handleUpdateStatus(order.id, status)}>
-                              Mark as {status}
-                            </DropdownMenuItem>
-                          )
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+      {!isLoadingOrders && authUser && storeIdFromUrl && (
+        <Card>
+          <CardContent className="pt-6">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Order ID</TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead className="hidden md:table-cell">Date</TableHead>
+                  <TableHead className="hidden md:table-cell text-right">Total</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </Card>
-       {filteredOrders.length === 0 && (
+              </TableHeader>
+              <TableBody>
+                {filteredOrders.map((order) => {
+                  const Icon = orderStatusIcons[order.status];
+                  return (
+                    <TableRow key={order.id}>
+                      <TableCell className="font-medium">{order.id}</TableCell>
+                      <TableCell>
+                        <div>{order.customerName}</div>
+                        <div className="text-xs text-muted-foreground hidden sm:block">{order.customerEmail}</div>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">{new Date(order.date).toLocaleDateString()}</TableCell>
+                      <TableCell className="hidden md:table-cell text-right">${order.total.toFixed(2)}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={cn(orderStatusColors[order.status], "flex items-center gap-1.5 whitespace-nowrap")}>
+                          <Icon className="h-3.5 w-3.5" />
+                          {order.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button aria-haspopup="true" size="icon" variant="ghost">
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Toggle menu</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem asChild>
+                              <Link href={`/orders/${order.id}?${searchParams.toString()}`}>
+                                <Eye className="mr-2 h-4 w-4" /> View Order Details
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => toast({title: "Label Printed", description: `Shipping label for ${order.id} sent to printer.`})}>
+                              <Printer className="mr-2 h-4 w-4" /> Print Shipping Label
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuLabel>Update Status</DropdownMenuLabel>
+                            {(Object.keys(orderStatusIcons) as OrderStatus[]).map(status => (
+                              order.status !== status && (
+                                <DropdownMenuItem key={status} onClick={() => handleUpdateStatus(order.id, status)}>
+                                  Mark as {status}
+                                </DropdownMenuItem>
+                              )
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+       {!isLoadingOrders && authUser && storeIdFromUrl && filteredOrders.length === 0 && (
         <div className="text-center text-muted-foreground py-10">
-          No orders found matching your criteria.
+          {searchTerm ? `No orders found matching "${searchTerm}".` : "No orders yet for this store."}
         </div>
       )}
     </div>

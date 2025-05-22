@@ -217,9 +217,6 @@ export async function updateOrderStatus(
 ): Promise<{ data: OrderFromSupabase | null; error: Error | null }> {
   console.log(`[orderService.updateOrderStatus] Updating status for order ID: ${orderId} to ${status} for store ID: ${storeId}`);
 
-  // First, verify the order belongs to the store (implicit if RLS is correctly set on 'orders' table)
-  // Or, perform an explicit check if needed, though RLS is preferred.
-
   const { data: updatedOrder, error: updateError } = await supabase
     .from('orders')
     .update({ status: status, updated_at: new Date().toISOString() })
