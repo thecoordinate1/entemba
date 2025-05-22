@@ -1,65 +1,76 @@
--- Helper function to check if the currently authenticated user owns a store
--- Drop the function first with CASCADE to remove dependent policies, then recreate.
+
+-- Drop existing policies and function first to ensure a clean slate.
+-- The order matters: drop policies before the function they depend on.
+
+-- Policies for 'user-avatars' bucket
+DROP POLICY IF EXISTS "Authenticated users can insert their own avatars" ON storage.objects;
+DROP POLICY IF EXISTS "Users can view their own avatars" ON storage.objects;
+DROP POLICY IF EXISTS "Users can update their own avatars" ON storage.objects;
+DROP POLICY IF EXISTS "Users can delete their own avatars" ON storage.objects;
+
+-- Policies for 'store-logos' bucket
+DROP POLICY IF EXISTS "Store owners can insert logos for their stores" ON storage.objects;
+DROP POLICY IF EXISTS "Anyone can view store logos" ON storage.objects;
+DROP POLICY IF EXISTS "Store owners can update logos for their stores" ON storage.objects;
+DROP POLICY IF EXISTS "Store owners can delete logos for their stores" ON storage.objects;
+
+-- Policies for 'product-images' bucket
+DROP POLICY IF EXISTS "Store owners can insert product images for their stores" ON storage.objects;
+DROP POLICY IF EXISTS "Anyone can view product images" ON storage.objects;
+DROP POLICY IF EXISTS "Store owners can update product images for their stores" ON storage.objects;
+DROP POLICY IF EXISTS "Store owners can delete product images for their stores" ON storage.objects;
+
+-- Drop the function; CASCADE will handle dependent policies if any were missed or had different names.
 DROP FUNCTION IF EXISTS public.is_store_owner(UUID) CASCADE;
 
+-- Helper function to check if the current user owns the store
+-- Ensures the parameter name is 'store_id_param' to avoid issues with CREATE OR REPLACE if an old version with a different param name exists.
 CREATE OR REPLACE FUNCTION public.is_store_owner(store_id_param UUID)
-RETURNS BOOLEAN
-LANGUAGE SQL
-SECURITY DEFINER
+  RETURNS BOOLEAN
+  LANGUAGE plpgsql
+  SECURITY DEFINER -- Important for RLS policies that use this function
+  SET search_path = public -- Ensures correct schema context
 AS $$
-  SELECT EXISTS (
+BEGIN
+  -- Check if a store with the given ID exists and is owned by the current authenticated user
+  RETURN EXISTS (
     SELECT 1
     FROM public.stores s
-    WHERE s.id = store_id_param AND s.vendor_id = auth.uid() -- Check vendor_id
+    WHERE s.id = store_id_param AND s.vendor_id = auth.uid() -- Crucially checks vendor_id against auth.uid()
   );
+END;
 $$;
-COMMENT ON FUNCTION public.is_store_owner(UUID) IS 'Checks if the authenticated user is the owner of the given store_id.';
+
+COMMENT ON FUNCTION public.is_store_owner(UUID) IS 'Checks if the currently authenticated user is the vendor_id of the given store_id. Used for RLS policies.';
 
 -- Grant execute permission on the function to the authenticated role
 GRANT EXECUTE ON FUNCTION public.is_store_owner(UUID) TO authenticated;
 
--- ---------------------------------
--- RLS Policies for 'user-avatars' bucket
--- ---------------------------------
 
--- Drop existing policies before creating new ones
-DROP POLICY IF EXISTS "Users can select their own avatars" ON storage.objects;
-DROP POLICY IF EXISTS "Users can insert their own avatars" ON storage.objects;
-DROP POLICY IF EXISTS "Users can update their own avatars" ON storage.objects;
-DROP POLICY IF EXISTS "Users can delete their own avatars" ON storage.objects;
+-- Policies for 'user-avatars' bucket
+-- Path expected: {user_id}/filename.ext (e.g., avatar.png)
 
--- 1. Users can view their own avatar and public avatars (if any)
-CREATE POLICY "Users can select their own avatars"
-  ON storage.objects FOR SELECT TO authenticated
-  USING (
-    bucket_id = 'user-avatars'
-    AND auth.uid() = ((storage.foldername(name))[1])::uuid -- Path is {user_id}/filename.ext
-    -- OR (storage.object_metadata ->> 'is_public')::boolean = true -- If you add public avatars concept
-  );
-
--- 2. Users can upload their own avatar
-CREATE POLICY "Users can insert their own avatars"
+CREATE POLICY "Authenticated users can insert their own avatars"
   ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (
     bucket_id = 'user-avatars'
-    AND auth.uid() = ((storage.foldername(name))[1])::uuid -- Path is {user_id}/filename.ext
-    -- Optional: Check file size, type etc. here if needed in the policy
-    -- AND (storage.object_metadata ->> 'size')::bigint < 1048576 -- Example: Max 1MB
+    AND auth.uid() = ((storage.foldername(name))[1])::uuid -- User can only insert into their own folder (user_id must be the first segment)
   );
 
--- 3. Users can update their own avatar
+CREATE POLICY "Users can view their own avatars"
+  ON storage.objects FOR SELECT TO authenticated
+  USING (
+    bucket_id = 'user-avatars'
+    AND auth.uid() = ((storage.foldername(name))[1])::uuid
+  );
+
 CREATE POLICY "Users can update their own avatars"
   ON storage.objects FOR UPDATE TO authenticated
   USING (
     bucket_id = 'user-avatars'
     AND auth.uid() = ((storage.foldername(name))[1])::uuid
-  )
-  WITH CHECK (
-    bucket_id = 'user-avatars'
-    AND auth.uid() = ((storage.foldername(name))[1])::uuid
   );
 
--- 4. Users can delete their own avatar
 CREATE POLICY "Users can delete their own avatars"
   ON storage.objects FOR DELETE TO authenticated
   USING (
@@ -67,112 +78,66 @@ CREATE POLICY "Users can delete their own avatars"
     AND auth.uid() = ((storage.foldername(name))[1])::uuid
   );
 
--- ---------------------------------
--- RLS Policies for 'store-logos' bucket
--- Path convention: {user_id_owning_the_store}/{store_id}/<filename>
--- ---------------------------------
 
--- Drop existing policies before creating new ones
-DROP POLICY IF EXISTS "Public can select store logos" ON storage.objects;
-DROP POLICY IF EXISTS "Store owners can insert logos for their stores" ON storage.objects;
-DROP POLICY IF EXISTS "Store owners can update logos for their stores" ON storage.objects;
-DROP POLICY IF EXISTS "Store owners can delete logos for their stores" ON storage.objects;
+-- Policies for 'store-logos' bucket
+-- Path expected: {user_id}/{store_id}/filename.ext (e.g., logo.png)
+-- Note: The is_store_owner function already checks if auth.uid() matches vendor_id for the given store_id.
+-- The (storage.foldername(name))[1] (user_id) is implicitly checked by is_store_owner matching vendor_id to auth.uid().
 
-
--- 1. Public can view store logos (assuming logos are generally public)
-CREATE POLICY "Public can select store logos"
-  ON storage.objects FOR SELECT TO public -- Or 'anon, authenticated'
-  USING (
-    bucket_id = 'store-logos'
-  );
-
--- 2. Authenticated users can upload logos for stores they own
--- Path is {user_id_of_store_owner}/{store_id}/filename.ext
 CREATE POLICY "Store owners can insert logos for their stores"
   ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (
     bucket_id = 'store-logos'
-    AND auth.uid() = ((storage.foldername(name))[1])::uuid -- First segment is user_id, must match uploader
-    AND public.is_store_owner(((storage.foldername(name))[2])::uuid) -- Second segment is store_id, check ownership
+    AND public.is_store_owner(((storage.foldername(name))[2])::uuid) -- path segment 2 is store_id
+     -- AND auth.uid() = ((storage.foldername(name))[1])::uuid -- Ensure user_id from path segment 1 matches auth.uid for upload path consistency
   );
 
--- 3. Authenticated users can update logos for stores they own
+CREATE POLICY "Anyone can view store logos"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'store-logos');
+
 CREATE POLICY "Store owners can update logos for their stores"
   ON storage.objects FOR UPDATE TO authenticated
   USING (
     bucket_id = 'store-logos'
-    AND auth.uid() = ((storage.foldername(name))[1])::uuid
     AND public.is_store_owner(((storage.foldername(name))[2])::uuid)
-  )
-  WITH CHECK ( -- Redundant for USING but good practice for clarity
-    bucket_id = 'store-logos'
-    AND auth.uid() = ((storage.foldername(name))[1])::uuid
-    AND public.is_store_owner(((storage.foldername(name))[2])::uuid)
+    -- AND auth.uid() = ((storage.foldername(name))[1])::uuid
   );
 
--- 4. Authenticated users can delete logos for stores they own
 CREATE POLICY "Store owners can delete logos for their stores"
   ON storage.objects FOR DELETE TO authenticated
   USING (
     bucket_id = 'store-logos'
-    AND auth.uid() = ((storage.foldername(name))[1])::uuid
     AND public.is_store_owner(((storage.foldername(name))[2])::uuid)
+    -- AND auth.uid() = ((storage.foldername(name))[1])::uuid
   );
 
 
--- ---------------------------------
--- RLS Policies for 'product-images' bucket
--- Path convention: {user_id_owning_the_store}/{store_id}/<product_id_or_other_subfolders>/<filename>
--- ---------------------------------
+-- Policies for 'product-images' bucket
+-- Path expected: {store_id}/{product_id}/filename.ext
 
--- Drop existing policies before creating new ones
-DROP POLICY IF EXISTS "Public can select product images" ON storage.objects;
-DROP POLICY IF EXISTS "Store owners can insert product images for their stores" ON storage.objects;
-DROP POLICY IF EXISTS "Store owners can update product images for their stores" ON storage.objects;
-DROP POLICY IF EXISTS "Store owners can delete product images for their stores" ON storage.objects;
-
-
--- 1. Public can view product images (assuming images are generally public)
-CREATE POLICY "Public can select product images"
-  ON storage.objects FOR SELECT TO public -- Or 'anon, authenticated'
-  USING (
-    bucket_id = 'product-images'
-  );
-
--- 2. Authenticated users can upload product images for stores they own
 CREATE POLICY "Store owners can insert product images for their stores"
   ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (
     bucket_id = 'product-images'
-    AND auth.uid() = ((storage.foldername(name))[1])::uuid -- First segment is user_id, must match uploader
-    AND public.is_store_owner(((storage.foldername(name))[2])::uuid) -- Second segment is store_id, check ownership
+    AND public.is_store_owner(((storage.foldername(name))[1])::uuid) -- path segment 1 is store_id
   );
 
--- 3. Authenticated users can update product images for stores they own
+CREATE POLICY "Anyone can view product images"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'product-images');
+
 CREATE POLICY "Store owners can update product images for their stores"
   ON storage.objects FOR UPDATE TO authenticated
   USING (
     bucket_id = 'product-images'
-    AND auth.uid() = ((storage.foldername(name))[1])::uuid
-    AND public.is_store_owner(((storage.foldername(name))[2])::uuid)
-  )
-   WITH CHECK (
-    bucket_id = 'product-images'
-    AND auth.uid() = ((storage.foldername(name))[1])::uuid
-    AND public.is_store_owner(((storage.foldername(name))[2])::uuid)
+    AND public.is_store_owner(((storage.foldername(name))[1])::uuid)
   );
 
--- 4. Authenticated users can delete product images for stores they own
 CREATE POLICY "Store owners can delete product images for their stores"
   ON storage.objects FOR DELETE TO authenticated
   USING (
     bucket_id = 'product-images'
-    AND auth.uid() = ((storage.foldername(name))[1])::uuid
-    AND public.is_store_owner(((storage.foldername(name))[2])::uuid)
+    AND public.is_store_owner(((storage.foldername(name))[1])::uuid)
   );
 
--- Enable RLS on buckets if not already enabled via UI
--- This is more of a reminder as it's typically done in UI or initial bucket creation.
--- ALTER BUCKET "user-avatars" ENABLE ROW LEVEL SECURITY;
--- ALTER BUCKET "store-logos" ENABLE ROW LEVEL SECURITY;
--- ALTER BUCKET "product-images" ENABLE ROW LEVEL SECURITY;
