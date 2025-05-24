@@ -35,16 +35,12 @@ export async function middleware(request: NextRequest) {
 
   const currentPath = request.nextUrl.pathname;
 
-  const authRoutes = ['/login', '/signup', '/forgot-password'];
+  const authRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];
   const publicStaticRoutes = ['/', '/about']; // Explicitly public routes
 
   // If user is not signed in and trying to access a protected route
   if (!user && !authRoutes.includes(currentPath) && !publicStaticRoutes.includes(currentPath) && !currentPath.startsWith('/auth/callback')) {
-    // Allow access to root and /about even if not logged in
-    if (currentPath === '/' || currentPath === '/about') {
-      return response;
-    }
-    return NextResponse.redirect(new URL('/login', request.url));
+    return NextResponse.redirect(new URL('/login?message=Please sign in to access this page.', request.url));
   }
 
   // If user is signed in and trying to access auth routes (login, signup)
@@ -62,9 +58,8 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - auth (auth routes like /auth/callback - this ensures middleware doesn't run for /auth/*, handled in the logic above)
      * Feel free to modify this pattern to include more paths.
      */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|auth).*)', // Ensure /auth/callback is excluded here if not handled by the !currentPath.startsWith condition
   ],
 }
