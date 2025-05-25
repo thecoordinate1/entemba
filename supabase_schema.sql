@@ -1,4 +1,6 @@
 -- Enable pgcrypto extension if not already enabled
+-- You might need to run this separately if you don't have permissions
+-- or if it's not enabled by default in your project.
 -- CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Function to automatically update 'updated_at' timestamps
@@ -11,20 +13,21 @@ END;
 $$ language 'plpgsql';
 
 -- Drop existing trigger and function for idempotency (handle_new_user)
-DROP TRIGGER IF EXISTS create_public_vendor_for_user ON auth.users;
+-- The CASCADE will also drop the trigger if it depends on the function.
 DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
+-- Explicitly drop the trigger if it exists separately
+DROP TRIGGER IF EXISTS create_public_vendor_for_user ON auth.users;
 
--- Vendors Table (as per your provided definition with email TEXT NULL)
+
+-- Vendors Table (formerly user_profiles)
+-- Stores public profile information for authenticated users (vendors)
 CREATE TABLE IF NOT EXISTS public.vendors (
-  id uuid not null default auth.uid (),
-  display_name text not null,
-  email text null,
-  avatar_url text null,
-  created_at timestamp with time zone not null default now(),
-  updated_at timestamp with time zone not null default now(),
-  constraint vendors_pkey primary key (id),
-  constraint vendors_email_key unique (email),
-  constraint vendors_id_fkey foreign KEY (id) references auth.users (id) on delete CASCADE
+    id UUID PRIMARY KEY DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+    display_name TEXT NOT NULL,
+    email TEXT NULL UNIQUE, -- Kept as NULL based on user's last definition
+    avatar_url TEXT,
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 COMMENT ON TABLE public.vendors IS 'Stores public profile information for vendors, linked to auth.users.';
 -- Trigger for vendors updated_at
@@ -59,7 +62,7 @@ FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 -- Stores Table
 CREATE TABLE IF NOT EXISTS public.stores (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    vendor_id UUID NOT NULL REFERENCES public.vendors(id) ON DELETE CASCADE, -- Renamed from user_id
+    vendor_id UUID NOT NULL REFERENCES public.vendors(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     description TEXT NOT NULL,
     logo_url TEXT,
@@ -70,7 +73,7 @@ CREATE TABLE IF NOT EXISTS public.stores (
     created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
-COMMENT ON TABLE public.stores IS 'Stores information about vendor storefronts. vendor_id links to public.vendors.';
+COMMENT ON TABLE public.stores IS 'Stores information about vendor storefronts.';
 -- Trigger for stores updated_at
 DROP TRIGGER IF EXISTS stores_updated_at_trigger ON public.stores;
 CREATE TRIGGER stores_updated_at_trigger
@@ -93,20 +96,25 @@ CREATE TABLE IF NOT EXISTS public.products (
     store_id UUID NOT NULL REFERENCES public.stores(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     category TEXT NOT NULL,
-    price DECIMAL NOT NULL,
-    order_price DECIMAL,
+    price NUMERIC(10, 2) NOT NULL,
+    order_price NUMERIC(10, 2),
     stock INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'Draft',
     description TEXT,
     full_description TEXT NOT NULL,
     sku TEXT,
     tags TEXT[],
-    weight_kg DECIMAL,
+    weight_kg NUMERIC(8, 3),
     dimensions_cm JSONB,
-    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-    updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
+    average_rating NUMERIC(3, 2) DEFAULT 0.00 NOT NULL, -- Added for reviews
+    review_count INTEGER DEFAULT 0 NOT NULL,            -- Added for reviews
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL, -- Ensured NOT NULL
+    updated_at TIMESTAMPTZ DEFAULT now() NOT NULL  -- Ensured NOT NULL
 );
 COMMENT ON TABLE public.products IS 'Stores product information for each store.';
+-- Optional: Unique constraint for SKU per store if not already managed by application logic
+ALTER TABLE public.products ADD CONSTRAINT IF NOT EXISTS unique_store_sku UNIQUE (store_id, sku);
+-- Trigger for products updated_at
 DROP TRIGGER IF EXISTS products_updated_at_trigger ON public.products;
 CREATE TRIGGER products_updated_at_trigger
 BEFORE UPDATE ON public.products
@@ -146,6 +154,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
     updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 COMMENT ON TABLE public.customers IS 'Stores customer information.';
+-- Trigger for customers updated_at
 DROP TRIGGER IF EXISTS customers_updated_at_trigger ON public.customers;
 CREATE TRIGGER customers_updated_at_trigger
 BEFORE UPDATE ON public.customers
@@ -170,6 +179,7 @@ CREATE TABLE IF NOT EXISTS public.orders (
     updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 COMMENT ON TABLE public.orders IS 'Stores order information.';
+-- Trigger for orders updated_at
 DROP TRIGGER IF EXISTS orders_updated_at_trigger ON public.orders;
 CREATE TRIGGER orders_updated_at_trigger
 BEFORE UPDATE ON public.orders
@@ -189,66 +199,128 @@ CREATE TABLE IF NOT EXISTS public.order_items (
 );
 COMMENT ON TABLE public.order_items IS 'Stores individual items within an order.';
 
--- RLS Policies for public.stores table
--- Ensure RLS is enabled for the 'stores' table in your Supabase dashboard.
-ALTER TABLE public.stores ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Vendors can insert their own stores" ON public.stores;
-CREATE POLICY "Vendors can insert their own stores"
-  ON public.stores
-  FOR INSERT
-  TO authenticated
-  WITH CHECK (auth.uid() = vendor_id); -- Ensure this checks against vendor_id
-
-DROP POLICY IF EXISTS "Vendors can view their own stores" ON public.stores;
-CREATE POLICY "Vendors can view their own stores"
-  ON public.stores
-  FOR SELECT
-  TO authenticated
-  USING (auth.uid() = vendor_id); -- Ensure this checks against vendor_id
-
-DROP POLICY IF EXISTS "Vendors can update their own stores" ON public.stores;
-CREATE POLICY "Vendors can update their own stores"
-  ON public.stores
-  FOR UPDATE
-  TO authenticated
-  USING (auth.uid() = vendor_id) -- Check current owner for update eligibility
-  WITH CHECK (auth.uid() = vendor_id); -- Ensure vendor_id is not changed to someone else's
-
-DROP POLICY IF EXISTS "Vendors can delete their own stores" ON public.stores;
-CREATE POLICY "Vendors can delete their own stores"
-  ON public.stores
-  FOR DELETE
-  TO authenticated
-  USING (auth.uid() = vendor_id); -- Ensure this checks against vendor_id
-
-
 -- Grant usage on public schema to anon and authenticated roles
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
 
--- Grant permissions on tables to authenticated role (RLS will further restrict)
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.vendors TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.stores TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.social_links TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.products TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.product_images TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.customers TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.orders TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.order_items TO authenticated;
+-- Grant specific permissions. RLS will further restrict.
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon, authenticated;
+GRANT INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
 
--- Allow execution of helper functions
-GRANT EXECUTE ON FUNCTION public.update_updated_at_column() TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.handle_new_user() TO authenticated; -- Only authenticated users trigger this via auth
 
--- Enable RLS for other tables if not already enabled (examples)
--- ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
--- Define policies for products, orders, etc., ensuring they check store_id and then vendor_id of the store.
--- Example product policies:
--- CREATE POLICY "Vendors can manage products in their own stores" ON public.products
---   FOR ALL TO authenticated USING (
---     store_id IN (SELECT id FROM public.stores WHERE vendor_id = auth.uid())
---   ) WITH CHECK (
---     store_id IN (SELECT id FROM public.stores WHERE vendor_id = auth.uid())
---   );
+-- RLS Policies for stores table
+ALTER TABLE public.stores ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can insert their own stores" ON public.stores;
+CREATE POLICY "Users can insert their own stores"
+  ON public.stores
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = vendor_id);
 
-```
+DROP POLICY IF EXISTS "Users can view their own stores" ON public.stores;
+CREATE POLICY "Users can view their own stores"
+  ON public.stores
+  FOR SELECT
+  TO authenticated
+  USING (auth.uid() = vendor_id);
+
+DROP POLICY IF EXISTS "Users can update their own stores" ON public.stores;
+CREATE POLICY "Users can update their own stores"
+  ON public.stores
+  FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = vendor_id)
+  WITH CHECK (auth.uid() = vendor_id);
+
+DROP POLICY IF EXISTS "Users can delete their own stores" ON public.stores;
+CREATE POLICY "Users can delete their own stores"
+  ON public.stores
+  FOR DELETE
+  TO authenticated
+  USING (auth.uid() = vendor_id);
+
+
+-- RLS Policies for products table (example)
+ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage products for their own stores" ON public.products;
+CREATE POLICY "Users can manage products for their own stores"
+    ON public.products
+    FOR ALL
+    TO authenticated
+    USING (EXISTS (SELECT 1 FROM public.stores s WHERE s.id = store_id AND s.vendor_id = auth.uid()))
+    WITH CHECK (EXISTS (SELECT 1 FROM public.stores s WHERE s.id = store_id AND s.vendor_id = auth.uid()));
+
+-- RLS Policies for product_images table (example)
+ALTER TABLE public.product_images ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage product images for products in their own stores" ON public.product_images;
+CREATE POLICY "Users can manage product images for products in their own stores"
+    ON public.product_images
+    FOR ALL
+    TO authenticated
+    USING (EXISTS (
+        SELECT 1
+        FROM public.products p
+        JOIN public.stores s ON p.store_id = s.id
+        WHERE p.id = product_id AND s.vendor_id = auth.uid()
+    ))
+    WITH CHECK (EXISTS (
+        SELECT 1
+        FROM public.products p
+        JOIN public.stores s ON p.store_id = s.id
+        WHERE p.id = product_id AND s.vendor_id = auth.uid()
+    ));
+
+-- RLS Policies for orders table (example)
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage orders for their own stores" ON public.orders;
+CREATE POLICY "Users can manage orders for their own stores"
+    ON public.orders
+    FOR ALL
+    TO authenticated
+    USING (EXISTS (SELECT 1 FROM public.stores s WHERE s.id = store_id AND s.vendor_id = auth.uid()))
+    WITH CHECK (EXISTS (SELECT 1 FROM public.stores s WHERE s.id = store_id AND s.vendor_id = auth.uid()));
+
+-- RLS Policies for order_items table (example)
+ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage order items for orders in their own stores" ON public.order_items;
+CREATE POLICY "Users can manage order items for orders in their own stores"
+    ON public.order_items
+    FOR ALL
+    TO authenticated
+    USING (EXISTS (
+        SELECT 1
+        FROM public.orders o
+        JOIN public.stores s ON o.store_id = s.id
+        WHERE o.id = order_id AND s.vendor_id = auth.uid()
+    ))
+    WITH CHECK (EXISTS (
+        SELECT 1
+        FROM public.orders o
+        JOIN public.stores s ON o.store_id = s.id
+        WHERE o.id = order_id AND s.vendor_id = auth.uid()
+    ));
+
+-- RLS Policies for customers table (example - assuming customers are managed per vendor for now)
+-- This policy might need adjustment based on whether customers are global or per store/vendor.
+-- For now, allowing any authenticated vendor to manage customers. More specific policies might be needed.
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Authenticated vendors can manage customer records" ON public.customers;
+CREATE POLICY "Authenticated vendors can manage customer records"
+    ON public.customers
+    FOR ALL
+    TO authenticated
+    USING (true) -- Or more specific logic if customers are tied to stores/vendors directly
+    WITH CHECK (true);
+
+
+-- Indexes (Optional, but recommended for performance on larger datasets)
+-- CREATE INDEX IF NOT EXISTS idx_stores_vendor_id ON public.stores(vendor_id); -- Renamed from user_id
+-- CREATE INDEX IF NOT EXISTS idx_products_store_id ON public.products(store_id);
+-- CREATE INDEX IF NOT EXISTS idx_products_category ON public.products(category);
+-- CREATE INDEX IF NOT EXISTS idx_orders_store_id ON public.orders(store_id);
+-- CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON public.orders(customer_id);
+-- CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders(status);
+-- CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON public.order_items(order_id);
+-- CREATE INDEX IF NOT EXISTS idx_order_items_product_id ON public.order_items(product_id);
+-- CREATE INDEX IF NOT EXISTS idx_customers_email ON public.customers(email);
+
