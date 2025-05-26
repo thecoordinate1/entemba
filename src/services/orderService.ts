@@ -25,8 +25,8 @@ export interface OrderPayload {
   shipping_method?: string | null;
   payment_method?: string | null;
   tracking_number?: string | null;
-  shipping_latitude?: number | null; // Added
-  shipping_longitude?: number | null; // Added
+  shipping_latitude?: number | null;
+  shipping_longitude?: number | null;
 }
 
 export interface OrderItemFromSupabase {
@@ -55,19 +55,19 @@ export interface OrderFromSupabase {
   shipping_method: string | null;
   payment_method: string | null;
   tracking_number: string | null;
-  shipping_latitude: number | null; // Added
-  shipping_longitude: number | null; // Added
+  shipping_latitude: number | null;
+  shipping_longitude: number | null;
   created_at: string;
   updated_at: string;
   order_items: OrderItemFromSupabase[];
 }
 
 const commonOrderSelect = `
-  id, store_id, customer_id, customer_name, customer_email, order_date, total_amount, status, 
-  shipping_address, billing_address, shipping_method, payment_method, tracking_number, 
+  id, store_id, customer_id, customer_name, customer_email, order_date, total_amount, status,
+  shipping_address, billing_address, shipping_method, payment_method, tracking_number,
   shipping_latitude, shipping_longitude, created_at, updated_at,
   order_items (
-    id, order_id, product_id, product_name_snapshot, quantity, price_per_unit_snapshot, 
+    id, order_id, product_id, product_name_snapshot, quantity, price_per_unit_snapshot,
     product_image_url_snapshot, data_ai_hint_snapshot, created_at
   )
 `;
@@ -91,10 +91,10 @@ export async function getOrdersByStoreId(storeId: string): Promise<{ data: Order
     (errorToReturn as any).details = ordersError;
     return { data: null, error: errorToReturn };
   }
-  
+
   if (!ordersData) {
     console.warn(`[orderService.getOrdersByStoreId] No orders data returned for store ${storeId}, despite no explicit Supabase error. This could be due to RLS or no orders existing for this store.`);
-    return { data: [], error: null }; 
+    return { data: [], error: null };
   }
 
   console.log('[orderService.getOrdersByStoreId] Fetched orders count:', ordersData?.length);
@@ -172,9 +172,9 @@ export async function createOrder(
       const orderWithError = { ...newOrder, order_items: [] } as OrderFromSupabase;
       const errorToReturn = new Error(itemErrorMessage);
       (errorToReturn as any).details = itemsError;
-      return { 
-        data: orderWithError, 
-        error: errorToReturn 
+      return {
+        data: orderWithError,
+        error: errorToReturn
       };
     }
     if (newItems) {
@@ -198,12 +198,12 @@ export async function getOrderById(orderId: string, storeId: string): Promise<{ 
     .from('orders')
     .select(commonOrderSelect)
     .eq('id', orderId)
-    .eq('store_id', storeId) 
+    .eq('store_id', storeId)
     .single();
 
   if (orderError) {
     let message = orderError.message || 'Failed to fetch order.';
-    if (orderError.code === 'PGRST116') { 
+    if (orderError.code === 'PGRST116') {
         message = 'Order not found or access denied for this store.';
     } else if (Object.keys(orderError).length === 0 || orderError.message === '') {
         message = `Failed to fetch order ${orderId}. This often indicates an RLS policy issue on 'orders' or 'order_items', or a schema cache problem. Please verify RLS policies and try refreshing the Supabase schema cache.`;
@@ -213,7 +213,7 @@ export async function getOrderById(orderId: string, storeId: string): Promise<{ 
     (errorToReturn as any).details = orderError;
     return { data: null, error: errorToReturn };
   }
-  
+
   if (!orderData) {
     console.warn(`[orderService.getOrderById] No order data returned for order ${orderId} and store ${storeId}, despite no explicit Supabase error. This is highly indicative of an RLS SELECT policy issue.`);
     return { data: null, error: new Error('Order not found or access denied. Verify RLS SELECT policies and ensure the order exists and belongs to the store.') };
@@ -225,17 +225,27 @@ export async function getOrderById(orderId: string, storeId: string): Promise<{ 
 
 
 export async function updateOrderStatus(
-  orderId: string, 
-  storeId: string, 
-  status: OrderFromSupabase['status']
+  orderId: string,
+  storeId: string,
+  status: OrderFromSupabase['status'],
+  trackingNumber?: string | null
 ): Promise<{ data: OrderFromSupabase | null; error: Error | null }> {
-  console.log(`[orderService.updateOrderStatus] Updating status for order ID: ${orderId} to ${status} for store ID: ${storeId}`);
+  console.log(`[orderService.updateOrderStatus] Updating status for order ID: ${orderId} to ${status} for store ID: ${storeId}. Tracking: ${trackingNumber}`);
+
+  const updatePayload: { status: OrderFromSupabase['status'], updated_at: string, tracking_number?: string | null } = {
+    status: status,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (trackingNumber !== undefined) {
+    updatePayload.tracking_number = trackingNumber;
+  }
 
   const { data: updatedOrder, error: updateError } = await supabase
     .from('orders')
-    .update({ status: status, updated_at: new Date().toISOString() })
+    .update(updatePayload)
     .eq('id', orderId)
-    .eq('store_id', storeId) 
+    .eq('store_id', storeId)
     .select(commonOrderSelect)
     .single();
 
@@ -255,8 +265,40 @@ export async function updateOrderStatus(
     (errorToReturn as any).details = updateError;
     return { data: null, error: errorToReturn };
   }
-  
+
   console.log(`[orderService.updateOrderStatus] Successfully updated status for order ID: ${orderId}`);
   return { data: updatedOrder as OrderFromSupabase, error: null };
 }
-```
+
+export async function getOrdersByStoreIdAndStatus(
+  storeId: string,
+  status: OrderFromSupabase['status']
+): Promise<{ data: OrderFromSupabase[] | null; error: Error | null }> {
+  console.log(`[orderService.getOrdersByStoreIdAndStatus] Fetching orders for store_id: ${storeId} with status: ${status}`);
+
+  const { data: ordersData, error: ordersError } = await supabase
+    .from('orders')
+    .select(commonOrderSelect)
+    .eq('store_id', storeId)
+    .eq('status', status)
+    .order('order_date', { ascending: false });
+
+  if (ordersError) {
+    let message = ordersError.message || `Failed to fetch orders with status ${status}.`;
+    if (Object.keys(ordersError).length === 0 || ordersError.message === '') {
+        message = `Failed to fetch orders for store ${storeId} with status ${status}. This often indicates an RLS policy issue or schema cache problem.`;
+    }
+    console.error(`[orderService.getOrdersByStoreIdAndStatus] Supabase fetch error (status: ${status}):`, message, 'Original Supabase Error:', JSON.stringify(ordersError, null, 2));
+    const errorToReturn = new Error(message);
+    (errorToReturn as any).details = ordersError;
+    return { data: null, error: errorToReturn };
+  }
+
+  if (!ordersData) {
+    console.warn(`[orderService.getOrdersByStoreIdAndStatus] No orders data returned for store ${storeId} with status ${status}, despite no explicit Supabase error.`);
+    return { data: [], error: null };
+  }
+
+  console.log(`[orderService.getOrdersByStoreIdAndStatus] Fetched orders count (status: ${status}):`, ordersData?.length);
+  return { data: ordersData as OrderFromSupabase[] | null, error: null };
+}

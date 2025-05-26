@@ -40,7 +40,7 @@ import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
-import { getOrdersByStoreId, createOrder, updateOrderStatus, type OrderPayload, type OrderItemPayload, type OrderFromSupabase } from "@/services/orderService";
+import { getOrdersByStoreId, createOrder, updateOrderStatus, type OrderPayload, type OrderItemPayload, type OrderFromSupabase, getOrdersByStoreIdAndStatus } from "@/services/orderService";
 
 
 interface NewOrderItemEntry {
@@ -130,7 +130,14 @@ export default function OrdersPage() {
 
       if (authUser) {
         setIsLoadingOrders(true);
-        getOrdersByStoreId(storeIdFromUrl)
+        let fetchPromise;
+        if (statusFilter === "All") {
+          fetchPromise = getOrdersByStoreId(storeIdFromUrl);
+        } else {
+          fetchPromise = getOrdersByStoreIdAndStatus(storeIdFromUrl, statusFilter);
+        }
+
+        fetchPromise
           .then(({ data, error }) => {
             if (error) {
               toast({ variant: "destructive", title: "Error fetching orders", description: error.message });
@@ -149,15 +156,15 @@ export default function OrdersPage() {
       setOrders([]);
       setIsLoadingOrders(false);
     }
-  }, [storeIdFromUrl, authUser, toast, supabase]);
+  }, [storeIdFromUrl, authUser, statusFilter, toast, supabase]);
 
 
-  const handleUpdateStatus = async (orderId: string, newStatus: OrderStatus) => {
+  const handleUpdateStatus = async (orderId: string, newStatus: OrderStatus, trackingNumber?: string) => {
     if (!storeIdFromUrl) {
         toast({ variant: "destructive", title: "Store Not Selected", description: "Cannot update order status without a selected store." });
         return;
     }
-    const { data: updatedOrderData, error } = await updateOrderStatus(orderId, storeIdFromUrl, newStatus);
+    const { data: updatedOrderData, error } = await updateOrderStatus(orderId, storeIdFromUrl, newStatus, trackingNumber);
     if (error) {
       toast({ variant: "destructive", title: "Error Updating Status", description: error.message });
     } else if (updatedOrderData) {
@@ -171,8 +178,8 @@ export default function OrdersPage() {
     const matchesSearch = order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           order.customerEmail.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "All" || order.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    // Status filter is now handled by the backend query
+    return matchesSearch;
   }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
 
@@ -188,6 +195,7 @@ export default function OrdersPage() {
       toast({ title: "Invalid Input", description: "Please select a product and specify a valid quantity.", variant: "destructive" });
       return;
     }
+    // TODO: Replace initialProducts with a fetch from Supabase for active products of the current store
     const product = initialProducts.find(p => p.id === selectedProductIdToAdd); 
     if (!product) {
       toast({ title: "Product Not Found", variant: "destructive" });
@@ -578,4 +586,3 @@ export default function OrdersPage() {
     </div>
   );
 }
-```
