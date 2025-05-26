@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { Order as OrderUIType, OrderItem as OrderItemUIType, OrderStatus, Store } from "@/lib/mockData"; // Using mockData types for UI consistency
+import type { Order as OrderUIType, OrderStatus, Product as ProductUIType } from "@/lib/mockData"; // Using mockData types for UI consistency
 import { initialProducts, orderStatusColors, orderStatusIcons } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -33,7 +33,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { DollarSign, Eye, Filter, MoreHorizontal, PlusCircle, Printer, Search, ShoppingCart, Trash2, Truck } from "lucide-react";
+import { DollarSign, Eye, Filter, MoreHorizontal, PlusCircle, Printer, Search, ShoppingCart, Trash2, Truck, MapPin } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import * as React from "react";
@@ -60,6 +60,8 @@ const defaultNewOrderData = {
   shippingMethod: "",
   paymentMethod: "",
   trackingNumber: "",
+  shippingLatitude: "",
+  shippingLongitude: "",
   status: "Pending" as OrderStatus,
 };
 
@@ -85,6 +87,8 @@ const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
     shippingMethod: order.shipping_method || undefined,
     paymentMethod: order.payment_method || undefined,
     trackingNumber: order.tracking_number || undefined,
+    shippingLatitude: order.shipping_latitude || undefined,
+    shippingLongitude: order.shipping_longitude || undefined,
   };
 };
 
@@ -184,7 +188,6 @@ export default function OrdersPage() {
       toast({ title: "Invalid Input", description: "Please select a product and specify a valid quantity.", variant: "destructive" });
       return;
     }
-    // Assuming initialProducts is available and up-to-date; in a real app, fetch products for the current store
     const product = initialProducts.find(p => p.id === selectedProductIdToAdd); 
     if (!product) {
       toast({ title: "Product Not Found", variant: "destructive" });
@@ -254,6 +257,8 @@ export default function OrdersPage() {
       shipping_method: newOrderData.shippingMethod || null,
       payment_method: newOrderData.paymentMethod || null,
       tracking_number: newOrderData.trackingNumber || null,
+      shipping_latitude: newOrderData.shippingLatitude ? parseFloat(newOrderData.shippingLatitude) : null,
+      shipping_longitude: newOrderData.shippingLongitude ? parseFloat(newOrderData.shippingLongitude) : null,
     };
 
     const itemsPayload: OrderItemPayload[] = newOrderItems.map(item => ({
@@ -361,6 +366,14 @@ export default function OrdersPage() {
                         <div className="grid gap-2">
                             <Label htmlFor="billingAddress">Billing Address (Optional)</Label>
                             <Textarea id="billingAddress" name="billingAddress" value={newOrderData.billingAddress} onChange={handleNewOrderInputChange} placeholder="Leave blank if same as shipping" rows={3}/>
+                        </div>
+                         <div className="grid gap-2">
+                            <Label htmlFor="shippingLatitude">Shipping Latitude (Optional)</Label>
+                            <Input id="shippingLatitude" name="shippingLatitude" type="number" step="any" value={newOrderData.shippingLatitude} onChange={handleNewOrderInputChange} placeholder="e.g., 34.0522" />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="shippingLongitude">Shipping Longitude (Optional)</Label>
+                            <Input id="shippingLongitude" name="shippingLongitude" type="number" step="any" value={newOrderData.shippingLongitude} onChange={handleNewOrderInputChange} placeholder="e.g., -118.2437" />
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="shippingMethod">Shipping Method</Label>
@@ -565,4 +578,4 @@ export default function OrdersPage() {
     </div>
   );
 }
-
+```

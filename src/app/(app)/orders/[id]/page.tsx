@@ -5,7 +5,7 @@ import * as React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import NextImage from "next/image"; // Aliased to avoid conflict
 import Link from "next/link";
-import type { Order as OrderUIType, OrderStatus as OrderStatusUIType, OrderItem as OrderItemUIType } from "@/lib/mockData"; // UI types
+import type { Order as OrderUIType, OrderStatus as OrderStatusUIType } from "@/lib/mockData"; // UI types
 import { orderStatusColors, orderStatusIcons } from "@/lib/mockData";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Table, TableBody, TableCell, TableRow, TableHead, TableHeader } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, Printer, MapPin, User, CalendarDays, CreditCard, Truck as ShippingTruckIcon, DollarSign, AlertCircle } from "lucide-react";
+import { ArrowLeft, Edit, Printer, MapPin, User, CalendarDays, CreditCard, Truck as ShippingTruckIcon, DollarSign, AlertCircle, LocateFixed } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
@@ -49,6 +49,8 @@ const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
     shippingMethod: order.shipping_method || undefined,
     paymentMethod: order.payment_method || undefined,
     trackingNumber: order.tracking_number || undefined,
+    shippingLatitude: order.shipping_latitude || undefined,
+    shippingLongitude: order.shipping_longitude || undefined,
   };
 };
 
@@ -238,6 +240,12 @@ export default function OrderDetailPage() {
             <div className="space-y-1">
               <h4 className="font-semibold flex items-center"><MapPin className="mr-2 h-5 w-5 text-primary" /> Shipping Address</h4>
               <p className="text-sm whitespace-pre-line">{order.shippingAddress}</p>
+              {order.shippingLatitude && order.shippingLongitude && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <LocateFixed className="h-3 w-3" /> 
+                  Lat: {order.shippingLatitude.toFixed(4)}, Lng: {order.shippingLongitude.toFixed(4)}
+                </p>
+              )}
             </div>
             <div className="space-y-1">
               <h4 className="font-semibold flex items-center"><CreditCard className="mr-2 h-5 w-5 text-primary" /> Payment</h4>
@@ -331,3 +339,4 @@ export default function OrderDetailPage() {
     </div>
   );
 }
+```

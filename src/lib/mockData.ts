@@ -19,6 +19,8 @@ export interface Product {
   tags?: string[];
   weight?: number; // in kg
   dimensions?: { length: number; width: number; height: number }; // in cm
+  averageRating?: number;
+  reviewCount?: number;
 }
 
 export type OrderStatus = "Pending" | "Processing" | "Shipped" | "Delivered" | "Cancelled";
@@ -46,6 +48,8 @@ export interface Order {
   shippingMethod?: string;
   paymentMethod?: string;
   trackingNumber?: string;
+  shippingLatitude?: number;
+  shippingLongitude?: number;
 }
 
 export interface SocialLink {
@@ -112,6 +116,8 @@ export const initialProducts: Product[] = [
     tags: ["office", "ergonomic", "chair", "furniture"],
     weight: 15, // kg
     dimensions: { length: 60, width: 60, height: 120 }, // cm
+    averageRating: 4.5,
+    reviewCount: 120,
   },
   {
     id: "prod_2",
@@ -133,6 +139,8 @@ export const initialProducts: Product[] = [
     tags: ["electronics", "audio", "headphones", "wireless"],
     weight: 0.25, // kg
     dimensions: { length: 20, width: 18, height: 8 }, // cm
+    averageRating: 4.8,
+    reviewCount: 250,
   },
   {
     id: "prod_3",
@@ -150,7 +158,8 @@ export const initialProducts: Product[] = [
     sku: "APP-TSH-003",
     tags: ["apparel", "clothing", "organic", "t-shirt"],
     weight: 0.15, // kg
-    // dimensions undefined for this product
+    averageRating: 4.2,
+    reviewCount: 85,
   },
   {
     id: "prod_4",
@@ -164,7 +173,6 @@ export const initialProducts: Product[] = [
     dataAiHints: ["bottle lifestyle", "hydration metal", "reusable drinkware", "steel bottle"],
     category: "Home Goods",
     price: 18.75,
-    // orderPrice is undefined
     stock: 0,
     status: "Archived",
     createdAt: "2023-04-05",
@@ -172,7 +180,9 @@ export const initialProducts: Product[] = [
     fullDescription: "Stay hydrated on the go with our Stainless Steel Water Bottle. This 750ml bottle is made from food-grade stainless steel, is BPA-free, and features a double-wall vacuum insulation to keep drinks cold for 24 hours or hot for 12 hours. Leak-proof lid and wide mouth for easy cleaning.",
     sku: "HOME-BOT-004",
     tags: ["home goods", "kitchen", "bottle", "reusable"],
-    weight: 0.35, // kg
+    weight: 0.35, 
+    averageRating: 4.0,
+    reviewCount: 50,
   },
   {
     id: "prod_5",
@@ -187,7 +197,7 @@ export const initialProducts: Product[] = [
     dataAiHints: ["coffee food", "beans roast", "morning brew", "gourmet coffee", "fresh beans"],
     category: "Groceries",
     price: 15.99,
-    orderPrice: 14.99, // Special order price
+    orderPrice: 14.99, 
     stock: 200,
     status: "Active",
     createdAt: "2023-05-01",
@@ -195,7 +205,9 @@ export const initialProducts: Product[] = [
     fullDescription: "Start your day right with our Artisan Coffee Blend. This medium roast features a balanced flavor profile with notes of chocolate and caramel. Sourced from sustainable farms and roasted in small batches for maximum freshness. Whole beans, 12oz (340g) bag.",
     sku: "GROC-COF-005",
     tags: ["groceries", "coffee", "beverage", "artisan"],
-    weight: 0.34, // kg
+    weight: 0.34,
+    averageRating: 4.9,
+    reviewCount: 300,
   },
 ];
 
@@ -206,19 +218,21 @@ export const initialOrders: Order[] = [
     customerName: "Alice Wonderland",
     customerEmail: "alice@example.com",
     date: "2023-05-01",
-    total: 120.24, // Updated total based on potential order prices
+    total: 120.24, 
     status: "Delivered",
     itemsCount: 3,
     detailedItems: [
-      { productId: "prod_3", name: "Organic Cotton T-Shirt", quantity: 2, price: 22.50, image: "https://placehold.co/50x50.png", dataAiHint: "shirt fashion" }, // Used orderPrice
-      { productId: "prod_4", name: "Stainless Steel Water Bottle", quantity: 1, price: 18.75, image: "https://placehold.co/50x50.png", dataAiHint: "bottle lifestyle" }, // Used regular price
-      { productId: "prod_5", name: "Artisan Coffee Blend", quantity: 1, price: 14.99, image: "https://placehold.co/50x50.png", dataAiHint: "coffee food" }, // Used orderPrice
+      { productId: "prod_3", name: "Organic Cotton T-Shirt", quantity: 2, price: 22.50, image: "https://placehold.co/50x50.png", dataAiHint: "shirt fashion" }, 
+      { productId: "prod_4", name: "Stainless Steel Water Bottle", quantity: 1, price: 18.75, image: "https://placehold.co/50x50.png", dataAiHint: "bottle lifestyle" }, 
+      { productId: "prod_5", name: "Artisan Coffee Blend", quantity: 1, price: 14.99, image: "https://placehold.co/50x50.png", dataAiHint: "coffee food" }, 
     ],
     shippingAddress: "123 Rabbit Hole Lane, Wonderland, WN 456",
     billingAddress: "123 Rabbit Hole Lane, Wonderland, WN 456",
     shippingMethod: "Standard Shipping",
     paymentMethod: "Credit Card **** 1234",
     trackingNumber: "TRK123456789",
+    shippingLatitude: 34.0522,
+    shippingLongitude: -118.2437,
   },
   {
     id: "ORD002",
@@ -229,7 +243,7 @@ export const initialOrders: Order[] = [
     status: "Shipped",
     itemsCount: 1,
     detailedItems: [
-      { productId: "prod_2", name: "Wireless Noise-Cancelling Headphones", quantity: 1, price: 199.50, image: "https://placehold.co/50x50.png", dataAiHint: "headphones tech" }, // Used regular price
+      { productId: "prod_2", name: "Wireless Noise-Cancelling Headphones", quantity: 1, price: 199.50, image: "https://placehold.co/50x50.png", dataAiHint: "headphones tech" }, 
     ],
     shippingAddress: "456 Fixit Avenue, Builderville, BV 789",
     billingAddress: "456 Fixit Avenue, Builderville, BV 789",
@@ -242,29 +256,31 @@ export const initialOrders: Order[] = [
     customerName: "Charlie Brown",
     customerEmail: "charlie@example.com",
     date: "2023-05-05",
-    total: 279.99, // Updated total
+    total: 279.99, 
     status: "Processing",
     itemsCount: 1,
     detailedItems: [
-      { productId: "prod_1", name: "Ergonomic Office Chair", quantity: 1, price: 279.99, image: "https://placehold.co/50x50.png", dataAiHint: "chair office" }, // Used orderPrice
+      { productId: "prod_1", name: "Ergonomic Office Chair", quantity: 1, price: 279.99, image: "https://placehold.co/50x50.png", dataAiHint: "chair office" }, 
     ],
     shippingAddress: "789 Good Grief Street, Peanuts Town, PT 101",
     billingAddress: "789 Good Grief Street, Peanuts Town, PT 101",
     shippingMethod: "Standard Shipping",
     paymentMethod: "Credit Card **** 5678",
     trackingNumber: undefined,
+    shippingLatitude: 40.7128,
+    shippingLongitude: -74.0060,
   },
   {
     id: "ORD004",
     customerName: "Diana Prince",
     customerEmail: "diana@example.com",
     date: "2023-05-06",
-    total: 37.49, // Updated total
+    total: 37.49, 
     status: "Pending",
     itemsCount: 2,
      detailedItems: [
-      { productId: "prod_3", name: "Organic Cotton T-Shirt", quantity: 1, price: 22.50, image: "https://placehold.co/50x50.png", dataAiHint: "shirt fashion" }, // Used orderPrice
-      { productId: "prod_5", name: "Artisan Coffee Blend", quantity: 1, price: 14.99, image: "https://placehold.co/50x50.png", dataAiHint: "coffee food" }, // Used orderPrice
+      { productId: "prod_3", name: "Organic Cotton T-Shirt", quantity: 1, price: 22.50, image: "https://placehold.co/50x50.png", dataAiHint: "shirt fashion" }, 
+      { productId: "prod_5", name: "Artisan Coffee Blend", quantity: 1, price: 14.99, image: "https://placehold.co/50x50.png", dataAiHint: "coffee food" }, 
     ],
     shippingAddress: "1 Wonder Woman Way, Themyscira, TH 202",
     billingAddress: "1 Wonder Woman Way, Themyscira, TH 202",
@@ -279,7 +295,7 @@ export const initialOrders: Order[] = [
     status: "Cancelled",
     itemsCount: 1,
     detailedItems: [
-      { productId: "prod_4", name: "Stainless Steel Water Bottle", quantity: 1, price: 18.75, image: "https://placehold.co/50x50.png", dataAiHint: "bottle lifestyle" }, // Used regular price
+      { productId: "prod_4", name: "Stainless Steel Water Bottle", quantity: 1, price: 18.75, image: "https://placehold.co/50x50.png", dataAiHint: "bottle lifestyle" }, 
     ],
     shippingAddress: "Suburban Castle, Dark Town, DT 303",
     billingAddress: "Suburban Castle, Dark Town, DT 303",
@@ -451,3 +467,4 @@ export const customerStatusColors: Record<CustomerStatus, string> = {
   Blocked: "bg-red-500/20 text-red-700 dark:bg-red-500/30 dark:text-red-400 border-red-500/30",
 };
     
+```

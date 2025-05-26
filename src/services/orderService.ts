@@ -1,25 +1,21 @@
 
 // src/services/orderService.ts
 import { createClient } from '@/lib/supabase/client';
-// Assuming product images might be needed. If not, this import can be removed or adjusted.
-// import type { ProductFromSupabase } from './productService'; 
 
 const supabase = createClient();
 
-// For creating individual order items
 export interface OrderItemPayload {
   product_id: string;
   product_name_snapshot: string;
   quantity: number;
   price_per_unit_snapshot: number;
-  product_image_url_snapshot?: string | null; // Optional
-  data_ai_hint_snapshot?: string | null; // Optional
+  product_image_url_snapshot?: string | null;
+  data_ai_hint_snapshot?: string | null;
 }
 
-// For creating a new order
 export interface OrderPayload {
   store_id: string;
-  customer_id?: string | null; // Optional link to a customer record
+  customer_id?: string | null;
   customer_name: string;
   customer_email: string;
   total_amount: number;
@@ -29,13 +25,14 @@ export interface OrderPayload {
   shipping_method?: string | null;
   payment_method?: string | null;
   tracking_number?: string | null;
+  shipping_latitude?: number | null; // Added
+  shipping_longitude?: number | null; // Added
 }
 
-// For representing order items fetched from Supabase
 export interface OrderItemFromSupabase {
   id: string;
   order_id: string;
-  product_id: string | null; // Can be null if product was deleted
+  product_id: string | null;
   product_name_snapshot: string;
   quantity: number;
   price_per_unit_snapshot: number;
@@ -44,7 +41,6 @@ export interface OrderItemFromSupabase {
   created_at: string;
 }
 
-// For representing orders fetched from Supabase
 export interface OrderFromSupabase {
   id: string;
   store_id: string;
@@ -59,25 +55,29 @@ export interface OrderFromSupabase {
   shipping_method: string | null;
   payment_method: string | null;
   tracking_number: string | null;
+  shipping_latitude: number | null; // Added
+  shipping_longitude: number | null; // Added
   created_at: string;
   updated_at: string;
-  order_items: OrderItemFromSupabase[]; // Nested order items
+  order_items: OrderItemFromSupabase[];
 }
+
+const commonOrderSelect = `
+  id, store_id, customer_id, customer_name, customer_email, order_date, total_amount, status, 
+  shipping_address, billing_address, shipping_method, payment_method, tracking_number, 
+  shipping_latitude, shipping_longitude, created_at, updated_at,
+  order_items (
+    id, order_id, product_id, product_name_snapshot, quantity, price_per_unit_snapshot, 
+    product_image_url_snapshot, data_ai_hint_snapshot, created_at
+  )
+`;
 
 export async function getOrdersByStoreId(storeId: string): Promise<{ data: OrderFromSupabase[] | null; error: Error | null }> {
   console.log('[orderService.getOrdersByStoreId] Fetching orders for store_id:', storeId);
 
   const { data: ordersData, error: ordersError } = await supabase
     .from('orders')
-    .select(`
-      id, store_id, customer_id, customer_name, customer_email, order_date, total_amount, status, 
-      shipping_address, billing_address, shipping_method, payment_method, tracking_number, 
-      created_at, updated_at,
-      order_items (
-        id, order_id, product_id, product_name_snapshot, quantity, price_per_unit_snapshot, 
-        product_image_url_snapshot, data_ai_hint_snapshot, created_at
-      )
-    `)
+    .select(commonOrderSelect)
     .eq('store_id', storeId)
     .order('order_date', { ascending: false });
 
@@ -122,12 +122,10 @@ export async function createOrder(
       shipping_method: orderData.shipping_method,
       payment_method: orderData.payment_method,
       tracking_number: orderData.tracking_number,
+      shipping_latitude: orderData.shipping_latitude,
+      shipping_longitude: orderData.shipping_longitude,
     })
-    .select(`
-      id, store_id, customer_id, customer_name, customer_email, order_date, total_amount, status, 
-      shipping_address, billing_address, shipping_method, payment_method, tracking_number, 
-      created_at, updated_at
-    `) 
+    .select(commonOrderSelect.replace('order_items (', 'order_items!left (')) // Use left join for items if none initially
     .single();
 
   if (createOrderError || !newOrder) {
@@ -198,15 +196,7 @@ export async function getOrderById(orderId: string, storeId: string): Promise<{ 
 
   const { data: orderData, error: orderError } = await supabase
     .from('orders')
-    .select(`
-      id, store_id, customer_id, customer_name, customer_email, order_date, total_amount, status, 
-      shipping_address, billing_address, shipping_method, payment_method, tracking_number, 
-      created_at, updated_at,
-      order_items (
-        id, order_id, product_id, product_name_snapshot, quantity, price_per_unit_snapshot, 
-        product_image_url_snapshot, data_ai_hint_snapshot, created_at
-      )
-    `)
+    .select(commonOrderSelect)
     .eq('id', orderId)
     .eq('store_id', storeId) 
     .single();
@@ -229,7 +219,6 @@ export async function getOrderById(orderId: string, storeId: string): Promise<{ 
     return { data: null, error: new Error('Order not found or access denied. Verify RLS SELECT policies and ensure the order exists and belongs to the store.') };
   }
 
-
   console.log('[orderService.getOrderById] Fetched order:', orderData?.id);
   return { data: orderData as OrderFromSupabase | null, error: null };
 }
@@ -247,15 +236,7 @@ export async function updateOrderStatus(
     .update({ status: status, updated_at: new Date().toISOString() })
     .eq('id', orderId)
     .eq('store_id', storeId) 
-    .select(`
-      id, store_id, customer_id, customer_name, customer_email, order_date, total_amount, status, 
-      shipping_address, billing_address, shipping_method, payment_method, tracking_number, 
-      created_at, updated_at,
-      order_items (
-        id, order_id, product_id, product_name_snapshot, quantity, price_per_unit_snapshot, 
-        product_image_url_snapshot, data_ai_hint_snapshot, created_at
-      )
-    `)
+    .select(commonOrderSelect)
     .single();
 
   if (updateError || !updatedOrder) {
@@ -278,4 +259,4 @@ export async function updateOrderStatus(
   console.log(`[orderService.updateOrderStatus] Successfully updated status for order ID: ${orderId}`);
   return { data: updatedOrder as OrderFromSupabase, error: null };
 }
-
+```
