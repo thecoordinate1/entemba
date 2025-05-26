@@ -2,7 +2,7 @@
 "use client";
 
 import type { Order as OrderUIType, OrderStatus, Product as ProductUIType } from "@/lib/mockData"; // Using mockData types for UI consistency
-import { initialProducts, orderStatusColors, orderStatusIcons } from "@/lib/mockData";
+import { orderStatusColors, orderStatusIcons } from "@/lib/mockData"; // Removed initialProducts
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +41,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import { getOrdersByStoreId, createOrder, updateOrderStatus, type OrderPayload, type OrderItemPayload, type OrderFromSupabase, getOrdersByStoreIdAndStatus } from "@/services/orderService";
-
+import { getProductsByStoreId as fetchStoreProducts, type ProductFromSupabase } from "@/services/productService"; // Renamed to avoid conflict
 
 interface NewOrderItemEntry {
   productId: string;
@@ -75,7 +75,7 @@ const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
     status: order.status as OrderStatus,
     itemsCount: order.order_items.reduce((sum, item) => sum + item.quantity, 0),
     detailedItems: order.order_items.map(item => ({
-      productId: item.product_id || `deleted_${item.id}`, // Handle if product_id is null
+      productId: item.product_id || `deleted_${item.id}`, 
       name: item.product_name_snapshot,
       quantity: item.quantity,
       price: item.price_per_unit_snapshot,
@@ -89,6 +89,32 @@ const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
     trackingNumber: order.tracking_number || undefined,
     shippingLatitude: order.shipping_latitude || undefined,
     shippingLongitude: order.shipping_longitude || undefined,
+  };
+};
+
+// Helper to map backend product to UI product type for the dropdown
+const mapProductFromSupabaseToProductUIType = (product: ProductFromSupabase): ProductUIType => {
+  return {
+    id: product.id,
+    name: product.name,
+    images: product.product_images.sort((a,b) => a.order - b.order).map(img => img.image_url),
+    dataAiHints: product.product_images.sort((a,b) => a.order - b.order).map(img => img.data_ai_hint || ''),
+    category: product.category,
+    price: product.price,
+    orderPrice: product.order_price ?? undefined,
+    stock: product.stock,
+    status: product.status as ProductUIType["status"],
+    createdAt: new Date(product.created_at).toISOString().split("T")[0],
+    description: product.description ?? undefined,
+    fullDescription: product.full_description,
+    sku: product.sku ?? undefined,
+    tags: product.tags ?? undefined,
+    weight: product.weight_kg ?? undefined,
+    dimensions: product.dimensions_cm ? { 
+        length: product.dimensions_cm.length, 
+        width: product.dimensions_cm.width, 
+        height: product.dimensions_cm.height 
+    } : undefined,
   };
 };
 
@@ -110,6 +136,9 @@ export default function OrdersPage() {
   const [selectedProductIdToAdd, setSelectedProductIdToAdd] = React.useState<string>("");
   const [quantityToAdd, setQuantityToAdd] = React.useState<number>(1);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  
+  const [storeProducts, setStoreProducts] = React.useState<ProductUIType[]>([]);
+  const [isLoadingStoreProducts, setIsLoadingStoreProducts] = React.useState(false);
 
   const supabase = createClient();
   const [authUser, setAuthUser] = React.useState<User | null>(null);
@@ -130,6 +159,8 @@ export default function OrdersPage() {
 
       if (authUser) {
         setIsLoadingOrders(true);
+        setIsLoadingStoreProducts(true);
+
         let fetchPromise;
         if (statusFilter === "All") {
           fetchPromise = getOrdersByStoreId(storeIdFromUrl);
@@ -147,14 +178,31 @@ export default function OrdersPage() {
             }
           })
           .finally(() => setIsLoadingOrders(false));
+
+        // Fetch products for the store
+        fetchStoreProducts(storeIdFromUrl)
+          .then(({ data: productsData, error: productsError }) => {
+            if (productsError) {
+              toast({ variant: "destructive", title: "Error fetching store products", description: productsError.message });
+              setStoreProducts([]);
+            } else if (productsData) {
+              setStoreProducts(productsData.map(mapProductFromSupabaseToProductUIType).filter(p => p.status === 'Active'));
+            }
+          })
+          .finally(() => setIsLoadingStoreProducts(false));
+
       } else {
         setOrders([]);
         setIsLoadingOrders(false);
+        setStoreProducts([]);
+        setIsLoadingStoreProducts(false);
       }
     } else {
       setSelectedStoreName("No Store Selected");
       setOrders([]);
       setIsLoadingOrders(false);
+      setStoreProducts([]);
+      setIsLoadingStoreProducts(false);
     }
   }, [storeIdFromUrl, authUser, statusFilter, toast, supabase]);
 
@@ -178,7 +226,6 @@ export default function OrdersPage() {
     const matchesSearch = order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           order.customerEmail.toLowerCase().includes(searchTerm.toLowerCase());
-    // Status filter is now handled by the backend query
     return matchesSearch;
   }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -195,8 +242,7 @@ export default function OrdersPage() {
       toast({ title: "Invalid Input", description: "Please select a product and specify a valid quantity.", variant: "destructive" });
       return;
     }
-    // TODO: Replace initialProducts with a fetch from Supabase for active products of the current store
-    const product = initialProducts.find(p => p.id === selectedProductIdToAdd); 
+    const product = storeProducts.find(p => p.id === selectedProductIdToAdd); 
     if (!product) {
       toast({ title: "Product Not Found", variant: "destructive" });
       return;
@@ -407,16 +453,17 @@ export default function OrdersPage() {
                       <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_auto] gap-3 items-end p-3 border rounded-md">
                         <div className="grid gap-1.5">
                           <Label htmlFor="productToAdd">Select Product</Label>
-                          <Select value={selectedProductIdToAdd} onValueChange={setSelectedProductIdToAdd}>
+                          <Select value={selectedProductIdToAdd} onValueChange={setSelectedProductIdToAdd} disabled={isLoadingStoreProducts || storeProducts.length === 0}>
                             <SelectTrigger id="productToAdd">
-                              <SelectValue placeholder="Choose a product..." />
+                              <SelectValue placeholder={isLoadingStoreProducts ? "Loading products..." : storeProducts.length === 0 ? "No products in store" : "Choose a product..."} />
                             </SelectTrigger>
                             <SelectContent>
-                              {initialProducts.filter(p => p.status === 'Active').map(product => ( // TODO: Fetch products for the selected store
+                              {storeProducts.map(product => (
                                 <SelectItem key={product.id} value={product.id}>
                                   {product.name} (${product.orderPrice !== undefined ? product.orderPrice.toFixed(2) : product.price.toFixed(2)})
                                 </SelectItem>
                               ))}
+                              {storeProducts.length === 0 && !isLoadingStoreProducts && <SelectItem value="no-prods" disabled>No active products</SelectItem>}
                             </SelectContent>
                           </Select>
                         </div>
@@ -424,7 +471,7 @@ export default function OrdersPage() {
                           <Label htmlFor="quantityToAdd">Quantity</Label>
                           <Input id="quantityToAdd" type="number" min="1" value={quantityToAdd} onChange={(e) => setQuantityToAdd(parseInt(e.target.value) || 1)} />
                         </div>
-                        <Button type="button" onClick={handleAddProductToOrder} className="self-end">Add Item</Button>
+                        <Button type="button" onClick={handleAddProductToOrder} className="self-end" disabled={!selectedProductIdToAdd || isLoadingStoreProducts}>Add Item</Button>
                       </div>
 
                       {newOrderItems.length > 0 && (
@@ -586,3 +633,5 @@ export default function OrdersPage() {
     </div>
   );
 }
+
+      
