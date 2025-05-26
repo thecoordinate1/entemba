@@ -2,16 +2,18 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
-import Image from "next/image";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import NextImage from "next/image"; // Aliased to avoid conflict
 import Link from "next/link";
-import { initialOrders, type Order, type OrderStatus, orderStatusColors, orderStatusIcons } from "@/lib/mockData";
+import type { Order as OrderUIType, OrderStatus as OrderStatusUIType, OrderItem as OrderItemUIType } from "@/lib/mockData"; // UI types
+import { orderStatusColors, orderStatusIcons } from "@/lib/mockData";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableRow, TableHead, TableHeader } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Edit, Printer, MapPin, User, CalendarDays, CreditCard, Truck as ShippingTruckIcon, DollarSign } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ArrowLeft, Edit, Printer, MapPin, User, CalendarDays, CreditCard, Truck as ShippingTruckIcon, DollarSign, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
@@ -21,43 +23,156 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { getOrderById, updateOrderStatus, type OrderFromSupabase, type OrderStatus as OrderStatusFromSupabase } from "@/services/orderService";
+import { createClient } from '@/lib/supabase/client';
+import type { User as AuthUser } from '@supabase/supabase-js';
 
+const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
+  return {
+    id: order.id,
+    customerName: order.customer_name,
+    customerEmail: order.customer_email,
+    date: new Date(order.order_date).toISOString().split("T")[0],
+    total: order.total_amount,
+    status: order.status as OrderStatusUIType,
+    itemsCount: order.order_items.reduce((sum, item) => sum + item.quantity, 0),
+    detailedItems: order.order_items.map(item => ({
+      productId: item.product_id || `deleted_${item.id}`,
+      name: item.product_name_snapshot,
+      quantity: item.quantity,
+      price: item.price_per_unit_snapshot,
+      image: item.product_image_url_snapshot || "https://placehold.co/50x50.png",
+      dataAiHint: item.data_ai_hint_snapshot || "product",
+    })),
+    shippingAddress: order.shipping_address,
+    billingAddress: order.billing_address,
+    shippingMethod: order.shipping_method || undefined,
+    paymentMethod: order.payment_method || undefined,
+    trackingNumber: order.tracking_number || undefined,
+  };
+};
 
 export default function OrderDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParamsHook = useSearchParams(); 
   const { toast } = useToast();
+  
   const orderId = params.id as string;
+  const storeId = searchParamsHook.get("storeId");
 
-  const [order, setOrder] = React.useState<Order | null>(null);
+  const [order, setOrder] = React.useState<OrderUIType | null>(null);
+  const [isLoadingOrder, setIsLoadingOrder] = React.useState(true);
+  const [errorLoadingOrder, setErrorLoadingOrder] = React.useState<string | null>(null);
+  const [isUpdatingStatus, setIsUpdatingStatus] = React.useState(false);
+
+  const supabase = createClient();
+  const [authUser, setAuthUser] = React.useState<AuthUser | null>(null);
 
   React.useEffect(() => {
-    const foundOrder = initialOrders.find((o) => o.id === orderId);
-    if (foundOrder) {
-      setOrder(foundOrder);
-    } else {
-      console.error("Order not found");
-      // router.push('/orders'); 
-    }
-  }, [orderId, router]);
+    supabase.auth.getUser().then(({ data: { user } }) => setAuthUser(user));
+  }, [supabase]);
 
-  const handleUpdateStatus = (newStatus: OrderStatus) => {
-    if (!order) return;
-    
-    // Update order in our "global" state (initialOrders array) for demo purposes
-    const orderIndex = initialOrders.findIndex(o => o.id === order.id);
-    if (orderIndex !== -1) {
-      initialOrders[orderIndex].status = newStatus;
+  React.useEffect(() => {
+    const fetchOrderDetails = async () => {
+      if (orderId && storeId && authUser) {
+        setIsLoadingOrder(true);
+        setErrorLoadingOrder(null);
+        try {
+          const { data: fetchedOrderData, error } = await getOrderById(orderId, storeId);
+          if (error) {
+            throw error;
+          }
+          if (fetchedOrderData) {
+            setOrder(mapOrderFromSupabaseToUI(fetchedOrderData));
+          } else {
+            setErrorLoadingOrder("Order not found or you do not have access.");
+            setOrder(null);
+          }
+        } catch (err: any) {
+          console.error("Error fetching order details:", err);
+          setErrorLoadingOrder(err.message || "Failed to fetch order details.");
+          toast({ variant: "destructive", title: "Error", description: err.message || "Could not fetch order details." });
+          setOrder(null);
+        } finally {
+          setIsLoadingOrder(false);
+        }
+      } else if (!storeId && authUser) {
+        setErrorLoadingOrder("Store ID is missing. Cannot fetch order details.");
+        setIsLoadingOrder(false);
+      } else if (!authUser) {
+        setErrorLoadingOrder("You must be signed in to view order details.");
+        setIsLoadingOrder(false);
+      }
+    };
+
+    fetchOrderDetails();
+  }, [orderId, storeId, authUser, toast]);
+
+  const handleUpdateStatus = async (newStatus: OrderStatusUIType) => {
+    if (!order || !storeId || !authUser) {
+        toast({variant: "destructive", title: "Cannot update status", description: "Order details, store ID or user information is missing."})
+        return;
     }
-    setOrder({ ...order, status: newStatus }); // Update local state
-    toast({ title: "Order Status Updated", description: `Order ${order.id} status changed to ${newStatus}.` });
+    setIsUpdatingStatus(true);
+    try {
+      const { data: updatedOrderData, error } = await updateOrderStatus(order.id, storeId, newStatus as OrderStatusFromSupabase);
+      if (error) {
+        throw error;
+      }
+      if (updatedOrderData) {
+        setOrder(mapOrderFromSupabaseToUI(updatedOrderData));
+        toast({ title: "Order Status Updated", description: `Order ${order.id} status changed to ${newStatus}.` });
+      }
+    } catch (err: any) {
+      console.error("Error updating order status:", err);
+      toast({ variant: "destructive", title: "Error Updating Status", description: err.message || "Could not update order status." });
+    } finally {
+        setIsUpdatingStatus(false);
+    }
   };
 
+  if (isLoadingOrder) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-10 w-36" />
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-10 w-32" />
+            <Skeleton className="h-10 w-32" />
+          </div>
+        </div>
+        <Card>
+          <CardHeader><Skeleton className="h-8 w-1/2" /><Skeleton className="h-4 w-1/3 mt-2" /></CardHeader>
+          <CardContent className="space-y-4">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-2/3" />
+            <Separator/>
+            <Skeleton className="h-20 w-full" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (errorLoadingOrder) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-center">
+        <AlertCircle className="w-16 h-16 text-destructive mb-4" />
+        <h2 className="text-xl font-semibold mb-2">Error Loading Order</h2>
+        <p className="text-muted-foreground mb-6">{errorLoadingOrder}</p>
+        <Button variant="outline" onClick={() => router.push(`/orders?${searchParamsHook.toString()}`)}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Orders List
+        </Button>
+      </div>
+    );
+  }
 
   if (!order) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Loading order details or order not found...</p>
+        <p className="text-muted-foreground">Order not found or you do not have access.</p>
       </div>
     );
   }
@@ -67,7 +182,7 @@ export default function OrderDetailPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <Button variant="outline" onClick={() => router.back()} className="flex items-center gap-2">
+        <Button variant="outline" onClick={() => router.push(`/orders?${searchParamsHook.toString()}`)} className="flex items-center gap-2">
           <ArrowLeft className="h-4 w-4" />
           Back to Orders
         </Button>
@@ -77,16 +192,16 @@ export default function OrderDetailPage() {
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">
-                <Edit className="mr-2 h-4 w-4" /> Update Status
+              <Button variant="outline" disabled={isUpdatingStatus}>
+                <Edit className="mr-2 h-4 w-4" /> {isUpdatingStatus ? "Updating..." : "Update Status"}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Change Order Status</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {(Object.keys(orderStatusIcons) as OrderStatus[]).map(status => (
+              {(Object.keys(orderStatusIcons) as OrderStatusUIType[]).map(status => (
                 order.status !== status && (
-                  <DropdownMenuItem key={status} onClick={() => handleUpdateStatus(status)}>
+                  <DropdownMenuItem key={status} onClick={() => handleUpdateStatus(status)} disabled={isUpdatingStatus}>
                     Mark as {status}
                   </DropdownMenuItem>
                 )
@@ -154,9 +269,9 @@ export default function OrderDetailPage() {
             </TableHeader>
             <TableBody>
               {order.detailedItems.map((item, index) => (
-                <TableRow key={index}>
+                <TableRow key={`${item.productId}-${index}`}>
                   <TableCell className="hidden sm:table-cell">
-                    <Image
+                    <NextImage
                       src={item.image}
                       alt={item.name}
                       width={50}
@@ -166,7 +281,7 @@ export default function OrderDetailPage() {
                     />
                   </TableCell>
                   <TableCell className="font-medium">
-                     <Link href={`/products/${item.productId}`} className="hover:text-primary hover:underline">
+                     <Link href={`/products/${item.productId}?${searchParamsHook.toString()}`} className="hover:text-primary hover:underline">
                         {item.name}
                      </Link>
                   </TableCell>
@@ -182,15 +297,15 @@ export default function OrderDetailPage() {
              <div className="w-full sm:w-1/3 space-y-2">
                 <div className="flex justify-between">
                     <span>Subtotal:</span>
-                    <span>${order.total.toFixed(2)}</span> {/* Assuming total includes everything for now */}
+                    <span>${order.total.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
                     <span>Shipping:</span>
-                    <span>$0.00</span> {/* Placeholder */}
+                    <span>$0.00</span>
                 </div>
                  <div className="flex justify-between">
                     <span>Tax:</span>
-                    <span>$0.00</span> {/* Placeholder */}
+                    <span>$0.00</span>
                 </div>
                 <Separator />
                  <div className="flex justify-between font-bold text-lg">
@@ -205,7 +320,6 @@ export default function OrderDetailPage() {
         </CardFooter>
       </Card>
 
-      {/* Placeholder for Order History / Notes */}
       <Card>
         <CardHeader>
           <CardTitle>Order History & Notes (Placeholder)</CardTitle>
@@ -217,5 +331,3 @@ export default function OrderDetailPage() {
     </div>
   );
 }
-
-    

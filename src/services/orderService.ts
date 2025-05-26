@@ -1,7 +1,8 @@
 
 // src/services/orderService.ts
 import { createClient } from '@/lib/supabase/client';
-import type { ProductFromSupabase } from './productService'; // Assuming product images might be needed
+// Assuming product images might be needed. If not, this import can be removed or adjusted.
+// import type { ProductFromSupabase } from './productService'; 
 
 const supabase = createClient();
 
@@ -41,8 +42,6 @@ export interface OrderItemFromSupabase {
   product_image_url_snapshot: string | null;
   data_ai_hint_snapshot: string | null;
   created_at: string;
-  // Optionally, include product details if joining:
-  // products?: Pick<ProductFromSupabase, 'name' | 'images' | 'dataAiHints'>;
 }
 
 // For representing orders fetched from Supabase
@@ -94,11 +93,9 @@ export async function getOrdersByStoreId(storeId: string): Promise<{ data: Order
   }
   
   if (!ordersData) {
-    // This case might occur if RLS silently filters all results without an explicit error
     console.warn(`[orderService.getOrdersByStoreId] No orders data returned for store ${storeId}, despite no explicit Supabase error. This could be due to RLS or no orders existing for this store.`);
-    return { data: [], error: null }; // Return empty array if no data but no error
+    return { data: [], error: null }; 
   }
-
 
   console.log('[orderService.getOrdersByStoreId] Fetched orders count:', ordersData?.length);
   return { data: ordersData as OrderFromSupabase[] | null, error: null };
@@ -135,6 +132,7 @@ export async function createOrder(
 
   if (createOrderError || !newOrder) {
     let message = 'Failed to create order record.';
+    let details: any = createOrderError;
     if (createOrderError) {
         message = createOrderError.message || message;
         if (Object.keys(createOrderError).length === 0 || createOrderError.message === '') {
@@ -146,7 +144,7 @@ export async function createOrder(
         console.error('[orderService.createOrder] Error: newOrder is null after insert.');
     }
     const errorToReturn = new Error(message);
-    (errorToReturn as any).details = createOrderError;
+    (errorToReturn as any).details = details;
     return { data: null, error: errorToReturn };
   }
 
@@ -280,3 +278,4 @@ export async function updateOrderStatus(
   console.log(`[orderService.updateOrderStatus] Successfully updated status for order ID: ${orderId}`);
   return { data: updatedOrder as OrderFromSupabase, error: null };
 }
+
