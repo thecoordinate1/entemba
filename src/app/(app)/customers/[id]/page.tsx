@@ -11,10 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, User as UserIcon, Users, ShieldCheck, ShieldX, Phone, MapPin, CalendarDays, ShoppingCart, DollarSign, Tag, AlertCircle } from "lucide-react";
+import { ArrowLeft, Edit, User as UserIcon, Users, ShieldCheck, ShieldX, Phone, MapPin, CalendarDays, ShoppingCart, DollarSign, Tag, AlertCircle, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { CustomerStatus, Customer as CustomerUIType } from "@/lib/mockData";
-import { customerStatusColors } from "@/lib/mockData";
+import type { CustomerStatus, Customer as CustomerUIType, OrderStatus as OrderStatusUIType, Order as OrderUIType } from "@/lib/mockData"; // Added OrderUIType
+import { customerStatusColors, orderStatusColors, orderStatusIcons } from "@/lib/mockData"; // Added orderStatusColors, orderStatusIcons
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -30,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"; // Added Table imports
 import { createClient } from '@/lib/supabase/client';
 import type { User as AuthUser } from '@supabase/supabase-js';
 import {
@@ -38,6 +39,7 @@ import {
   type CustomerFromSupabase,
   type CustomerPayload,
 } from "@/services/customerService";
+import { getOrdersByCustomerAndStore, type OrderFromSupabase } from "@/services/orderService"; // Added getOrdersByCustomerAndStore
 
 
 // Form data type for Edit dialog
@@ -80,6 +82,34 @@ const mapCustomerFromSupabaseToUI = (customer: CustomerFromSupabase): CustomerUI
   };
 };
 
+const mapOrderFromSupabaseToUI_CustomerOrders = (order: OrderFromSupabase): OrderUIType => {
+  return {
+    id: order.id,
+    customerName: order.customer_name,
+    customerEmail: order.customer_email,
+    date: new Date(order.order_date).toISOString().split("T")[0],
+    total: order.total_amount,
+    status: order.status as OrderStatusUIType,
+    itemsCount: order.order_items.reduce((sum, item) => sum + item.quantity, 0),
+    detailedItems: order.order_items.map(item => ({
+      productId: item.product_id || `deleted_${item.id}`,
+      name: item.product_name_snapshot,
+      quantity: item.quantity,
+      price: item.price_per_unit_snapshot,
+      image: item.product_image_url_snapshot || "https://placehold.co/50x50.png",
+      dataAiHint: item.data_ai_hint_snapshot || "product",
+    })),
+    shippingAddress: order.shipping_address,
+    billingAddress: order.billing_address,
+    shippingMethod: order.shipping_method || undefined,
+    paymentMethod: order.payment_method || undefined,
+    trackingNumber: order.tracking_number || undefined,
+    shippingLatitude: order.shipping_latitude || undefined,
+    shippingLongitude: order.shipping_longitude || undefined,
+  };
+};
+
+
 export default function CustomerDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -87,6 +117,7 @@ export default function CustomerDetailPage() {
   const { toast } = useToast();
 
   const customerId = params.id as string;
+  const storeId = searchParamsHook.get("storeId");
 
   const [customer, setCustomer] = React.useState<CustomerUIType | null>(null);
   const [isLoadingCustomer, setIsLoadingCustomer] = React.useState(true);
@@ -96,6 +127,9 @@ export default function CustomerDetailPage() {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [formData, setFormData] = React.useState<CustomerFormData | null>(null);
   
+  const [customerOrders, setCustomerOrders] = React.useState<OrderUIType[]>([]);
+  const [isLoadingCustomerOrders, setIsLoadingCustomerOrders] = React.useState(false);
+
   const supabase = createClient();
   const [authUser, setAuthUser] = React.useState<AuthUser | null>(null);
 
@@ -114,7 +148,6 @@ export default function CustomerDetailPage() {
           if (fetchedCustomerData) {
             const uiCustomer = mapCustomerFromSupabaseToUI(fetchedCustomerData);
             setCustomer(uiCustomer);
-            // Pre-fill form data for edit dialog
             setFormData({
               name: uiCustomer.name,
               email: uiCustomer.email,
@@ -129,6 +162,21 @@ export default function CustomerDetailPage() {
               avatar_url: uiCustomer.avatar,
               data_ai_hint_avatar: uiCustomer.dataAiHintAvatar,
             });
+
+            // Fetch customer orders if storeId is available
+            if (storeId) {
+              setIsLoadingCustomerOrders(true);
+              const { data: ordersData, error: ordersError } = await getOrdersByCustomerAndStore(fetchedCustomerData.id, storeId);
+              if (ordersError) {
+                toast({ variant: "destructive", title: "Error Fetching Orders", description: ordersError.message });
+                setCustomerOrders([]);
+              } else if (ordersData) {
+                setCustomerOrders(ordersData.map(mapOrderFromSupabaseToUI_CustomerOrders));
+              }
+              setIsLoadingCustomerOrders(false);
+            }
+
+
           } else {
             setErrorLoadingCustomer("Customer not found or you do not have access.");
             setCustomer(null);
@@ -147,7 +195,7 @@ export default function CustomerDetailPage() {
       }
     };
     fetchCustomerDetails();
-  }, [customerId, authUser, toast]);
+  }, [customerId, authUser, toast, storeId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -187,7 +235,7 @@ export default function CustomerDetailPage() {
       toast({ variant: "destructive", title: "Error Updating Customer", description: error?.message || "Could not update customer." });
     } else {
       const updatedCustomerUI = mapCustomerFromSupabaseToUI(updatedCustomerData);
-      setCustomer(updatedCustomerUI); // Update the customer state on the detail page
+      setCustomer(updatedCustomerUI); 
       setIsEditDialogOpen(false);
       toast({ title: "Customer Updated", description: `${updatedCustomerUI.name} has been successfully updated.` });
     }
@@ -277,6 +325,7 @@ export default function CustomerDetailPage() {
           </CardHeader>
           <CardContent className="space-y-4"> <Skeleton className="h-4 w-full" /> <Skeleton className="h-4 w-2/3" /> <Separator/> <Skeleton className="h-20 w-full" /> </CardContent>
         </Card>
+         <Card><CardHeader><Skeleton className="h-8 w-1/3" /></CardHeader><CardContent><Skeleton className="h-20 w-full" /></CardContent></Card>
       </div>
     );
   }
@@ -361,7 +410,7 @@ export default function CustomerDetailPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <h4 className="font-semibold text-lg mb-3 flex items-center"><MapPin className="mr-2 h-5 w-5 text-primary"/>Address</h4>
-              {customer.address && (customer.address.street || customer.address.city) ? (
+              {(customer.address?.street || customer.address?.city || customer.address?.country) ? (
                 <div className="space-y-1 text-sm text-muted-foreground">
                   <p>{customer.address.street}</p>
                   <p>{customer.address.city}{customer.address.state && `, ${customer.address.state}`} {customer.address.zip}</p>
@@ -404,14 +453,57 @@ export default function CustomerDetailPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Order History (Placeholder)</CardTitle>
+          <CardTitle>Order History {storeId ? `from this Store` : `(All Stores)`}</CardTitle>
           <CardDescription>Recent orders placed by {customer.name}.</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">Customer's order history will be displayed here. (Requires further integration)</p>
-          {/* Placeholder for an order table or list */}
+          {isLoadingCustomerOrders && <p className="text-muted-foreground">Loading order history...</p>}
+          {!isLoadingCustomerOrders && customerOrders.length === 0 && (
+            <p className="text-muted-foreground">
+              {storeId ? "No orders found for this customer in the current store." : "No orders found for this customer."}
+            </p>
+          )}
+          {!isLoadingCustomerOrders && customerOrders.length > 0 && (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Order ID</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {customerOrders.map((order) => {
+                   const OrderStatusIcon = orderStatusIcons[order.status];
+                   return (
+                    <TableRow key={order.id}>
+                      <TableCell className="font-medium">{order.id}</TableCell>
+                      <TableCell>{new Date(order.date).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-right">${order.total.toFixed(2)}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={cn(orderStatusColors[order.status], "flex items-center gap-1.5 whitespace-nowrap text-xs")}>
+                          <OrderStatusIcon className="h-3.5 w-3.5" />
+                          {order.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/orders/${order.id}?${searchParamsHook.toString()}`}>
+                            <Eye className="mr-1 h-4 w-4" /> View
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                   );
+                })}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>
   );
 }
+

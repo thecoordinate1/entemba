@@ -132,15 +132,17 @@ export async function createOrder(
     let message = 'Failed to create order record.';
     let details: any = createOrderError;
     if (createOrderError) {
-        message = createOrderError.message || message;
-        if (Object.keys(createOrderError).length === 0 || createOrderError.message === '') {
-             message = `Failed to create order. This often indicates an RLS policy issue on the 'orders' table preventing the insert or read-back.`;
+        if (createOrderError.message && typeof createOrderError.message === 'string' && createOrderError.message.trim() !== '') {
+             message = createOrderError.message;
+        } else if (Object.keys(createOrderError).length === 0 && !createOrderError.message) {
+            message = `Failed to create order. This often indicates an RLS policy issue on the 'orders' table preventing the insert or read-back. Original Supabase Error: ${JSON.stringify(createOrderError)}`;
+        } else {
+             message = createOrderError.message || `Supabase error during order insert. Details: ${JSON.stringify(createOrderError)}`;
         }
-        console.error('[orderService.createOrder] Error creating order record:', message, 'Original Supabase Error:', JSON.stringify(createOrderError, null, 2));
-    } else {
+    } else if (!newOrder) {
         message = 'Failed to retrieve order after insert. This strongly suggests an RLS SELECT policy on the `orders` table is missing or incorrect.';
-        console.error('[orderService.createOrder] Error: newOrder is null after insert.');
     }
+    console.error('[orderService.createOrder] Error creating order. Message:', message, "Original Supabase Error:", JSON.stringify(createOrderError, null, 2) || 'No specific Supabase error object returned.');
     const errorToReturn = new Error(message);
     (errorToReturn as any).details = details;
     return { data: null, error: errorToReturn };
@@ -252,15 +254,17 @@ export async function updateOrderStatus(
   if (updateError || !updatedOrder) {
     let message = 'Failed to update order status.';
     if (updateError) {
-        message = updateError.message || message;
-        if (Object.keys(updateError).length === 0 || updateError.message === '') {
-            message = `Failed to update order ${orderId}. This often indicates an RLS policy issue on 'orders' preventing the update or read-back.`;
+        if (updateError.message && typeof updateError.message === 'string' && updateError.message.trim() !== '') {
+            message = updateError.message;
+        } else if (Object.keys(updateError).length === 0 && !updateError.message) {
+            message = `Failed to update order ${orderId}. This often indicates an RLS policy issue on 'orders' preventing the update or read-back. Original Supabase Error: ${JSON.stringify(updateError)}`;
+        } else {
+            message = updateError.message || `Supabase error during order status update. Details: ${JSON.stringify(updateError)}`;
         }
-        console.error('[orderService.updateOrderStatus] Error updating order status:', message, 'Original Supabase Error:', JSON.stringify(updateError, null, 2));
-    } else {
+    } else if (!updatedOrder) {
         message = 'Failed to retrieve order after status update. This strongly suggests an RLS SELECT policy on the `orders` table is missing or incorrect.';
-        console.error('[orderService.updateOrderStatus] Error: updatedOrder is null after status update.');
     }
+    console.error('[orderService.updateOrderStatus] Error updating order status. Message:', message, "Original Supabase Error:", JSON.stringify(updateError, null, 2));
     const errorToReturn = new Error(message);
     (errorToReturn as any).details = updateError;
     return { data: null, error: errorToReturn };
@@ -300,5 +304,45 @@ export async function getOrdersByStoreIdAndStatus(
   }
 
   console.log(`[orderService.getOrdersByStoreIdAndStatus] Fetched orders count (status: ${status}):`, ordersData?.length);
+  return { data: ordersData as OrderFromSupabase[] | null, error: null };
+}
+
+
+export async function getOrdersByCustomerAndStore(
+  customerId: string,
+  storeId: string
+): Promise<{ data: OrderFromSupabase[] | null; error: Error | null }> {
+  console.log(`[orderService.getOrdersByCustomerAndStore] Fetching orders for customer_id: ${customerId} and store_id: ${storeId}`);
+
+  if (!customerId || !storeId) {
+    const msg = "Customer ID and Store ID are required.";
+    console.error(`[orderService.getOrdersByCustomerAndStore] ${msg}`);
+    return { data: null, error: new Error(msg) };
+  }
+
+  const { data: ordersData, error: ordersError } = await supabase
+    .from('orders')
+    .select(commonOrderSelect) // Reusing the common select for consistency
+    .eq('customer_id', customerId)
+    .eq('store_id', storeId)
+    .order('order_date', { ascending: false });
+
+  if (ordersError) {
+    let message = ordersError.message || 'Failed to fetch orders for customer and store.';
+    if (Object.keys(ordersError).length === 0 || ordersError.message === '') {
+        message = `Failed to fetch orders for customer ${customerId} in store ${storeId}. This often indicates an RLS policy issue or schema cache problem.`;
+    }
+    console.error(`[orderService.getOrdersByCustomerAndStore] Supabase fetch error:`, message, 'Original Supabase Error:', JSON.stringify(ordersError, null, 2));
+    const errorToReturn = new Error(message);
+    (errorToReturn as any).details = ordersError;
+    return { data: null, error: errorToReturn };
+  }
+
+  if (!ordersData) {
+    console.warn(`[orderService.getOrdersByCustomerAndStore] No orders data returned for customer ${customerId} in store ${storeId}, despite no explicit Supabase error.`);
+    return { data: [], error: null }; // Return empty array if no orders, not an error
+  }
+
+  console.log(`[orderService.getOrdersByCustomerAndStore] Fetched orders count:`, ordersData?.length);
   return { data: ordersData as OrderFromSupabase[] | null, error: null };
 }
