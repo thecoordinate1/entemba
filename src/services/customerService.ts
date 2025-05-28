@@ -25,7 +25,6 @@ export interface CustomerPayload {
   state_province?: string | null;
   zip_postal_code?: string | null;
   country?: string | null;
-  // joined_date, last_order_date, total_spent, total_orders are typically managed by backend logic/triggers
 }
 
 export interface CustomerFromSupabase {
@@ -42,8 +41,8 @@ export interface CustomerFromSupabase {
   state_province: string | null;
   zip_postal_code: string | null;
   country: string | null;
-  joined_date: string; // Date string
-  last_order_date: string | null; // Date string
+  joined_date: string; 
+  last_order_date: string | null; 
   total_spent: number;
   total_orders: number;
   created_at: string;
@@ -87,7 +86,7 @@ export async function getCustomerById(customerId: string): Promise<{ data: Custo
     let message = error.message || `Failed to fetch customer ${customerId}.`;
     if (error.code === 'PGRST116') { 
         message = `Customer with ID ${customerId} not found or access denied.`;
-    } else if (Object.keys(error).length === 0 || error.message === '') {
+    } else if (Object.keys(error).length === 0 || !error.message) {
         message = `Failed to fetch customer ${customerId}. This often indicates an RLS policy issue preventing access.`;
     }
     console.error('[customerService.getCustomerById] Supabase fetch error:', message, 'Original Supabase Error:', JSON.stringify(error, null, 2));
@@ -111,9 +110,9 @@ export async function getCustomerByEmail(email: string): Promise<{ data: Custome
     .from('customers')
     .select(COMMON_CUSTOMER_SELECT)
     .eq('email', email)
-    .maybeSingle(); // Use maybeSingle as customer might not exist
+    .maybeSingle(); 
 
-  if (error && error.code !== 'PGRST116') { // PGRST116 is "Relation does not exist or no rows found", which is fine if customer not found
+  if (error && error.code !== 'PGRST116') { 
     console.error('[customerService.getCustomerByEmail] Supabase fetch error:', error);
     return { data: null, error: new Error(error.message || 'Failed to fetch customer by email.') };
   }
@@ -195,4 +194,27 @@ export async function deleteCustomer(customerId: string): Promise<{ error: Error
   }
   console.log('[customerService.deleteCustomer] Successfully deleted customer:', customerId);
   return { error: null };
+}
+
+
+// --- Dashboard Specific Functions ---
+export async function getRecentGlobalCustomersCount(days: number = 30): Promise<{ data: { count: number } | null; error: Error | null }> {
+  console.log(`[customerService.getRecentGlobalCustomersCount] Fetching count of customers joined in the last ${days} days.`);
+  
+  const dateThreshold = new Date();
+  dateThreshold.setDate(dateThreshold.getDate() - days);
+  const dateThresholdString = dateThreshold.toISOString();
+
+  const { count, error } = await supabase
+    .from('customers')
+    .select('*', { count: 'exact', head: true })
+    .gte('joined_date', dateThresholdString);
+
+  if (error) {
+    console.error('[customerService.getRecentGlobalCustomersCount] Error fetching recent customers count:', error.message);
+    return { data: null, error: new Error(error.message) };
+  }
+
+  console.log(`[customerService.getRecentGlobalCustomersCount] Count: ${count ?? 0}`);
+  return { data: { count: count ?? 0 }, error: null };
 }

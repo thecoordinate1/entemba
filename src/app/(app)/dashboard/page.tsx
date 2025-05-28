@@ -13,7 +13,8 @@ import {
   TrendingDown,
   ArrowRight,
   Activity,
-  LineChart 
+  LineChart,
+  FileText // For reports icon
 } from "lucide-react";
 import {
   ChartContainer,
@@ -27,20 +28,31 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
-import { initialProducts, initialStores, type Store } from "@/lib/mockData"; 
+import { Skeleton } from "@/components/ui/skeleton";
+import type { User as AuthUser } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/client';
+import { useToast } from "@/hooks/use-toast";
 
-const chartData = [
-  { month: "January", sales: 186, orders: 80 },
-  { month: "February", sales: 305, orders: 200 },
-  { month: "March", sales: 237, orders: 120 },
-  { month: "April", sales: 73, orders: 190 },
-  { month: "May", sales: 209, orders: 130 },
-  { month: "June", sales: 214, orders: 140 },
+import { getStoreOrderStats, getStoreTotalProductsSold } from "@/services/orderService";
+import { getStoreProductsSimple, type ProductFromSupabase } from "@/services/productService";
+import { getRecentGlobalCustomersCount } from "@/services/customerService";
+import { getStoreById, type StoreFromSupabase } from "@/services/storeService";
+import type { Product as ProductUIType } from "@/lib/mockData";
+
+
+// Mock chart data (real data integration for charts is more complex)
+const mockChartData = [
+  { month: "January", sales: 18600, orders: 80 },
+  { month: "February", sales: 30500, orders: 200 },
+  { month: "March", sales: 23700, orders: 120 },
+  { month: "April", sales: 7300, orders: 190 },
+  { month: "May", sales: 20900, orders: 130 },
+  { month: "June", sales: 21400, orders: 140 },
 ];
 
 const chartConfig = {
   sales: {
-    label: "Sales",
+    label: "Sales (K)", // Assuming Kwacha
     color: "hsl(var(--chart-1))",
   },
   orders: {
@@ -54,122 +66,236 @@ interface StatCardProps {
   value: string;
   icon: React.ElementType;
   change?: string;
-  changeType?: "positive" | "negative";
+  changeType?: "positive" | "negative" | "neutral";
   description: string;
   ctaLink?: string;
   ctaText?: string;
+  isLoading?: boolean;
 }
 
-const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, change, changeType, description, ctaLink, ctaText }) => (
-  <Card>
-    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-      <CardTitle className="text-sm font-medium">{title}</CardTitle>
-      <Icon className="h-5 w-5 text-muted-foreground" />
-    </CardHeader>
-    <CardContent>
-      <div className="text-3xl font-bold">{value}</div>
-      {change && (
-        <p className={cn(
-          "text-xs flex items-center",
-          changeType === "positive" && "text-emerald-500",
-          changeType === "negative" && "text-red-500",
-          !changeType && "text-muted-foreground" 
-        )}>
-          {changeType === "positive" && <TrendingUp className="mr-1 h-4 w-4" />}
-          {changeType === "negative" && <TrendingDown className="mr-1 h-4 w-4" />}
-          {change}
-        </p>
-      )}
-      <p className="text-xs text-muted-foreground pt-1">{description}</p>
-      {ctaLink && ctaText && (
-        <Button variant="link" asChild className="px-0 pt-2 text-sm text-primary">
-          <Link href={ctaLink} className="flex items-center">
-            {ctaText} <ArrowRight className="ml-1 h-4 w-4" />
-          </Link>
-        </Button>
-      )}
-    </CardContent>
-  </Card>
-);
+const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, change, changeType, description, ctaLink, ctaText, isLoading }) => {
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <Skeleton className="h-5 w-1/3" />
+          <Skeleton className="h-5 w-5 rounded-full" />
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-8 w-1/2 mb-1" />
+          <Skeleton className="h-4 w-2/3 mb-2" />
+          <Skeleton className="h-4 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Icon className="h-5 w-5 text-muted-foreground" />
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-bold">{value}</div>
+        {change && (
+          <p className={cn(
+            "text-xs flex items-center",
+            changeType === "positive" && "text-emerald-500",
+            changeType === "negative" && "text-red-500",
+            !changeType && "text-muted-foreground" 
+          )}>
+            {changeType === "positive" && <TrendingUp className="mr-1 h-4 w-4" />}
+            {changeType === "negative" && <TrendingDown className="mr-1 h-4 w-4" />}
+            {change}
+          </p>
+        )}
+        <p className="text-xs text-muted-foreground pt-1">{description}</p>
+        {ctaLink && ctaText && (
+          <Button variant="link" asChild className="px-0 pt-2 text-sm text-primary">
+            <Link href={ctaLink} className="flex items-center">
+              {ctaText} <ArrowRight className="ml-1 h-4 w-4" />
+            </Link>
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
 
-const topProductsToDisplay = initialProducts.slice(0, 3).map(p => ({
-  id: p.id,
-  name: p.name,
-  sales: p.id === "prod_2" ? 1250 : p.id === "prod_5" ? 980 : 750, 
-  image: p.images[0] || "https://picsum.photos/50/50?grayscale",
-  dataAiHint: p.dataAiHints[0] || "product",
-}));
-
+const mapProductFromSupabaseToUIType = (product: ProductFromSupabase): ProductUIType => {
+  return {
+    id: product.id,
+    name: product.name,
+    images: product.product_images.map(img => img.image_url),
+    dataAiHints: product.product_images.map(img => img.data_ai_hint || ''),
+    category: product.category,
+    price: product.price,
+    orderPrice: product.order_price ?? undefined,
+    stock: product.stock,
+    status: product.status as ProductUIType["status"],
+    createdAt: new Date(product.created_at).toISOString().split("T")[0],
+    description: product.description ?? undefined,
+    fullDescription: product.full_description,
+    sku: product.sku ?? undefined,
+    tags: product.tags ?? undefined,
+    weight: product.weight_kg ?? undefined,
+    dimensions: product.dimensions_cm ? { 
+        length: product.dimensions_cm.length, 
+        width: product.dimensions_cm.width, 
+        height: product.dimensions_cm.height 
+    } : undefined,
+    averageRating: product.average_rating ?? 0,
+    reviewCount: product.review_count ?? 0,
+  };
+};
 
 export default function DashboardPage() {
   const searchParams = useSearchParams();
   const storeId = searchParams.get("storeId");
-  const [selectedStoreName, setSelectedStoreName] = React.useState<string | null>(null);
+  const { toast } = useToast();
+  const supabase = createClient();
+
+  const [authUser, setAuthUser] = React.useState<AuthUser | null>(null);
+  const [selectedStore, setSelectedStore] = React.useState<StoreFromSupabase | null>(null);
+  
+  const [totalRevenue, setTotalRevenue] = React.useState<number | null>(null);
+  const [activeOrdersCount, setActiveOrdersCount] = React.useState<number | null>(null);
+  const [productsSoldCount, setProductsSoldCount] = React.useState<number | null>(null);
+  const [newCustomersCount, setNewCustomersCount] = React.useState<number | null>(null);
+  const [topProducts, setTopProducts] = React.useState<ProductUIType[]>([]);
+
+  const [isLoadingStats, setIsLoadingStats] = React.useState(true);
+  const [isLoadingStoreName, setIsLoadingStoreName] = React.useState(true);
+  const [isLoadingTopProducts, setIsLoadingTopProducts] = React.useState(true);
 
   React.useEffect(() => {
-    if (storeId) {
-      const store = initialStores.find((s: Store) => s.id === storeId);
-      setSelectedStoreName(store ? store.name : "Unknown Store");
-    } else if (initialStores.length > 0) {
-      setSelectedStoreName(initialStores[0].name); // Default to first store if no ID in URL
-    } else {
-      setSelectedStoreName("No Store Selected");
-    }
-  }, [storeId]);
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setAuthUser(user);
+    });
+  }, [supabase]);
 
-  const storeContextMessage = selectedStoreName ? ` for ${selectedStoreName}` : "";
+  React.useEffect(() => {
+    const fetchDashboardData = async () => {
+      if (!storeId || !authUser) {
+        setIsLoadingStats(false);
+        setIsLoadingStoreName(false);
+        setIsLoadingTopProducts(false);
+        setTotalRevenue(null);
+        setActiveOrdersCount(null);
+        setProductsSoldCount(null);
+        // Keep newCustomersCount as it's global for now
+        setTopProducts([]);
+        setSelectedStore(null);
+        return;
+      }
+
+      setIsLoadingStats(true);
+      setIsLoadingStoreName(true);
+      setIsLoadingTopProducts(true);
+
+      // Fetch Store Name
+      getStoreById(storeId, authUser.id).then(({data, error}) => {
+        if (error) toast({ variant: "destructive", title: "Error fetching store name", description: error.message });
+        setSelectedStore(data);
+        setIsLoadingStoreName(false);
+      });
+
+      // Fetch Order Stats
+      getStoreOrderStats(storeId).then(({ data, error }) => {
+        if (error) toast({ variant: "destructive", title: "Error fetching order stats", description: error.message });
+        if (data) {
+          setTotalRevenue(data.totalRevenue);
+          setActiveOrdersCount(data.activeOrdersCount);
+        }
+      });
+
+      // Fetch Products Sold
+      getStoreTotalProductsSold(storeId).then(({ data, error }) => {
+        if (error) toast({ variant: "destructive", title: "Error fetching products sold", description: error.message });
+        if (data) setProductsSoldCount(data.totalSold);
+      });
+      
+      // Fetch Top Products (simple version)
+      getStoreProductsSimple(storeId, 3, 'created_at', false).then(({ data, error }) => {
+        if (error) toast({ variant: "destructive", title: "Error fetching top products", description: error.message });
+        if (data) setTopProducts(data.map(mapProductFromSupabaseToUIType));
+        setIsLoadingTopProducts(false);
+      });
+      
+      // Combined loading state for main stats
+      Promise.allSettled([
+          getStoreOrderStats(storeId),
+          getStoreTotalProductsSold(storeId)
+      ]).finally(() => setIsLoadingStats(false));
+
+    };
+
+    // Fetch global new customers count (not store specific for now)
+    getRecentGlobalCustomersCount(30).then(({ data, error }) => {
+        if (error) toast({ variant: "destructive", title: "Error fetching new customers", description: error.message });
+        if (data) setNewCustomersCount(data.count);
+    });
+
+    fetchDashboardData();
+  }, [storeId, authUser, toast]);
+
+  const storeContextMessage = selectedStore ? ` for ${selectedStore.name}` : storeId ? " for selected store" : "";
+  const queryParams = storeId ? `?storeId=${storeId}` : "";
 
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Revenue"
-          value="$45,231.89"
+          value={totalRevenue !== null ? `K${totalRevenue.toFixed(2)}` : "N/A"}
           icon={DollarSign}
-          change="+$5,231 from last month"
-          changeType="positive"
-          description={`Total earnings this period${storeContextMessage}`}
-          ctaLink="/reports/revenue"
+          // change="+$5,231 from last month" // Real change calculation requires historical data
+          // changeType="positive"
+          description={`Total earnings this period${storeContextMessage}.`}
+          ctaLink={`/reports/revenue${queryParams}`}
           ctaText="View Revenue Report"
+          isLoading={isLoadingStats}
         />
-         <StatCard
-          title="Profit"
-          value="$12,875.00"
+         <StatCard // Placeholder Profit Card
+          title="Profit (Est.)"
+          value={totalRevenue !== null ? `K${(totalRevenue * 0.25).toFixed(2)}` : "N/A"} // Example: 25% of revenue
           icon={LineChart} 
-          change="+$1,200 from last month"
-          changeType="positive"
-          description={`Total profit after all expenses${storeContextMessage}`}
-          ctaLink="/reports/profit"
+          description={`Estimated profit${storeContextMessage}.`}
+          ctaLink={`/reports/profit${queryParams}`}
           ctaText="View Profit Details"
+          isLoading={isLoadingStats}
         />
         <StatCard
           title="Active Orders"
-          value="185"
+          value={activeOrdersCount !== null ? activeOrdersCount.toString() : "N/A"}
           icon={Activity} 
-          change="65 completed in last 30d"
-          description={`35 new orders today${storeContextMessage}`}
-          ctaLink="/orders"
+          // change="65 completed in last 30d" // Real change requires more data
+          description={`Orders needing attention${storeContextMessage}.`}
+          ctaLink={`/orders${queryParams}`}
           ctaText="Manage Orders"
+          isLoading={isLoadingStats}
         />
         <StatCard
           title="Products Sold"
-          value="12,234"
+          value={productsSoldCount !== null ? productsSoldCount.toString() : "N/A"}
           icon={Package}
-          change="+1,200 this month"
-          changeType="positive"
-          description={`Total items sold across all orders${storeContextMessage}`}
-          ctaLink="/products"
+          // change="+1,200 this month" // Real change requires more data
+          // changeType="positive"
+          description={`Total items sold${storeContextMessage}.`}
+          ctaLink={`/products${queryParams}`}
           ctaText="Manage Products"
+          isLoading={isLoadingStats}
         />
         <StatCard
           title="New Customers"
-          value="573"
+          value={newCustomersCount !== null ? newCustomersCount.toString() : "N/A"}
           icon={Users}
-          change="+82 this week"
-          changeType="positive"
-          description={`Customers who signed up recently${storeContextMessage}`}
-          ctaLink="/customers"
+          // change="+82 this week" // Real change requires more data
+          // changeType="positive"
+          description={`Global new sign-ups (last 30d).`}
+          ctaLink={`/customers${queryParams}`}
           ctaText="View Customers"
+          isLoading={newCustomersCount === null}
         />
       </div>
 
@@ -177,12 +303,12 @@ export default function DashboardPage() {
         <Card className="lg:col-span-4">
           <CardHeader>
             <CardTitle>Sales Overview</CardTitle>
-            <CardDescription>Monthly sales and order trends{storeContextMessage}.</CardDescription>
+            <CardDescription>Monthly sales and order trends (mock data){storeContextMessage}.</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
             <ChartContainer config={chartConfig} className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+                <BarChart data={mockChartData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis
                     dataKey="month"
@@ -198,11 +324,11 @@ export default function DashboardPage() {
                     tickLine={false}
                     axisLine={false}
                     tickMargin={10}
-                    tickFormatter={(value) => `$${value}`}
+                    tickFormatter={(value) => `K${value/1000}k`}
                   />
                   <ChartTooltip
                     cursor={false}
-                    content={<ChartTooltipContent indicator="dashed" />}
+                    content={<ChartTooltipContent indicator="dashed" formatter={(value, name) => name === "sales" ? `K${Number(value).toLocaleString()}` : value } />}
                   />
                   <ChartLegend content={<ChartLegendContent />} />
                   <Bar dataKey="sales" fill="var(--color-sales)" radius={4} />
@@ -215,31 +341,50 @@ export default function DashboardPage() {
 
         <Card className="lg:col-span-3">
           <CardHeader>
-            <CardTitle>Top Performing Products</CardTitle>
-            <CardDescription>Your best-selling items this month{storeContextMessage}.</CardDescription>
+            <CardTitle>Recently Added Products</CardTitle>
+            <CardDescription>Some of the latest products in this store{storeContextMessage}.</CardDescription>
           </CardHeader>
           <CardContent>
-            <ul className="space-y-4">
-              {topProductsToDisplay.map((product) => (
-                <li key={product.id} className="flex items-center gap-4">
-                  <Image
-                    src={product.image} 
-                    alt={product.name} 
-                    width={48}
-                    height={48}
-                    className="h-12 w-12 rounded-md object-cover"
-                    data-ai-hint={product.dataAiHint} 
-                  />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium leading-none">{product.name}</p>
-                    <p className="text-xs text-muted-foreground">{product.sales} sales</p>
-                  </div>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={`/products/${product.id}`}>View</Link>
-                  </Button>
-                </li>
-              ))}
-            </ul>
+            {isLoadingTopProducts && (
+              <ul className="space-y-4">
+                {[...Array(3)].map((_, i) => (
+                  <li key={`skel-prod-${i}`} className="flex items-center gap-4">
+                    <Skeleton className="h-12 w-12 rounded-md" />
+                    <div className="flex-1 space-y-1">
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-3 w-1/2" />
+                    </div>
+                    <Skeleton className="h-8 w-16 rounded-md" />
+                  </li>
+                ))}
+              </ul>
+            )}
+            {!isLoadingTopProducts && topProducts.length === 0 && (
+              <p className="text-sm text-muted-foreground">No products found for this store.</p>
+            )}
+            {!isLoadingTopProducts && topProducts.length > 0 && (
+              <ul className="space-y-4">
+                {topProducts.map((product) => (
+                  <li key={product.id} className="flex items-center gap-4">
+                    <Image
+                      src={product.images[0] || "https://placehold.co/48x48.png"} 
+                      alt={product.name} 
+                      width={48}
+                      height={48}
+                      className="h-12 w-12 rounded-md object-cover border"
+                      data-ai-hint={product.dataAiHints[0] || "product image"} 
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium leading-none">{product.name}</p>
+                      <p className="text-xs text-muted-foreground">{product.category}</p>
+                    </div>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/products/${product.id}${queryParams}`}>View</Link>
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
       </div>

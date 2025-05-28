@@ -9,16 +9,14 @@ const supabase = createClient();
 function getPathFromStorageUrl(url: string, bucketName: string): string | null {
   try {
     const urlObj = new URL(url);
-    // Check for both public and signed URL structures, more robustly
     const publicPathPrefix = `/storage/v1/object/public/${bucketName}/`;
-    const signedPathPrefix = `/storage/v1/object/sign/${bucketName}/`; // For signed URLs, if used
+    const signedPathPrefix = `/storage/v1/object/sign/${bucketName}/`; 
 
     let pathWithinBucket: string | undefined;
 
     if (urlObj.pathname.startsWith(publicPathPrefix)) {
       pathWithinBucket = urlObj.pathname.substring(publicPathPrefix.length);
     } else if (urlObj.pathname.startsWith(signedPathPrefix)) {
-      // For signed URLs, the actual path is before query parameters
       pathWithinBucket = urlObj.pathname.substring(signedPathPrefix.length).split('?')[0];
     } else {
       console.warn(`[productService.getPathFromStorageUrl] URL does not match expected prefix for bucket ${bucketName}: ${url}`);
@@ -33,13 +31,12 @@ function getPathFromStorageUrl(url: string, bucketName: string): string | null {
 }
 
 
-export interface ProductImagePayload { // For creating/updating product images
+export interface ProductImagePayload { 
   image_url: string;
   data_ai_hint?: string | null;
   order: number;
 }
 
-// Aligned with database schema (snake_case)
 export interface ProductPayload {
   name: string;
   category: string;
@@ -53,6 +50,8 @@ export interface ProductPayload {
   tags?: string[] | null;
   weight_kg?: number | null;
   dimensions_cm?: { length: number; width: number; height: number } | null;
+  average_rating?: number | null; // Added
+  review_count?: number | null;   // Added
 }
 
 export interface ProductImageFromSupabase {
@@ -79,6 +78,8 @@ export interface ProductFromSupabase {
   tags?: string[] | null;
   weight_kg?: number | null;
   dimensions_cm?: { length: number; width: number; height: number } | null;
+  average_rating: number | null; // Added
+  review_count: number | null;   // Added
   created_at: string;
   updated_at: string;
   product_images: ProductImageFromSupabase[];
@@ -96,9 +97,8 @@ async function uploadProductImage(
   const currentAuthUserId = currentUser?.id;
   console.log(`[productService.uploadProductImage] Attempting to upload. StoreID: ${storeId}, ProductID: ${productId}, Path: ${pathWithinBucket}, AuthUserID: ${currentAuthUserId}`);
 
-
   const { error: uploadError } = await supabase.storage
-    .from('product-images') // Bucket name
+    .from('product-images') 
     .upload(pathWithinBucket, imageFile, {
       cacheControl: '3600',
       upsert: true, 
@@ -121,12 +121,14 @@ async function uploadProductImage(
   return { publicUrl: data.publicUrl, error: null };
 }
 
+const COMMON_PRODUCT_SELECT = 'id, store_id, name, category, price, order_price, stock, status, description, full_description, sku, tags, weight_kg, dimensions_cm, average_rating, review_count, created_at, updated_at, product_images(*)';
+
 export async function getProductsByStoreId(storeId: string): Promise<{ data: ProductFromSupabase[] | null; error: Error | null }> {
   console.log('[productService.getProductsByStoreId] Fetching products for store_id:', storeId);
 
   const { data: productsData, error: productsError } = await supabase
     .from('products')
-    .select('*, product_images(*)') 
+    .select(COMMON_PRODUCT_SELECT) 
     .eq('store_id', storeId)
     .order('created_at', { ascending: false });
 
@@ -156,26 +158,28 @@ export async function createProduct(
 ): Promise<{ data: ProductFromSupabase | null; error: Error | null }> {
   console.log(`[productService.createProduct] Attempting for store ID: ${storeId}`, { productData, imageCount: imageFilesWithHints.length });
 
-  const productInsertData: { [key: string]: any } = {
+  const productInsertData = {
     store_id: storeId,
     name: productData.name,
     category: productData.category,
     price: productData.price,
+    order_price: productData.order_price,
     stock: productData.stock,
     status: productData.status,
-    full_description: productData.full_description,
-    order_price: productData.order_price,
     description: productData.description,
+    full_description: productData.full_description,
     sku: productData.sku,
     tags: productData.tags,
     weight_kg: productData.weight_kg,
     dimensions_cm: productData.dimensions_cm,
+    average_rating: productData.average_rating,
+    review_count: productData.review_count,
   };
 
   const { data: newProduct, error: createProductError } = await supabase
     .from('products')
     .insert(productInsertData)
-    .select('*, product_images!left(*)') 
+    .select(COMMON_PRODUCT_SELECT.replace('product_images(*)', 'product_images!left(*)')) // !left for initial insert
     .single();
 
   if (createProductError || !newProduct) {
@@ -184,9 +188,9 @@ export async function createProduct(
     if (createProductError) {
         if (createProductError.message && typeof createProductError.message === 'string' && createProductError.message.trim() !== '') {
             message = createProductError.message;
-        } else if (Object.keys(createProductError).length === 0) { 
-            message = `Product creation failed (empty error object). This likely indicates an RLS policy issue on the 'products' table preventing the operation or read-back.`;
-            details = { reason: "RLS or data constraint issue, empty error object from Supabase", supabaseError: createProductError };
+        } else if (Object.keys(createProductError).length === 0 && !createProductError.message) { 
+            message = `Product creation failed (empty error object). This likely indicates an RLS policy issue on the 'products' table preventing the operation or read-back. Or, a schema mismatch (e.g. column name). Supabase Error: ${JSON.stringify(createProductError)}`;
+            details = { reason: "RLS or data constraint/schema issue, empty error object from Supabase", supabaseError: createProductError };
         } else {
             message = `Supabase error during product insert. Details: ${JSON.stringify(createProductError)}`;
         }
@@ -194,7 +198,7 @@ export async function createProduct(
         message = 'Failed to retrieve product after insert. This strongly suggests an RLS SELECT policy on the `products` table is missing or incorrect.';
         details = { reason: "Failed to retrieve after insert, likely RLS SELECT policy missing/incorrect" };
     }
-    console.error('[productService.createProduct] Error creating product record:', message, "Original Supabase Error:", JSON.stringify(createProductError, null, 2));
+    console.error('[productService.createProduct] Error creating product record:', message, "Original Supabase Error (if any):", JSON.stringify(createProductError, null, 2));
     const errorToReturn = new Error(message);
     (errorToReturn as any).details = details;
     return { data: null, error: errorToReturn };
@@ -247,29 +251,30 @@ export async function updateProduct(
 ): Promise<{ data: ProductFromSupabase | null; error: Error | null }> {
   console.log(`[productService.updateProduct] Updating product ID: ${productId} for store ID: ${storeId}`);
 
-  const productUpdateData: { [key: string]: any } = {
+  const productUpdateData = {
     name: productData.name,
     category: productData.category,
     price: productData.price,
+    order_price: productData.order_price,
     stock: productData.stock,
     status: productData.status,
-    full_description: productData.full_description,
-    order_price: productData.order_price,
     description: productData.description,
+    full_description: productData.full_description,
     sku: productData.sku,
     tags: productData.tags,
     weight_kg: productData.weight_kg,
     dimensions_cm: productData.dimensions_cm,
+    average_rating: productData.average_rating,
+    review_count: productData.review_count,
     updated_at: new Date().toISOString(),
   };
-
 
   const { data: updatedCoreProduct, error: coreUpdateError } = await supabase
     .from('products')
     .update(productUpdateData)
     .eq('id', productId)
     .eq('store_id', storeId) 
-    .select('*') 
+    .select(COMMON_PRODUCT_SELECT.replace('product_images(*)', 'product_images!left(*)')) // Use !left for initial update before image processing
     .single();
 
   if (coreUpdateError || !updatedCoreProduct) {
@@ -283,7 +288,6 @@ export async function updateProduct(
     }
     return { data: null, error: new Error(message) };
   }
-
   
   const { data: oldDbImages, error: fetchOldImagesError } = await supabase
     .from('product_images')
@@ -293,7 +297,6 @@ export async function updateProduct(
   if (fetchOldImagesError) {
     console.warn('[productService.updateProduct] Error fetching old images for deletion:', fetchOldImagesError.message);
   }
-
   
   if (oldDbImages && oldDbImages.length > 0) {
     const oldImagePaths = oldDbImages
@@ -308,7 +311,6 @@ export async function updateProduct(
       }
     }
   }
-
   
   const { error: deleteOldDbImagesError } = await supabase
     .from('product_images')
@@ -318,8 +320,7 @@ export async function updateProduct(
   if (deleteOldDbImagesError) {
     console.warn('[productService.updateProduct] Error deleting old image records from DB:', deleteOldDbImagesError.message);
   }
-  
-  
+    
   const newProductImageRecords: ProductImageFromSupabase[] = [];
   for (const imgData of imagesToSet) {
     let imageUrl = imgData.existingUrl; 
@@ -415,7 +416,7 @@ export async function getProductById(productId: string): Promise<{ data: Product
 
   const { data: productData, error: productError } = await supabase
     .from('products')
-    .select('*, product_images(*)') 
+    .select(COMMON_PRODUCT_SELECT) 
     .eq('id', productId)
     .single();
 
@@ -436,3 +437,33 @@ export async function getProductById(productId: string): Promise<{ data: Product
   return { data: productData as ProductFromSupabase | null, error: null };
 }
 
+// --- Dashboard Specific Functions ---
+export async function getStoreProductsSimple(
+  storeId: string,
+  limit: number = 3,
+  orderBy: keyof ProductFromSupabase = 'created_at',
+  ascending: boolean = false
+): Promise<{ data: ProductFromSupabase[] | null; error: Error | null }> {
+  console.log(`[productService.getStoreProductsSimple] Fetching ${limit} products for store ${storeId}, ordered by ${orderBy}`);
+  if (!storeId) return { data: null, error: new Error("Store ID is required.") };
+
+  const { data, error } = await supabase
+    .from('products')
+    .select(COMMON_PRODUCT_SELECT)
+    .eq('store_id', storeId)
+    .order(orderBy, { ascending: ascending })
+    .limit(limit);
+
+  if (error) {
+    console.error(`[productService.getStoreProductsSimple] Error fetching products:`, error.message);
+    return { data: null, error: new Error(error.message) };
+  }
+   if (data) {
+    data.forEach(p => {
+        if (p.product_images) {
+            p.product_images.sort((a,b) => a.order - b.order);
+        }
+    });
+  }
+  return { data, error: null };
+}
