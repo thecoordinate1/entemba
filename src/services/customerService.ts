@@ -1,37 +1,159 @@
+
 // src/services/customerService.ts
-// This service will handle CRUD operations for customers.
-// It will interact with the 'customers' table in Supabase.
+import { createClient } from '@/lib/supabase/client';
 
-// import { createClient as createServerSupabaseClient } from '@/lib/supabase/server';
-// import { cookies } from 'next/headers';
-// import type { Customer } from '@/lib/mockData'; // Replace with actual Supabase types later
+const supabase = createClient();
 
-// Example functions (to be implemented when refactoring CustomersPage):
-/*
-export async function getCustomers(storeId?: string): Promise<Customer[]> {
-  // Logic to fetch customers, potentially filtered by storeId if applicable
-  // or all customers if storeId is not provided / relevant at a global customer level.
-  // ... Supabase query logic ...
-  return [];
+export interface CustomerAddressPayload {
+  street: string;
+  city: string;
+  state_province?: string | null;
+  zip_postal_code: string;
+  country: string;
 }
 
-export async function createCustomer(customerData: Omit<Customer, 'id' | 'totalSpent' | 'totalOrders' | 'joinedDate' | 'lastOrderDate'>, storeId?: string): Promise<Customer | null> {
-  // ... Supabase query logic ...
-  return null;
+export interface CustomerPayload {
+  name: string;
+  email: string;
+  phone?: string | null;
+  avatar_url?: string | null;
+  data_ai_hint_avatar?: string | null;
+  status: 'Active' | 'Inactive' | 'Blocked';
+  tags?: string[] | null;
+  street_address?: string | null;
+  city?: string | null;
+  state_province?: string | null;
+  zip_postal_code?: string | null;
+  country?: string | null;
+  // joined_date, last_order_date, total_spent, total_orders are typically managed by backend logic/triggers
 }
 
-export async function updateCustomer(customerId: string, customerData: Partial<Customer>): Promise<Customer | null> {
-  // ... Supabase query logic ...
-  return null;
+export interface CustomerFromSupabase {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  avatar_url: string | null;
+  data_ai_hint_avatar: string | null;
+  status: 'Active' | 'Inactive' | 'Blocked';
+  tags: string[] | null;
+  street_address: string | null;
+  city: string | null;
+  state_province: string | null;
+  zip_postal_code: string | null;
+  country: string | null;
+  joined_date: string; // Date string
+  last_order_date: string | null; // Date string
+  total_spent: number;
+  total_orders: number;
+  created_at: string;
+  updated_at: string;
 }
 
-export async function deleteCustomer(customerId: string): Promise<boolean> {
-  // ... Supabase query logic ...
-  return false;
+const COMMON_CUSTOMER_SELECT = `
+  id, name, email, phone, avatar_url, data_ai_hint_avatar, status, tags,
+  street_address, city, state_province, zip_postal_code, country,
+  joined_date, last_order_date, total_spent, total_orders, created_at, updated_at
+`;
+
+export async function getCustomers(): Promise<{ data: CustomerFromSupabase[] | null; error: Error | null }> {
+  console.log('[customerService.getCustomers] Fetching all customers');
+  const { data, error } = await supabase
+    .from('customers')
+    .select(COMMON_CUSTOMER_SELECT)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('[customerService.getCustomers] Supabase fetch error:', error);
+    return { data: null, error: new Error(error.message || 'Failed to fetch customers.') };
+  }
+  console.log('[customerService.getCustomers] Fetched customers count:', data?.length);
+  return { data, error: null };
 }
 
-export async function getCustomerById(customerId: string): Promise<Customer | null> {
-  // ... Supabase query logic ...
-  return null;
+export async function getCustomerById(customerId: string): Promise<{ data: CustomerFromSupabase | null; error: Error | null }> {
+  console.log('[customerService.getCustomerById] Fetching customer by ID:', customerId);
+  const { data, error } = await supabase
+    .from('customers')
+    .select(COMMON_CUSTOMER_SELECT)
+    .eq('id', customerId)
+    .single();
+
+  if (error) {
+    console.error('[customerService.getCustomerById] Supabase fetch error:', error);
+    return { data: null, error: new Error(error.message || `Failed to fetch customer ${customerId}.`) };
+  }
+  return { data, error: null };
 }
-*/
+
+export async function createCustomer(
+  customerData: CustomerPayload
+): Promise<{ data: CustomerFromSupabase | null; error: Error | null }> {
+  console.log('[customerService.createCustomer] Attempting to create customer:', customerData.name);
+  const { data: newCustomer, error } = await supabase
+    .from('customers')
+    .insert({
+      name: customerData.name,
+      email: customerData.email,
+      phone: customerData.phone,
+      avatar_url: customerData.avatar_url, // This would require avatar upload logic similar to user/store avatars
+      data_ai_hint_avatar: customerData.data_ai_hint_avatar,
+      status: customerData.status,
+      tags: customerData.tags,
+      street_address: customerData.street_address,
+      city: customerData.city,
+      state_province: customerData.state_province,
+      zip_postal_code: customerData.zip_postal_code,
+      country: customerData.country,
+      // joined_date is default, total_spent/orders default to 0
+    })
+    .select(COMMON_CUSTOMER_SELECT)
+    .single();
+
+  if (error || !newCustomer) {
+    console.error('[customerService.createCustomer] Error creating customer:', error);
+    const message = error?.message || 'Failed to create customer or retrieve it after insert. Check RLS or data constraints.';
+    return { data: null, error: new Error(message) };
+  }
+  console.log('[customerService.createCustomer] Successfully created customer:', newCustomer.id);
+  return { data: newCustomer, error: null };
+}
+
+export async function updateCustomer(
+  customerId: string,
+  updates: Partial<CustomerPayload>
+): Promise<{ data: CustomerFromSupabase | null; error: Error | null }> {
+  console.log('[customerService.updateCustomer] Attempting to update customer:', customerId);
+  const { data: updatedCustomer, error } = await supabase
+    .from('customers')
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', customerId)
+    .select(COMMON_CUSTOMER_SELECT)
+    .single();
+
+  if (error || !updatedCustomer) {
+    console.error('[customerService.updateCustomer] Error updating customer:', error);
+    const message = error?.message || `Failed to update customer ${customerId} or retrieve it. Check RLS.`;
+    return { data: null, error: new Error(message) };
+  }
+  console.log('[customerService.updateCustomer] Successfully updated customer:', updatedCustomer.id);
+  return { data: updatedCustomer, error: null };
+}
+
+export async function deleteCustomer(customerId: string): Promise<{ error: Error | null }> {
+  console.log('[customerService.deleteCustomer] Attempting to delete customer:', customerId);
+  const { error } = await supabase
+    .from('customers')
+    .delete()
+    .eq('id', customerId);
+
+  if (error) {
+    console.error('[customerService.deleteCustomer] Error deleting customer:', error);
+    return { error: new Error(error.message || `Failed to delete customer ${customerId}.`) };
+  }
+  console.log('[customerService.deleteCustomer] Successfully deleted customer:', customerId);
+  return { error: null };
+}

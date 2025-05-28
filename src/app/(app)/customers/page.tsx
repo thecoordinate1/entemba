@@ -2,7 +2,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   Table,
@@ -34,8 +33,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Eye, User, Users, ShieldCheck, ShieldX, DollarSign, ShoppingBag, CalendarDays, Phone } from "lucide-react";
-import NextImage from "next/image";
+import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Eye, User, Users, ShieldCheck, ShieldX } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   AlertDialog,
@@ -50,153 +48,237 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Customer, CustomerStatus, Store } from "@/lib/mockData";
-import { initialCustomers, customerStatusColors, initialStores } from "@/lib/mockData";
+import type { Customer as CustomerUIType, CustomerStatus } from "@/lib/mockData";
+import { customerStatusColors, initialStores } from "@/lib/mockData"; // Removed initialCustomers
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { User as AuthUser } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/client";
+import {
+  getCustomers,
+  createCustomer,
+  updateCustomer,
+  deleteCustomer,
+  type CustomerFromSupabase,
+  type CustomerPayload,
+} from "@/services/customerService";
 
-const defaultNewCustomerData: Omit<Customer, 'id' | 'avatar' | 'dataAiHintAvatar' | 'totalSpent' | 'totalOrders' | 'joinedDate' | 'lastOrderDate'> = {
+// Form data type for Add/Edit dialogs
+interface CustomerFormData {
+  name: string;
+  email: string;
+  status: CustomerStatus;
+  phone?: string;
+  street_address?: string;
+  city?: string;
+  state_province?: string;
+  zip_postal_code?: string;
+  country?: string;
+  tags?: string[];
+  avatar_url?: string; // For display, actual upload not implemented here
+  data_ai_hint_avatar?: string;
+}
+
+const defaultNewCustomerFormData: CustomerFormData = {
   name: "",
   email: "",
   status: "Active",
   phone: "",
-  address: { street: "", city: "", state: "", zip: "", country: ""},
+  street_address: "",
+  city: "",
+  state_province: "",
+  zip_postal_code: "",
+  country: "",
   tags: [],
+  avatar_url: "https://placehold.co/40x40.png", // Default placeholder
+  data_ai_hint_avatar: "person new",
 };
+
+const mapCustomerFromSupabaseToUI = (customer: CustomerFromSupabase): CustomerUIType => {
+  return {
+    id: customer.id,
+    name: customer.name,
+    email: customer.email,
+    avatar: customer.avatar_url || "https://placehold.co/40x40.png",
+    dataAiHintAvatar: customer.data_ai_hint_avatar || "person",
+    totalSpent: customer.total_spent,
+    totalOrders: customer.total_orders,
+    joinedDate: new Date(customer.joined_date).toISOString().split("T")[0],
+    lastOrderDate: customer.last_order_date ? new Date(customer.last_order_date).toISOString().split("T")[0] : undefined,
+    status: customer.status as CustomerStatus,
+    tags: customer.tags || [],
+    phone: customer.phone || undefined,
+    address: {
+      street: customer.street_address || "",
+      city: customer.city || "",
+      state: customer.state_province || "",
+      zip: customer.zip_postal_code || "",
+      country: customer.country || "",
+    },
+  };
+};
+
 
 export default function CustomersPage() {
   const searchParams = useSearchParams();
   const storeId = searchParams.get("storeId");
   const [selectedStoreName, setSelectedStoreName] = React.useState<string | null>(null);
 
-  const [customers, setCustomers] = React.useState<Customer[]>(initialCustomers);
+  const [customers, setCustomers] = React.useState<CustomerUIType[]>([]);
+  const [isLoadingCustomers, setIsLoadingCustomers] = React.useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
-  const [selectedCustomer, setSelectedCustomer] = React.useState<Customer | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = React.useState<CustomerUIType | null>(null);
   const [searchTerm, setSearchTerm] = React.useState("");
   const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  const [formData, setFormData] = React.useState<Omit<Customer, 'id' | 'avatar' | 'dataAiHintAvatar' | 'totalSpent' | 'totalOrders' | 'joinedDate' | 'lastOrderDate'>>(defaultNewCustomerData);
+  const [formData, setFormData] = React.useState<CustomerFormData>(defaultNewCustomerFormData);
+
+  const supabase = createClient();
+  const [authUser, setAuthUser] = React.useState<AuthUser | null>(null);
+
+  React.useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setAuthUser(user));
+  }, [supabase]);
 
   React.useEffect(() => {
     if (storeId) {
-      const store = initialStores.find((s: Store) => s.id === storeId);
+      const store = initialStores.find(s => s.id === storeId);
       setSelectedStoreName(store ? store.name : "Unknown Store");
     } else if (initialStores.length > 0) {
-        setSelectedStoreName(initialStores[0].name); 
-    }
-     else {
+      setSelectedStoreName(initialStores[0].name);
+    } else {
       setSelectedStoreName("No Store Selected");
     }
-    // Customer data might be global, but their activity (totalSpent, totalOrders)
-    // would ideally be filtered by storeId in a real backend.
-  }, [storeId]);
+
+    const fetchCustomers = async () => {
+      if (!authUser) { // Only fetch if user is authenticated
+        setIsLoadingCustomers(false); // Stop loading if no user
+        setCustomers([]); // Clear customers if no user
+        return;
+      }
+      setIsLoadingCustomers(true);
+      const { data, error } = await getCustomers();
+      if (error) {
+        toast({ variant: "destructive", title: "Error", description: error.message });
+        setCustomers([]);
+      } else if (data) {
+        setCustomers(data.map(mapCustomerFromSupabaseToUI));
+      }
+      setIsLoadingCustomers(false);
+    };
+
+    fetchCustomers();
+  }, [storeId, authUser, toast]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    if (name.startsWith("address.")) {
-      const addressField = name.split(".")[1] as keyof Customer["address"];
-      setFormData(prev => ({
-        ...prev,
-        address: { ...(prev.address || defaultNewCustomerData.address!), [addressField]: value }
-      }));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
-    }
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
-  
+
   const handleStatusChange = (value: CustomerStatus) => {
     setFormData(prev => ({ ...prev, status: value }));
   };
 
-  const processCustomerForm = (currentData: typeof formData, currentCustomer?: Customer): Omit<Customer, 'id' | 'avatar' | 'dataAiHintAvatar' | 'totalSpent' | 'totalOrders' | 'joinedDate' | 'lastOrderDate'> => {
+  const preparePayload = (data: CustomerFormData): CustomerPayload => {
     return {
-      name: currentData.name,
-      email: currentData.email,
-      phone: currentData.phone || undefined,
-      address: currentData.address,
-      status: currentData.status,
-      tags: currentData.tags || [],
+      name: data.name,
+      email: data.email,
+      phone: data.phone || null,
+      avatar_url: data.avatar_url, // Placeholder, actual upload not implemented
+      data_ai_hint_avatar: data.data_ai_hint_avatar,
+      status: data.status,
+      tags: data.tags && data.tags.length > 0 ? data.tags : null,
+      street_address: data.street_address || null,
+      city: data.city || null,
+      state_province: data.state_province || null,
+      zip_postal_code: data.zip_postal_code || null,
+      country: data.country || null,
     };
   };
 
   const handleAddCustomer = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    try {
-      const customerData = processCustomerForm(formData);
-      const newCustomer: Customer = {
-        id: `cust_${Date.now()}`,
-        ...customerData,
-        avatar: "https://placehold.co/40x40.png", 
-        dataAiHintAvatar: "person new",
-        totalSpent: 0, // Initial values, would be calculated per store in real app
-        totalOrders: 0, // Initial values
-        joinedDate: new Date().toISOString().split("T")[0],
-      };
+    if (!authUser) {
+      toast({ variant: "destructive", title: "Not authenticated", description: "Please sign in to add customers." });
+      return;
+    }
+    setIsSubmitting(true);
+    const payload = preparePayload(formData);
+    const { data: newCustomerData, error } = await createCustomer(payload);
+    setIsSubmitting(false);
 
-      initialCustomers.unshift(newCustomer);
-      setCustomers([newCustomer, ...customers]);
+    if (error || !newCustomerData) {
+      toast({ variant: "destructive", title: "Error Adding Customer", description: error?.message || "Could not add customer." });
+    } else {
+      const newCustomerUI = mapCustomerFromSupabaseToUI(newCustomerData);
+      setCustomers(prev => [newCustomerUI, ...prev]);
       setIsAddDialogOpen(false);
-      setFormData(defaultNewCustomerData);
-      toast({ title: "Customer Added", description: `${newCustomer.name} has been successfully added.` });
-    } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "Could not add customer." });
+      setFormData(defaultNewCustomerFormData);
+      toast({ title: "Customer Added", description: `${newCustomerUI.name} has been successfully added.` });
     }
   };
 
   const handleEditCustomer = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedCustomer) return;
-    try {
-      const customerData = processCustomerForm(formData, selectedCustomer);
-      const updatedCustomer: Customer = {
-        ...selectedCustomer,
-        ...customerData,
-        // totalSpent and totalOrders would be recalculated based on selectedStoreId in a real app
-      };
-      
-      const customerIndex = initialCustomers.findIndex(c => c.id === selectedCustomer.id);
-      if (customerIndex !== -1) {
-        initialCustomers[customerIndex] = updatedCustomer;
-      }
-      setCustomers(customers.map(c => c.id === selectedCustomer.id ? updatedCustomer : c));
+    if (!selectedCustomer || !authUser) return;
+    setIsSubmitting(true);
+    const payload = preparePayload(formData);
+    const { data: updatedCustomerData, error } = await updateCustomer(selectedCustomer.id, payload);
+    setIsSubmitting(false);
+
+    if (error || !updatedCustomerData) {
+      toast({ variant: "destructive", title: "Error Updating Customer", description: error?.message || "Could not update customer." });
+    } else {
+      const updatedCustomerUI = mapCustomerFromSupabaseToUI(updatedCustomerData);
+      setCustomers(customers.map(c => c.id === selectedCustomer.id ? updatedCustomerUI : c));
       setIsEditDialogOpen(false);
       setSelectedCustomer(null);
-      setFormData(defaultNewCustomerData);
-      toast({ title: "Customer Updated", description: `${updatedCustomer.name} has been successfully updated.` });
-    } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "Could not update customer." });
+      setFormData(defaultNewCustomerFormData);
+      toast({ title: "Customer Updated", description: `${updatedCustomerUI.name} has been successfully updated.` });
     }
   };
 
-  const handleDeleteCustomer = () => {
-    if (!selectedCustomer) return;
-    const customerIndex = initialCustomers.findIndex(c => c.id === selectedCustomer.id);
-    if (customerIndex !== -1) {
-      initialCustomers.splice(customerIndex, 1);
+  const handleDeleteCustomer = async () => {
+    if (!selectedCustomer || !authUser) return;
+    setIsSubmitting(true);
+    const { error } = await deleteCustomer(selectedCustomer.id);
+    setIsSubmitting(false);
+
+    if (error) {
+      toast({ variant: "destructive", title: "Error Deleting Customer", description: error.message });
+    } else {
+      setCustomers(customers.filter(c => c.id !== selectedCustomer.id));
+      setIsDeleteDialogOpen(false);
+      toast({ title: "Customer Deleted", description: `${selectedCustomer.name} has been successfully deleted.`, variant: "destructive" });
+      setSelectedCustomer(null);
     }
-    setCustomers(customers.filter(c => c.id !== selectedCustomer.id));
-    setIsDeleteDialogOpen(false);
-    toast({ title: "Customer Deleted", description: `${selectedCustomer.name} has been successfully deleted.`, variant: "destructive" });
-    setSelectedCustomer(null);
   };
-  
-  const openEditDialog = (customer: Customer) => {
+
+  const openEditDialog = (customer: CustomerUIType) => {
     setSelectedCustomer(customer);
     setFormData({
-        name: customer.name,
-        email: customer.email,
-        status: customer.status,
-        phone: customer.phone || "",
-        address: customer.address || { street: "", city: "", state: "", zip: "", country: ""},
-        tags: customer.tags || []
+      name: customer.name,
+      email: customer.email,
+      status: customer.status,
+      phone: customer.phone || "",
+      street_address: customer.address?.street || "",
+      city: customer.address?.city || "",
+      state_province: customer.address?.state || "",
+      zip_postal_code: customer.address?.zip || "",
+      country: customer.address?.country || "",
+      tags: customer.tags || [],
+      avatar_url: customer.avatar,
+      data_ai_hint_avatar: customer.dataAiHintAvatar,
     });
     setIsEditDialogOpen(true);
   };
 
-  const openDeleteDialog = (customer: Customer) => {
+  const openDeleteDialog = (customer: CustomerUIType) => {
     setSelectedCustomer(customer);
     setIsDeleteDialogOpen(true);
   };
@@ -221,35 +303,35 @@ export default function CustomersPage() {
         <Label htmlFor="phone">Phone Number (Optional)</Label>
         <Input id="phone" name="phone" type="tel" value={formData.phone || ""} onChange={handleInputChange} />
       </div>
-      
-      <Separator className="my-4"/>
+
+      <Separator className="my-4" />
       <h4 className="font-medium text-md col-span-full">Address Details (Optional)</h4>
       <div className="grid gap-2">
-        <Label htmlFor="address.street">Street Address</Label>
-        <Input id="address.street" name="address.street" value={formData.address?.street || ""} onChange={handleInputChange} />
+        <Label htmlFor="street_address">Street Address</Label>
+        <Input id="street_address" name="street_address" value={formData.street_address || ""} onChange={handleInputChange} />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="grid gap-2">
-          <Label htmlFor="address.city">City</Label>
-          <Input id="address.city" name="address.city" value={formData.address?.city || ""} onChange={handleInputChange} />
+          <Label htmlFor="city">City</Label>
+          <Input id="city" name="city" value={formData.city || ""} onChange={handleInputChange} />
         </div>
         <div className="grid gap-2">
-          <Label htmlFor="address.state">State/Province</Label>
-          <Input id="address.state" name="address.state" value={formData.address?.state || ""} onChange={handleInputChange} />
+          <Label htmlFor="state_province">State/Province</Label>
+          <Input id="state_province" name="state_province" value={formData.state_province || ""} onChange={handleInputChange} />
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="grid gap-2">
-          <Label htmlFor="address.zip">ZIP/Postal Code</Label>
-          <Input id="address.zip" name="address.zip" value={formData.address?.zip || ""} onChange={handleInputChange} />
+          <Label htmlFor="zip_postal_code">ZIP/Postal Code</Label>
+          <Input id="zip_postal_code" name="zip_postal_code" value={formData.zip_postal_code || ""} onChange={handleInputChange} />
         </div>
         <div className="grid gap-2">
-          <Label htmlFor="address.country">Country</Label>
-          <Input id="address.country" name="address.country" value={formData.address?.country || ""} onChange={handleInputChange} />
+          <Label htmlFor="country">Country</Label>
+          <Input id="country" name="country" value={formData.country || ""} onChange={handleInputChange} />
         </div>
       </div>
 
-      <Separator className="my-4"/>
+      <Separator className="my-4" />
       <div className="grid gap-2">
         <Label htmlFor="status">Status</Label>
         <Select name="status" value={formData.status} onValueChange={handleStatusChange}>
@@ -263,14 +345,14 @@ export default function CustomersPage() {
           </SelectContent>
         </Select>
       </div>
-       <div className="grid gap-2">
+      <div className="grid gap-2">
         <Label htmlFor="tags">Tags (Optional, comma-separated)</Label>
-        <Input 
-            id="tags" 
-            name="tags" 
-            value={formData.tags?.join(", ") || ""} 
-            onChange={(e) => setFormData(prev => ({ ...prev, tags: e.target.value.split(",").map(tag => tag.trim()).filter(tag => tag) }))} 
-            placeholder="e.g., VIP, Local, Wholesale"
+        <Input
+          id="tags"
+          name="tags"
+          value={formData.tags?.join(", ") || ""}
+          onChange={(e) => setFormData(prev => ({ ...prev, tags: e.target.value.split(",").map(tag => tag.trim()).filter(tag => tag) }))}
+          placeholder="e.g., VIP, Local, Wholesale"
         />
       </div>
     </>
@@ -279,7 +361,7 @@ export default function CustomersPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold flex items-center gap-2"><Users className="h-7 w-7"/>Customers</h1>
+        <h1 className="text-2xl font-semibold flex items-center gap-2"><Users className="h-7 w-7" />Customers</h1>
         <div className="flex items-center gap-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -289,15 +371,16 @@ export default function CustomersPage() {
               className="pl-8 sm:w-[300px]"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              disabled={!authUser}
             />
           </div>
-          <Dialog open={isAddDialogOpen} onOpenChange={(isOpen) => { setIsAddDialogOpen(isOpen); if (!isOpen) setFormData(defaultNewCustomerData); }}>
+          <Dialog open={isAddDialogOpen} onOpenChange={(isOpen) => { setIsAddDialogOpen(isOpen); if (!isOpen) setFormData(defaultNewCustomerFormData); }}>
             <DialogTrigger asChild>
-              <Button onClick={() => { setSelectedCustomer(null); setFormData(defaultNewCustomerData); setIsAddDialogOpen(true); }}>
+              <Button onClick={() => { setSelectedCustomer(null); setFormData(defaultNewCustomerFormData); setIsAddDialogOpen(true); }} disabled={!authUser}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Customer
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-lg"> 
+            <DialogContent className="sm:max-w-lg">
               <DialogHeader>
                 <DialogTitle>Add New Customer</DialogTitle>
                 <DialogDescription>
@@ -307,93 +390,105 @@ export default function CustomersPage() {
               <form onSubmit={handleAddCustomer}>
                 <ScrollArea className="h-[70vh] pr-6">
                   <div className="grid gap-4 py-4">
-                   {renderCustomerFormFields()}
+                    {renderCustomerFormFields()}
                   </div>
                 </ScrollArea>
                 <DialogFooter className="pt-4 border-t">
-                   <Button type="button" variant="outline" onClick={() => {setIsAddDialogOpen(false); setFormData(defaultNewCustomerData);}}>Cancel</Button>
-                  <Button type="submit">Add Customer</Button>
+                  <Button type="button" variant="outline" onClick={() => { setIsAddDialogOpen(false); setFormData(defaultNewCustomerFormData); }} disabled={isSubmitting}>Cancel</Button>
+                  <Button type="submit" disabled={isSubmitting || !authUser}>{isSubmitting ? "Adding..." : "Add Customer"}</Button>
                 </DialogFooter>
               </form>
             </DialogContent>
           </Dialog>
         </div>
       </div>
-      {selectedStoreName && <p className="text-sm text-muted-foreground">Customer activity (Total Spent, Total Orders) reflects data for store: <span className="font-semibold">{selectedStoreName}</span>.</p>}
+      {selectedStoreName && <p className="text-sm text-muted-foreground">Customer activity (Total Spent, Total Orders) reflects global data. Store-specific activity coming soon.</p>}
 
+      {isLoadingCustomers && authUser && (
+         <div className="space-y-4">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+        </div>
+      )}
 
-      <Card>
-       <CardContent className="pt-6">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="hidden w-[80px] sm:table-cell">Avatar</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead className="hidden md:table-cell">Email</TableHead>
-              <TableHead className="text-right hidden lg:table-cell">Total Spent</TableHead>
-              <TableHead className="text-center hidden lg:table-cell">Orders</TableHead>
-              <TableHead className="hidden md:table-cell">Joined</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>
-                <span className="sr-only">Actions</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredCustomers.map((customer) => {
-                const StatusIcon = customer.status === 'Active' ? ShieldCheck : customer.status === 'Blocked' ? ShieldX : User;
-              return (
-              <TableRow key={customer.id}>
-                <TableCell className="hidden sm:table-cell">
-                    <Avatar className="h-10 w-10">
-                        <AvatarImage src={customer.avatar} alt={customer.name} data-ai-hint={customer.dataAiHintAvatar} />
-                        <AvatarFallback>{customer.name.substring(0, 2).toUpperCase()}</AvatarFallback>
-                    </Avatar>
-                </TableCell>
-                <TableCell className="font-medium">{customer.name}</TableCell>
-                <TableCell className="hidden md:table-cell text-muted-foreground">{customer.email}</TableCell>
-                <TableCell className="text-right hidden lg:table-cell">${customer.totalSpent.toFixed(2)}</TableCell>
-                <TableCell className="text-center hidden lg:table-cell">{customer.totalOrders}</TableCell>
-                <TableCell className="hidden md:table-cell text-muted-foreground">{new Date(customer.joinedDate).toLocaleDateString()}</TableCell>
-                <TableCell>
-                  <Badge variant="outline" className={cn(customerStatusColors[customer.status], "flex items-center gap-1.5 whitespace-nowrap text-xs")}>
-                    <StatusIcon className="h-3.5 w-3.5" />
-                    {customer.status}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button aria-haspopup="true" size="icon" variant="ghost">
-                        <MoreHorizontal className="h-4 w-4" />
-                        <span className="sr-only">Toggle menu</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                      <DropdownMenuItem> {/* Replace with Link to customer detail page if one exists */}
-                          <Eye className="mr-2 h-4 w-4" /> View Details
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => openEditDialog(customer)}>
-                        <Edit className="mr-2 h-4 w-4" /> Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => openDeleteDialog(customer)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                        <Trash2 className="mr-2 h-4 w-4" /> Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            );
-            })}
-          </TableBody>
-        </Table>
-       </CardContent>
-      </Card>
+      {!isLoadingCustomers && authUser && (
+        <Card>
+          <CardContent className="pt-6">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="hidden w-[80px] sm:table-cell">Avatar</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead className="hidden md:table-cell">Email</TableHead>
+                  <TableHead className="text-right hidden lg:table-cell">Total Spent</TableHead>
+                  <TableHead className="text-center hidden lg:table-cell">Orders</TableHead>
+                  <TableHead className="hidden md:table-cell">Joined</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredCustomers.map((customer) => {
+                  const StatusIcon = customer.status === 'Active' ? ShieldCheck : customer.status === 'Blocked' ? ShieldX : User;
+                  return (
+                    <TableRow key={customer.id}>
+                      <TableCell className="hidden sm:table-cell">
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={customer.avatar} alt={customer.name} data-ai-hint={customer.dataAiHintAvatar} />
+                          <AvatarFallback>{customer.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                      </TableCell>
+                      <TableCell className="font-medium">{customer.name}</TableCell>
+                      <TableCell className="hidden md:table-cell text-muted-foreground">{customer.email}</TableCell>
+                      <TableCell className="text-right hidden lg:table-cell">${customer.totalSpent.toFixed(2)}</TableCell>
+                      <TableCell className="text-center hidden lg:table-cell">{customer.totalOrders}</TableCell>
+                      <TableCell className="hidden md:table-cell text-muted-foreground">{new Date(customer.joinedDate).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={cn(customerStatusColors[customer.status], "flex items-center gap-1.5 whitespace-nowrap text-xs")}>
+                          <StatusIcon className="h-3.5 w-3.5" />
+                          {customer.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button aria-haspopup="true" size="icon" variant="ghost">
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Toggle menu</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem> {/* Replace with Link to customer detail page if one exists */}
+                              <Eye className="mr-2 h-4 w-4" /> View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openEditDialog(customer)}>
+                              <Edit className="mr-2 h-4 w-4" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openDeleteDialog(customer)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                              <Trash2 className="mr-2 h-4 w-4" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+      
+      {!authUser && !isLoadingCustomers && (
+        <div className="text-center text-muted-foreground py-10">Please sign in to manage customers.</div>
+      )}
 
-      {/* Edit Customer Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => { setIsEditDialogOpen(isOpen); if(!isOpen) setFormData(defaultNewCustomerData); }}>
-        <DialogContent className="sm:max-w-lg"> 
+      <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => { setIsEditDialogOpen(isOpen); if (!isOpen) { setFormData(defaultNewCustomerFormData); setSelectedCustomer(null); } }}>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit {selectedCustomer?.name}</DialogTitle>
             <DialogDescription>
@@ -404,18 +499,18 @@ export default function CustomersPage() {
             <form onSubmit={handleEditCustomer}>
               <ScrollArea className="h-[70vh] pr-6">
                 <div className="grid gap-4 py-4">
-                {renderCustomerFormFields()}
+                  {renderCustomerFormFields()}
                 </div>
               </ScrollArea>
               <DialogFooter className="pt-4 border-t">
-                <Button type="button" variant="outline" onClick={() => {setIsEditDialogOpen(false); setFormData(defaultNewCustomerData);}}>Cancel</Button>
-                <Button type="submit">Save Changes</Button>
+                <Button type="button" variant="outline" onClick={() => { setIsEditDialogOpen(false); setFormData(defaultNewCustomerFormData); setSelectedCustomer(null); }} disabled={isSubmitting}>Cancel</Button>
+                <Button type="submit" disabled={isSubmitting || !authUser}>{isSubmitting ? "Saving..." : "Save Changes"}</Button>
               </DialogFooter>
             </form>
           )}
         </DialogContent>
       </Dialog>
-      
+
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -425,20 +520,20 @@ export default function CustomersPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setSelectedCustomer(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteCustomer} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
+            <AlertDialogCancel onClick={() => setSelectedCustomer(null)} disabled={isSubmitting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCustomer} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={isSubmitting}>
+              {isSubmitting ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {filteredCustomers.length === 0 && searchTerm && (
+      {!isLoadingCustomers && authUser && filteredCustomers.length === 0 && searchTerm && (
         <div className="text-center text-muted-foreground py-10">
           No customers found matching "{searchTerm}".
         </div>
       )}
-       {filteredCustomers.length === 0 && !searchTerm && customers.length === 0 && (
+      {!isLoadingCustomers && authUser && filteredCustomers.length === 0 && !searchTerm && customers.length === 0 && (
         <div className="text-center text-muted-foreground py-10 col-span-full">
           No customers yet. Click "Add Customer" to get started.
         </div>
@@ -446,4 +541,3 @@ export default function CustomersPage() {
     </div>
   );
 }
-
