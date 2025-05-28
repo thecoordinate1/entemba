@@ -3,6 +3,7 @@
 
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link"; // Added Link
 import {
   Table,
   TableBody,
@@ -49,7 +50,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Customer as CustomerUIType, CustomerStatus } from "@/lib/mockData";
-import { customerStatusColors, initialStores } from "@/lib/mockData"; // Removed initialCustomers
+import { customerStatusColors, initialStores } from "@/lib/mockData";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -77,7 +78,7 @@ interface CustomerFormData {
   zip_postal_code?: string;
   country?: string;
   tags?: string[];
-  avatar_url?: string; // For display, actual upload not implemented here
+  avatar_url?: string;
   data_ai_hint_avatar?: string;
 }
 
@@ -92,7 +93,7 @@ const defaultNewCustomerFormData: CustomerFormData = {
   zip_postal_code: "",
   country: "",
   tags: [],
-  avatar_url: "https://placehold.co/40x40.png", // Default placeholder
+  avatar_url: "https://placehold.co/40x40.png",
   data_ai_hint_avatar: "person new",
 };
 
@@ -147,8 +148,10 @@ export default function CustomersPage() {
 
   React.useEffect(() => {
     if (storeId) {
+      // In a real app, you'd fetch store details from Supabase
+      // For now, use mock data or just a placeholder
       const store = initialStores.find(s => s.id === storeId);
-      setSelectedStoreName(store ? store.name : "Unknown Store");
+      setSelectedStoreName(store ? store.name : "Selected Store");
     } else if (initialStores.length > 0) {
       setSelectedStoreName(initialStores[0].name);
     } else {
@@ -156,15 +159,15 @@ export default function CustomersPage() {
     }
 
     const fetchCustomers = async () => {
-      if (!authUser) { // Only fetch if user is authenticated
-        setIsLoadingCustomers(false); // Stop loading if no user
-        setCustomers([]); // Clear customers if no user
+      if (!authUser) { 
+        setIsLoadingCustomers(false); 
+        setCustomers([]); 
         return;
       }
       setIsLoadingCustomers(true);
       const { data, error } = await getCustomers();
       if (error) {
-        toast({ variant: "destructive", title: "Error", description: error.message });
+        toast({ variant: "destructive", title: "Error Fetching Customers", description: error.message });
         setCustomers([]);
       } else if (data) {
         setCustomers(data.map(mapCustomerFromSupabaseToUI));
@@ -189,7 +192,7 @@ export default function CustomersPage() {
       name: data.name,
       email: data.email,
       phone: data.phone || null,
-      avatar_url: data.avatar_url, // Placeholder, actual upload not implemented
+      avatar_url: data.avatar_url, 
       data_ai_hint_avatar: data.data_ai_hint_avatar,
       status: data.status,
       tags: data.tags && data.tags.length > 0 ? data.tags : null,
@@ -402,7 +405,7 @@ export default function CustomersPage() {
           </Dialog>
         </div>
       </div>
-      {selectedStoreName && <p className="text-sm text-muted-foreground">Customer activity (Total Spent, Total Orders) reflects global data. Store-specific activity coming soon.</p>}
+      {selectedStoreName && <p className="text-sm text-muted-foreground">Displaying all customers. Store-specific customer views and metrics coming soon.</p>}
 
       {isLoadingCustomers && authUser && (
          <div className="space-y-4">
@@ -462,8 +465,10 @@ export default function CustomersPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem> {/* Replace with Link to customer detail page if one exists */}
-                              <Eye className="mr-2 h-4 w-4" /> View Details
+                            <DropdownMenuItem asChild>
+                               <Link href={`/customers/${customer.id}?${searchParams.toString()}`}>
+                                <Eye className="mr-2 h-4 w-4" /> View Details
+                              </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openEditDialog(customer)}>
                               <Edit className="mr-2 h-4 w-4" /> Edit

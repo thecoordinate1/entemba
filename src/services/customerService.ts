@@ -73,6 +73,10 @@ export async function getCustomers(): Promise<{ data: CustomerFromSupabase[] | n
 
 export async function getCustomerById(customerId: string): Promise<{ data: CustomerFromSupabase | null; error: Error | null }> {
   console.log('[customerService.getCustomerById] Fetching customer by ID:', customerId);
+  if (!customerId) {
+    console.error('[customerService.getCustomerById] Customer ID is required.');
+    return { data: null, error: new Error('Customer ID is required.') };
+  }
   const { data, error } = await supabase
     .from('customers')
     .select(COMMON_CUSTOMER_SELECT)
@@ -80,9 +84,21 @@ export async function getCustomerById(customerId: string): Promise<{ data: Custo
     .single();
 
   if (error) {
-    console.error('[customerService.getCustomerById] Supabase fetch error:', error);
-    return { data: null, error: new Error(error.message || `Failed to fetch customer ${customerId}.`) };
+    let message = error.message || `Failed to fetch customer ${customerId}.`;
+    if (error.code === 'PGRST116') { // Not found
+        message = `Customer with ID ${customerId} not found or access denied.`;
+    } else if (Object.keys(error).length === 0 || error.message === '') {
+        message = `Failed to fetch customer ${customerId}. This often indicates an RLS policy issue preventing access.`;
+    }
+    console.error('[customerService.getCustomerById] Supabase fetch error:', message, 'Original Supabase Error:', JSON.stringify(error, null, 2));
+    return { data: null, error: new Error(message) };
   }
+  if (!data) {
+     // Should be caught by error.code === 'PGRST116' generally, but as a fallback.
+    console.warn(`[customerService.getCustomerById] No customer data returned for ID ${customerId}, despite no explicit error. Likely RLS issue or customer does not exist.`);
+    return { data: null, error: new Error(`Customer with ID ${customerId} not found or access denied. Please verify RLS and data.`) };
+  }
+  console.log('[customerService.getCustomerById] Successfully fetched customer:', data.id);
   return { data, error: null };
 }
 
@@ -96,7 +112,7 @@ export async function createCustomer(
       name: customerData.name,
       email: customerData.email,
       phone: customerData.phone,
-      avatar_url: customerData.avatar_url, // This would require avatar upload logic similar to user/store avatars
+      avatar_url: customerData.avatar_url,
       data_ai_hint_avatar: customerData.data_ai_hint_avatar,
       status: customerData.status,
       tags: customerData.tags,
@@ -105,7 +121,6 @@ export async function createCustomer(
       state_province: customerData.state_province,
       zip_postal_code: customerData.zip_postal_code,
       country: customerData.country,
-      // joined_date is default, total_spent/orders default to 0
     })
     .select(COMMON_CUSTOMER_SELECT)
     .single();
