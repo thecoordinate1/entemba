@@ -2,7 +2,7 @@
 "use client";
 
 import type { Order as OrderUIType, OrderStatus, Product as ProductUIType } from "@/lib/mockData"; // Using mockData types for UI consistency
-import { orderStatusColors, orderStatusIcons } from "@/lib/mockData"; // Removed initialProducts
+import { orderStatusColors, orderStatusIcons } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +41,8 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import { getOrdersByStoreId, createOrder, updateOrderStatus, type OrderPayload, type OrderItemPayload, type OrderFromSupabase, getOrdersByStoreIdAndStatus } from "@/services/orderService";
-import { getProductsByStoreId as fetchStoreProducts, type ProductFromSupabase } from "@/services/productService"; // Renamed to avoid conflict
+import { getProductsByStoreId as fetchStoreProducts, type ProductFromSupabase } from "@/services/productService";
+import { getCustomerByEmail, createCustomer as createNewCustomer, type CustomerPayload as NewCustomerPayload, type CustomerFromSupabase as CustomerFromSupabaseType } from "@/services/customerService";
 
 interface NewOrderItemEntry {
   productId: string;
@@ -75,7 +76,7 @@ const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
     status: order.status as OrderStatus,
     itemsCount: order.order_items.reduce((sum, item) => sum + item.quantity, 0),
     detailedItems: order.order_items.map(item => ({
-      productId: item.product_id || `deleted_${item.id}`, 
+      productId: item.product_id || `deleted_${item.id}`,
       name: item.product_name_snapshot,
       quantity: item.quantity,
       price: item.price_per_unit_snapshot,
@@ -110,10 +111,10 @@ const mapProductFromSupabaseToProductUIType = (product: ProductFromSupabase): Pr
     sku: product.sku ?? undefined,
     tags: product.tags ?? undefined,
     weight: product.weight_kg ?? undefined,
-    dimensions: product.dimensions_cm ? { 
-        length: product.dimensions_cm.length, 
-        width: product.dimensions_cm.width, 
-        height: product.dimensions_cm.height 
+    dimensions: product.dimensions_cm ? {
+        length: product.dimensions_cm.length,
+        width: product.dimensions_cm.width,
+        height: product.dimensions_cm.height
     } : undefined,
   };
 };
@@ -136,7 +137,7 @@ export default function OrdersPage() {
   const [selectedProductIdToAdd, setSelectedProductIdToAdd] = React.useState<string>("");
   const [quantityToAdd, setQuantityToAdd] = React.useState<number>(1);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  
+
   const [storeProducts, setStoreProducts] = React.useState<ProductUIType[]>([]);
   const [isLoadingStoreProducts, setIsLoadingStoreProducts] = React.useState(false);
 
@@ -242,7 +243,7 @@ export default function OrdersPage() {
       toast({ title: "Invalid Input", description: "Please select a product and specify a valid quantity.", variant: "destructive" });
       return;
     }
-    const product = storeProducts.find(p => p.id === selectedProductIdToAdd); 
+    const product = storeProducts.find(p => p.id === selectedProductIdToAdd);
     if (!product) {
       toast({ title: "Product Not Found", variant: "destructive" });
       return;
@@ -266,14 +267,14 @@ export default function OrdersPage() {
         }
       ]);
     }
-    setSelectedProductIdToAdd(""); 
-    setQuantityToAdd(1); 
+    setSelectedProductIdToAdd("");
+    setQuantityToAdd(1);
   };
 
   const handleRemoveProductFromOrder = (productId: string) => {
     setNewOrderItems(prevItems => prevItems.filter(item => item.productId !== productId));
   };
-  
+
   const handleNewOrderInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setNewOrderData(prev => ({ ...prev, [name]: value }));
@@ -298,10 +299,50 @@ export default function OrdersPage() {
       toast({ title: "No Items", description: "Please add at least one product to the order.", variant: "destructive" });
       return;
     }
+    if (!newOrderData.customerName.trim() || !newOrderData.customerEmail.trim()) {
+        toast({ variant: "destructive", title: "Missing Customer Info", description: "Customer Name and Email are required." });
+        return;
+    }
     setIsSubmitting(true);
+
+    let customerIdForOrder: string | null = null;
+
+    try {
+      // Check if customer exists
+      const { data: existingCustomer, error: getCustomerError } = await getCustomerByEmail(newOrderData.customerEmail);
+      if (getCustomerError) {
+        throw new Error(`Failed to check for existing customer: ${getCustomerError.message}`);
+      }
+
+      if (existingCustomer) {
+        customerIdForOrder = existingCustomer.id;
+        console.log(`[OrdersPage] Using existing customer ID: ${customerIdForOrder}`);
+      } else {
+        // Create new customer
+        console.log(`[OrdersPage] Customer not found, creating new one for email: ${newOrderData.customerEmail}`);
+        const newCustomerPayload: NewCustomerPayload = {
+          name: newOrderData.customerName,
+          email: newOrderData.customerEmail,
+          status: 'Active', // Default status
+          // Add other default fields if necessary, or leave them as null/undefined
+        };
+        const { data: newlyCreatedCustomer, error: createCustomerError } = await createNewCustomer(newCustomerPayload);
+        if (createCustomerError || !newlyCreatedCustomer) {
+          throw new Error(`Failed to create new customer: ${createCustomerError?.message || 'Unknown error'}`);
+        }
+        customerIdForOrder = newlyCreatedCustomer.id;
+        console.log(`[OrdersPage] New customer created with ID: ${customerIdForOrder}`);
+      }
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Customer Management Error", description: error.message });
+      setIsSubmitting(false);
+      return;
+    }
+
 
     const orderPayload: OrderPayload = {
       store_id: storeIdFromUrl,
+      customer_id: customerIdForOrder, // Link to customer
       customer_name: newOrderData.customerName,
       customer_email: newOrderData.customerEmail,
       total_amount: calculateNewOrderTotal,
@@ -357,7 +398,7 @@ export default function OrdersPage() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" disabled={!storeIdFromUrl || !authUser}>
-                <Filter className="mr-2 h-4 w-4" /> 
+                <Filter className="mr-2 h-4 w-4" />
                 {statusFilter === "All" ? "Filter Status" : statusFilter}
               </Button>
             </DropdownMenuTrigger>
@@ -397,7 +438,7 @@ export default function OrdersPage() {
             </DialogHeader>
             <form onSubmit={handleCreateOrder}>
               <ScrollArea className="h-[65vh] pr-4">
-                <div className="grid gap-4 px-2 pb-6 pt-0">              
+                <div className="grid gap-4 px-2 pb-6 pt-0">
                   <Card>
                     <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="grid gap-2">
@@ -544,7 +585,7 @@ export default function OrdersPage() {
           </DialogContent>
         </Dialog>
       </div>
-      
+
       {!authUser && <p className="text-center text-muted-foreground py-4">Please sign in to manage orders.</p>}
       {authUser && !storeIdFromUrl && <p className="text-center text-muted-foreground py-4">Please select a store to view orders.</p>}
       {authUser && storeIdFromUrl && selectedStoreName && <p className="text-sm text-muted-foreground">Showing orders for store: <span className="font-semibold">{selectedStoreName}</span>. New orders will be added to this store.</p>}
@@ -633,5 +674,3 @@ export default function OrdersPage() {
     </div>
   );
 }
-
-      

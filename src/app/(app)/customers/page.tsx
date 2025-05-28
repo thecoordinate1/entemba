@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
-import Link from "next/link"; // Added Link
+import Link from "next/link";
 import {
   Table,
   TableBody,
@@ -29,12 +29,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+} from "@/components/ui/dialog"; // Removed DialogTrigger
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Eye, User, Users, ShieldCheck, ShieldX } from "lucide-react";
+import { MoreHorizontal, Edit, Trash2, Search, Eye, User, Users, ShieldCheck, ShieldX } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   AlertDialog,
@@ -47,10 +45,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card"; // Removed CardHeader, CardTitle
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Customer as CustomerUIType, CustomerStatus } from "@/lib/mockData";
-import { customerStatusColors, initialStores } from "@/lib/mockData";
+import { customerStatusColors } from "@/lib/mockData"; // Removed initialStores
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -59,14 +57,13 @@ import type { User as AuthUser } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import {
   getCustomers,
-  createCustomer,
   updateCustomer,
   deleteCustomer,
   type CustomerFromSupabase,
   type CustomerPayload,
 } from "@/services/customerService";
 
-// Form data type for Add/Edit dialogs
+// Form data type for Edit dialog
 interface CustomerFormData {
   name: string;
   email: string;
@@ -82,7 +79,7 @@ interface CustomerFormData {
   data_ai_hint_avatar?: string;
 }
 
-const defaultNewCustomerFormData: CustomerFormData = {
+const defaultEditCustomerFormData: CustomerFormData = {
   name: "",
   email: "",
   status: "Active",
@@ -94,8 +91,9 @@ const defaultNewCustomerFormData: CustomerFormData = {
   country: "",
   tags: [],
   avatar_url: "https://placehold.co/40x40.png",
-  data_ai_hint_avatar: "person new",
+  data_ai_hint_avatar: "person",
 };
+
 
 const mapCustomerFromSupabaseToUI = (customer: CustomerFromSupabase): CustomerUIType => {
   return {
@@ -124,12 +122,10 @@ const mapCustomerFromSupabaseToUI = (customer: CustomerFromSupabase): CustomerUI
 
 export default function CustomersPage() {
   const searchParams = useSearchParams();
-  const storeId = searchParams.get("storeId");
-  const [selectedStoreName, setSelectedStoreName] = React.useState<string | null>(null);
+  const storeId = searchParams.get("storeId"); // Keep for context message, though customers are global
 
   const [customers, setCustomers] = React.useState<CustomerUIType[]>([]);
   const [isLoadingCustomers, setIsLoadingCustomers] = React.useState(true);
-  const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
   const [selectedCustomer, setSelectedCustomer] = React.useState<CustomerUIType | null>(null);
@@ -137,7 +133,7 @@ export default function CustomersPage() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  const [formData, setFormData] = React.useState<CustomerFormData>(defaultNewCustomerFormData);
+  const [formData, setFormData] = React.useState<CustomerFormData>(defaultEditCustomerFormData);
 
   const supabase = createClient();
   const [authUser, setAuthUser] = React.useState<AuthUser | null>(null);
@@ -147,21 +143,10 @@ export default function CustomersPage() {
   }, [supabase]);
 
   React.useEffect(() => {
-    if (storeId) {
-      // In a real app, you'd fetch store details from Supabase
-      // For now, use mock data or just a placeholder
-      const store = initialStores.find(s => s.id === storeId);
-      setSelectedStoreName(store ? store.name : "Selected Store");
-    } else if (initialStores.length > 0) {
-      setSelectedStoreName(initialStores[0].name);
-    } else {
-      setSelectedStoreName("No Store Selected");
-    }
-
-    const fetchCustomers = async () => {
-      if (!authUser) { 
-        setIsLoadingCustomers(false); 
-        setCustomers([]); 
+    const fetchCustomersData = async () => {
+      if (!authUser) {
+        setIsLoadingCustomers(false);
+        setCustomers([]);
         return;
       }
       setIsLoadingCustomers(true);
@@ -175,8 +160,8 @@ export default function CustomersPage() {
       setIsLoadingCustomers(false);
     };
 
-    fetchCustomers();
-  }, [storeId, authUser, toast]);
+    fetchCustomersData();
+  }, [authUser, toast]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -192,7 +177,7 @@ export default function CustomersPage() {
       name: data.name,
       email: data.email,
       phone: data.phone || null,
-      avatar_url: data.avatar_url, 
+      avatar_url: data.avatar_url,
       data_ai_hint_avatar: data.data_ai_hint_avatar,
       status: data.status,
       tags: data.tags && data.tags.length > 0 ? data.tags : null,
@@ -202,28 +187,6 @@ export default function CustomersPage() {
       zip_postal_code: data.zip_postal_code || null,
       country: data.country || null,
     };
-  };
-
-  const handleAddCustomer = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!authUser) {
-      toast({ variant: "destructive", title: "Not authenticated", description: "Please sign in to add customers." });
-      return;
-    }
-    setIsSubmitting(true);
-    const payload = preparePayload(formData);
-    const { data: newCustomerData, error } = await createCustomer(payload);
-    setIsSubmitting(false);
-
-    if (error || !newCustomerData) {
-      toast({ variant: "destructive", title: "Error Adding Customer", description: error?.message || "Could not add customer." });
-    } else {
-      const newCustomerUI = mapCustomerFromSupabaseToUI(newCustomerData);
-      setCustomers(prev => [newCustomerUI, ...prev]);
-      setIsAddDialogOpen(false);
-      setFormData(defaultNewCustomerFormData);
-      toast({ title: "Customer Added", description: `${newCustomerUI.name} has been successfully added.` });
-    }
   };
 
   const handleEditCustomer = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -241,7 +204,7 @@ export default function CustomersPage() {
       setCustomers(customers.map(c => c.id === selectedCustomer.id ? updatedCustomerUI : c));
       setIsEditDialogOpen(false);
       setSelectedCustomer(null);
-      setFormData(defaultNewCustomerFormData);
+      setFormData(defaultEditCustomerFormData);
       toast({ title: "Customer Updated", description: `${updatedCustomerUI.name} has been successfully updated.` });
     }
   };
@@ -377,35 +340,12 @@ export default function CustomersPage() {
               disabled={!authUser}
             />
           </div>
-          <Dialog open={isAddDialogOpen} onOpenChange={(isOpen) => { setIsAddDialogOpen(isOpen); if (!isOpen) setFormData(defaultNewCustomerFormData); }}>
-            <DialogTrigger asChild>
-              <Button onClick={() => { setSelectedCustomer(null); setFormData(defaultNewCustomerFormData); setIsAddDialogOpen(true); }} disabled={!authUser}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add Customer
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Add New Customer</DialogTitle>
-                <DialogDescription>
-                  Enter the details for the new customer.
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleAddCustomer}>
-                <ScrollArea className="h-[70vh] pr-6">
-                  <div className="grid gap-4 py-4">
-                    {renderCustomerFormFields()}
-                  </div>
-                </ScrollArea>
-                <DialogFooter className="pt-4 border-t">
-                  <Button type="button" variant="outline" onClick={() => { setIsAddDialogOpen(false); setFormData(defaultNewCustomerFormData); }} disabled={isSubmitting}>Cancel</Button>
-                  <Button type="submit" disabled={isSubmitting || !authUser}>{isSubmitting ? "Adding..." : "Add Customer"}</Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+          {/* "Add Customer" button and dialog removed */}
         </div>
       </div>
-      {selectedStoreName && <p className="text-sm text-muted-foreground">Displaying all customers. Store-specific customer views and metrics coming soon.</p>}
+      {storeId && <p className="text-sm text-muted-foreground">Displaying all customers. Store-specific customer views and metrics may be filtered in the future if needed.</p>}
+      {!storeId && <p className="text-sm text-muted-foreground">Displaying all customers.</p>}
+
 
       {isLoadingCustomers && authUser && (
          <div className="space-y-4">
@@ -487,12 +427,12 @@ export default function CustomersPage() {
           </CardContent>
         </Card>
       )}
-      
+
       {!authUser && !isLoadingCustomers && (
         <div className="text-center text-muted-foreground py-10">Please sign in to manage customers.</div>
       )}
 
-      <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => { setIsEditDialogOpen(isOpen); if (!isOpen) { setFormData(defaultNewCustomerFormData); setSelectedCustomer(null); } }}>
+      <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => { setIsEditDialogOpen(isOpen); if (!isOpen) { setFormData(defaultEditCustomerFormData); setSelectedCustomer(null); } }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit {selectedCustomer?.name}</DialogTitle>
@@ -508,7 +448,7 @@ export default function CustomersPage() {
                 </div>
               </ScrollArea>
               <DialogFooter className="pt-4 border-t">
-                <Button type="button" variant="outline" onClick={() => { setIsEditDialogOpen(false); setFormData(defaultNewCustomerFormData); setSelectedCustomer(null); }} disabled={isSubmitting}>Cancel</Button>
+                <Button type="button" variant="outline" onClick={() => { setIsEditDialogOpen(false); setFormData(defaultEditCustomerFormData); setSelectedCustomer(null); }} disabled={isSubmitting}>Cancel</Button>
                 <Button type="submit" disabled={isSubmitting || !authUser}>{isSubmitting ? "Saving..." : "Save Changes"}</Button>
               </DialogFooter>
             </form>
@@ -540,7 +480,7 @@ export default function CustomersPage() {
       )}
       {!isLoadingCustomers && authUser && filteredCustomers.length === 0 && !searchTerm && customers.length === 0 && (
         <div className="text-center text-muted-foreground py-10 col-span-full">
-          No customers yet. Click "Add Customer" to get started.
+          No customers yet. New customers will be added when you create an order for them.
         </div>
       )}
     </div>

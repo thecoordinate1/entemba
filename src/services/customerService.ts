@@ -85,7 +85,7 @@ export async function getCustomerById(customerId: string): Promise<{ data: Custo
 
   if (error) {
     let message = error.message || `Failed to fetch customer ${customerId}.`;
-    if (error.code === 'PGRST116') { // Not found
+    if (error.code === 'PGRST116') { 
         message = `Customer with ID ${customerId} not found or access denied.`;
     } else if (Object.keys(error).length === 0 || error.message === '') {
         message = `Failed to fetch customer ${customerId}. This often indicates an RLS policy issue preventing access.`;
@@ -94,13 +94,37 @@ export async function getCustomerById(customerId: string): Promise<{ data: Custo
     return { data: null, error: new Error(message) };
   }
   if (!data) {
-     // Should be caught by error.code === 'PGRST116' generally, but as a fallback.
     console.warn(`[customerService.getCustomerById] No customer data returned for ID ${customerId}, despite no explicit error. Likely RLS issue or customer does not exist.`);
     return { data: null, error: new Error(`Customer with ID ${customerId} not found or access denied. Please verify RLS and data.`) };
   }
   console.log('[customerService.getCustomerById] Successfully fetched customer:', data.id);
   return { data, error: null };
 }
+
+export async function getCustomerByEmail(email: string): Promise<{ data: CustomerFromSupabase | null; error: Error | null }> {
+  console.log('[customerService.getCustomerByEmail] Fetching customer by email:', email);
+  if (!email) {
+    console.error('[customerService.getCustomerByEmail] Email is required.');
+    return { data: null, error: new Error('Email is required.') };
+  }
+  const { data, error } = await supabase
+    .from('customers')
+    .select(COMMON_CUSTOMER_SELECT)
+    .eq('email', email)
+    .maybeSingle(); // Use maybeSingle as customer might not exist
+
+  if (error && error.code !== 'PGRST116') { // PGRST116 is "Relation does not exist or no rows found", which is fine if customer not found
+    console.error('[customerService.getCustomerByEmail] Supabase fetch error:', error);
+    return { data: null, error: new Error(error.message || 'Failed to fetch customer by email.') };
+  }
+  if (data) {
+    console.log('[customerService.getCustomerByEmail] Successfully fetched customer by email:', data.id);
+  } else {
+    console.log('[customerService.getCustomerByEmail] No customer found with email:', email);
+  }
+  return { data, error: null };
+}
+
 
 export async function createCustomer(
   customerData: CustomerPayload
