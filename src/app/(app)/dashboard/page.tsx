@@ -14,7 +14,7 @@ import {
   ArrowRight,
   Activity,
   LineChart,
-  FileText // For reports icon
+  FileText 
 } from "lucide-react";
 import {
   ChartContainer,
@@ -32,27 +32,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { User as AuthUser } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { useToast } from "@/hooks/use-toast";
+import { format, parseISO } from 'date-fns';
 
-import { getStoreOrderStats, getStoreTotalProductsSold } from "@/services/orderService";
+import { getStoreOrderStats, getStoreTotalProductsSold, getMonthlySalesOverviewForStore, type MonthlySalesDataFromRPC } from "@/services/orderService";
 import { getStoreProductsSimple, type ProductFromSupabase } from "@/services/productService";
 import { getRecentGlobalCustomersCount } from "@/services/customerService";
 import { getStoreById, type StoreFromSupabase } from "@/services/storeService";
 import type { Product as ProductUIType } from "@/lib/mockData";
 
 
-// Mock chart data (real data integration for charts is more complex)
-const mockChartData = [
-  { month: "January", sales: 18600, orders: 80 },
-  { month: "February", sales: 30500, orders: 200 },
-  { month: "March", sales: 23700, orders: 120 },
-  { month: "April", sales: 7300, orders: 190 },
-  { month: "May", sales: 20900, orders: 130 },
-  { month: "June", sales: 21400, orders: 140 },
-];
-
 const chartConfig = {
   sales: {
-    label: "Sales (K)", // Assuming Kwacha
+    label: "Sales (K)", 
     color: "hsl(var(--chart-1))",
   },
   orders: {
@@ -60,6 +51,12 @@ const chartConfig = {
     color: "hsl(var(--chart-2))",
   },
 };
+
+interface SalesChartDataItem {
+  month: string; // e.g., "January"
+  sales: number;
+  orders: number;
+}
 
 interface StatCardProps {
   title: string;
@@ -144,7 +141,6 @@ const mapProductFromSupabaseToUIType = (product: ProductFromSupabase): ProductUI
         width: product.dimensions_cm.width, 
         height: product.dimensions_cm.height 
     } : undefined,
-    // averageRating and reviewCount are removed as they are not in the current DB schema
   };
 };
 
@@ -162,6 +158,9 @@ export default function DashboardPage() {
   const [productsSoldCount, setProductsSoldCount] = React.useState<number | null>(null);
   const [newCustomersCount, setNewCustomersCount] = React.useState<number | null>(null);
   const [topProducts, setTopProducts] = React.useState<ProductUIType[]>([]);
+  
+  const [salesChartData, setSalesChartData] = React.useState<SalesChartDataItem[]>([]);
+  const [isLoadingSalesChart, setIsLoadingSalesChart] = React.useState(true);
 
   const [isLoadingStats, setIsLoadingStats] = React.useState(true);
   const [isLoadingStoreName, setIsLoadingStoreName] = React.useState(true);
@@ -179,18 +178,20 @@ export default function DashboardPage() {
         setIsLoadingStats(false);
         setIsLoadingStoreName(false);
         setIsLoadingTopProducts(false);
+        setIsLoadingSalesChart(false);
         setTotalRevenue(null);
         setActiveOrdersCount(null);
         setProductsSoldCount(null);
-        // Keep newCustomersCount as it's global for now
         setTopProducts([]);
         setSelectedStore(null);
+        setSalesChartData([]);
         return;
       }
 
       setIsLoadingStats(true);
       setIsLoadingStoreName(true);
       setIsLoadingTopProducts(true);
+      setIsLoadingSalesChart(true);
 
       // Fetch Store Name
       getStoreById(storeId, authUser.id).then(({data, error}) => {
@@ -215,13 +216,28 @@ export default function DashboardPage() {
       });
       
       // Fetch Top Products (simulated by lowest stock)
-      getStoreProductsSimple(storeId, 3, 'stock', true).then(({ data, error }) => { // order by stock, ascending
+      getStoreProductsSimple(storeId, 3, 'stock', true).then(({ data, error }) => { 
         if (error) toast({ variant: "destructive", title: "Error fetching top products", description: error.message });
         if (data) setTopProducts(data.map(mapProductFromSupabaseToUIType));
         setIsLoadingTopProducts(false);
       });
       
-      // Combined loading state for main stats
+      // Fetch Sales Chart Data from RPC
+      getMonthlySalesOverviewForStore(storeId, 6).then(({ data: rpcData, error: rpcError }) => {
+        if (rpcError) {
+          toast({ variant: "destructive", title: "Error fetching sales overview", description: rpcError.message });
+          setSalesChartData([]);
+        } else if (rpcData) {
+          const formattedChartData = rpcData.map(item => ({
+            month: format(parseISO(item.period_start_date), 'MMMM'), // Format 'YYYY-MM-DD' to 'MonthName'
+            sales: item.total_sales,
+            orders: item.order_count,
+          })).reverse(); // Assuming RPC returns oldest first, reverse for chart
+          setSalesChartData(formattedChartData);
+        }
+        setIsLoadingSalesChart(false);
+      });
+      
       Promise.allSettled([
           getStoreOrderStats(storeId),
           getStoreTotalProductsSold(storeId)
@@ -229,7 +245,6 @@ export default function DashboardPage() {
 
     };
 
-    // Fetch global new customers count (not store specific for now)
     getRecentGlobalCustomersCount(30).then(({ data, error }) => {
         if (error) toast({ variant: "destructive", title: "Error fetching new customers", description: error.message });
         if (data) setNewCustomersCount(data.count);
@@ -248,16 +263,14 @@ export default function DashboardPage() {
           title="Total Revenue"
           value={totalRevenue !== null ? `K${totalRevenue.toFixed(2)}` : "N/A"}
           icon={DollarSign}
-          // change="+$5,231 from last month" // Real change calculation requires historical data
-          // changeType="positive"
           description={`Total earnings this period${storeContextMessage}.`}
           ctaLink={`/reports/revenue${queryParams}`}
           ctaText="View Revenue Report"
           isLoading={isLoadingStats}
         />
-         <StatCard // Placeholder Profit Card
+         <StatCard 
           title="Profit (Est.)"
-          value={totalRevenue !== null ? `K${(totalRevenue * 0.25).toFixed(2)}` : "N/A"} // Example: 25% of revenue
+          value={totalRevenue !== null ? `K${(totalRevenue * 0.25).toFixed(2)}` : "N/A"} 
           icon={LineChart} 
           description={`Estimated profit${storeContextMessage}.`}
           ctaLink={`/reports/profit${queryParams}`}
@@ -268,7 +281,6 @@ export default function DashboardPage() {
           title="Active Orders"
           value={activeOrdersCount !== null ? activeOrdersCount.toString() : "N/A"}
           icon={Activity} 
-          // change="65 completed in last 30d" // Real change requires more data
           description={`Orders needing attention${storeContextMessage}.`}
           ctaLink={`/orders${queryParams}`}
           ctaText="Manage Orders"
@@ -278,8 +290,6 @@ export default function DashboardPage() {
           title="Products Sold"
           value={productsSoldCount !== null ? productsSoldCount.toString() : "N/A"}
           icon={Package}
-          // change="+1,200 this month" // Real change requires more data
-          // changeType="positive"
           description={`Total items sold${storeContextMessage}.`}
           ctaLink={`/products${queryParams}`}
           ctaText="Manage Products"
@@ -289,8 +299,6 @@ export default function DashboardPage() {
           title="New Customers"
           value={newCustomersCount !== null ? newCustomersCount.toString() : "N/A"}
           icon={Users}
-          // change="+82 this week" // Real change requires more data
-          // changeType="positive"
           description={`Global new sign-ups (last 30d).`}
           ctaLink={`/customers${queryParams}`}
           ctaText="View Customers"
@@ -302,39 +310,51 @@ export default function DashboardPage() {
         <Card className="lg:col-span-4">
           <CardHeader>
             <CardTitle>Sales Overview</CardTitle>
-            <CardDescription>Monthly sales and order trends (mock data){storeContextMessage}.</CardDescription>
+            <CardDescription>
+              {isLoadingSalesChart 
+                ? `Loading sales trends${storeContextMessage}...` 
+                : `Monthly sales and order trends (last 6 months)${storeContextMessage}.`}
+            </CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
-            <ChartContainer config={chartConfig} className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={mockChartData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis
-                    dataKey="month"
-                    tickLine={false}
-                    tickMargin={10}
-                    axisLine={false}
-                    stroke="hsl(var(--muted-foreground))"
-                    fontSize={12}
-                  />
-                  <YAxis
-                    stroke="hsl(var(--muted-foreground))"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={10}
-                    tickFormatter={(value) => `K${value/1000}k`}
-                  />
-                  <ChartTooltip
-                    cursor={false}
-                    content={<ChartTooltipContent indicator="dashed" formatter={(value, name) => name === "sales" ? `K${Number(value).toLocaleString()}` : value } />}
-                  />
-                  <ChartLegend content={<ChartLegendContent />} />
-                  <Bar dataKey="sales" fill="var(--color-sales)" radius={4} />
-                  <Bar dataKey="orders" fill="var(--color-orders)" radius={4} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartContainer>
+            {isLoadingSalesChart ? (
+              <div className="h-[300px] w-full flex items-center justify-center">
+                <Skeleton className="h-full w-full" />
+              </div>
+            ) : salesChartData.length > 0 ? (
+              <ChartContainer config={chartConfig} className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={salesChartData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="month"
+                      tickLine={false}
+                      tickMargin={10}
+                      axisLine={false}
+                      stroke="hsl(var(--muted-foreground))"
+                      fontSize={12}
+                    />
+                    <YAxis
+                      stroke="hsl(var(--muted-foreground))"
+                      fontSize={12}
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={10}
+                      tickFormatter={(value) => `K${value/1000}k`}
+                    />
+                    <ChartTooltip
+                      cursor={false}
+                      content={<ChartTooltipContent indicator="dashed" formatter={(value, name) => name === "sales" ? `K${Number(value).toLocaleString()}` : value } />}
+                    />
+                    <ChartLegend content={<ChartLegendContent />} />
+                    <Bar dataKey="sales" fill="var(--color-sales)" radius={4} />
+                    <Bar dataKey="orders" fill="var(--color-orders)" radius={4} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            ) : (
+              <p className="text-sm text-muted-foreground h-[300px] flex items-center justify-center">No sales data available for this period{storeContextMessage}.</p>
+            )}
           </CardContent>
         </Card>
 
