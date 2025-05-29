@@ -144,8 +144,7 @@ const mapProductFromSupabaseToUIType = (product: ProductFromSupabase): ProductUI
         width: product.dimensions_cm.width, 
         height: product.dimensions_cm.height 
     } : undefined,
-    averageRating: product.average_rating ?? 0,
-    reviewCount: product.review_count ?? 0,
+    // averageRating and reviewCount are removed as they are not in the current DB schema
   };
 };
 
@@ -215,8 +214,8 @@ export default function DashboardPage() {
         if (data) setProductsSoldCount(data.totalSold);
       });
       
-      // Fetch Top Products (simple version)
-      getStoreProductsSimple(storeId, 3, 'created_at', false).then(({ data, error }) => {
+      // Fetch Top Products (simulated by lowest stock)
+      getStoreProductsSimple(storeId, 3, 'stock', true).then(({ data, error }) => { // order by stock, ascending
         if (error) toast({ variant: "destructive", title: "Error fetching top products", description: error.message });
         if (data) setTopProducts(data.map(mapProductFromSupabaseToUIType));
         setIsLoadingTopProducts(false);
@@ -341,8 +340,8 @@ export default function DashboardPage() {
 
         <Card className="lg:col-span-3">
           <CardHeader>
-            <CardTitle>Recently Added Products</CardTitle>
-            <CardDescription>Some of the latest products in this store{storeContextMessage}.</CardDescription>
+            <CardTitle>Highest Selling Products</CardTitle>
+            <CardDescription>Top products by lowest stock (simulated){storeContextMessage}.</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoadingTopProducts && (
@@ -360,7 +359,7 @@ export default function DashboardPage() {
               </ul>
             )}
             {!isLoadingTopProducts && topProducts.length === 0 && (
-              <p className="text-sm text-muted-foreground">No products found for this store.</p>
+              <p className="text-sm text-muted-foreground">No products found for this store to determine top sellers.</p>
             )}
             {!isLoadingTopProducts && topProducts.length > 0 && (
               <ul className="space-y-4">
@@ -391,3 +390,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
