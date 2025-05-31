@@ -50,7 +50,6 @@ export interface ProductPayload {
   tags?: string[] | null;
   weight_kg?: number | null;
   dimensions_cm?: { length: number; width: number; height: number } | null;
-  // average_rating and review_count removed as per previous fix
 }
 
 export interface ProductImageFromSupabase {
@@ -77,7 +76,6 @@ export interface ProductFromSupabase {
   tags?: string[] | null;
   weight_kg?: number | null;
   dimensions_cm?: { length: number; width: number; height: number } | null;
-  // average_rating and review_count removed
   created_at: string;
   updated_at: string;
   product_images: ProductImageFromSupabase[];
@@ -90,7 +88,7 @@ export interface TopSellingProductFromRPC {
   product_category: string;
   primary_image_url: string | null;
   primary_image_data_ai_hint: string | null;
-  total_quantity_sold?: number; // Assuming quantity sold, adjust if RPC uses revenue
+  total_quantity_sold?: number; 
   total_revenue_generated?: number;
 }
 
@@ -124,7 +122,7 @@ async function uploadProductImage(
 
   const { data } = supabase.storage.from('product-images').getPublicUrl(pathWithinBucket);
   if (!data?.publicUrl) {
-    console.error('[productService.uploadProductImage] Failed to get public URL for image.');
+    console.error('[productService.uploadProductImage] Failed to get public URL for image after upload.');
     return { publicUrl: null, error: new Error('Failed to get public URL for image after upload.') };
   }
   console.log(`[productService.uploadProductImage] Successfully uploaded. Public URL: ${data.publicUrl}`);
@@ -182,7 +180,6 @@ export async function createProduct(
     tags: productData.tags,
     weight_kg: productData.weight_kg,
     dimensions_cm: productData.dimensions_cm,
-    // average_rating and review_count removed
   };
 
   const { data: newProduct, error: createProductError } = await supabase
@@ -273,7 +270,6 @@ export async function updateProduct(
     tags: productData.tags,
     weight_kg: productData.weight_kg,
     dimensions_cm: productData.dimensions_cm,
-    // average_rating and review_count removed
     updated_at: new Date().toISOString(),
   };
 
@@ -282,7 +278,7 @@ export async function updateProduct(
     .update(productUpdateData)
     .eq('id', productId)
     .eq('store_id', storeId) 
-    .select(COMMON_PRODUCT_SELECT.replace('product_images(*)', 'product_images!left(*)')) // Use !left for initial update before image processing
+    .select(COMMON_PRODUCT_SELECT.replace('product_images(*)', 'product_images!left(*)')) 
     .single();
 
   if (coreUpdateError || !updatedCoreProduct) {
@@ -449,7 +445,7 @@ export async function getProductById(productId: string): Promise<{ data: Product
 export async function getStoreProductsSimple(
   storeId: string,
   limit: number = 3,
-  orderBy: keyof ProductFromSupabase = 'created_at', // Changed to keyof ProductFromSupabase
+  orderBy: keyof ProductFromSupabase = 'created_at', 
   ascending: boolean = false
 ): Promise<{ data: ProductFromSupabase[] | null; error: Error | null }> {
   console.log(`[productService.getStoreProductsSimple] Fetching ${limit} products for store ${storeId}, ordered by ${String(orderBy)}`);
@@ -459,7 +455,7 @@ export async function getStoreProductsSimple(
     .from('products')
     .select(COMMON_PRODUCT_SELECT)
     .eq('store_id', storeId)
-    .order(String(orderBy), { ascending: ascending }) // Cast orderBy to string if necessary
+    .order(String(orderBy), { ascending: ascending }) 
     .limit(limit);
 
   if (error) {
@@ -479,25 +475,26 @@ export async function getStoreProductsSimple(
 export async function getStoreTopSellingProductsRPC(
   storeId: string,
   limit: number,
-  daysPeriod?: number
+  daysPeriod?: number 
 ): Promise<{ data: TopSellingProductFromRPC[] | null; error: Error | null }> {
-  console.log(`[productService.getStoreTopSellingProductsRPC] Fetching top ${limit} selling products for store ${storeId}` + (daysPeriod ? `, period: ${daysPeriod} days.` : '.'));
+  console.log(`[productService.getStoreTopSellingProductsRPC] Fetching top ${limit} selling products for store ${storeId}` + (daysPeriod ? `, period: ${daysPeriod} days.` : ', all time.'));
   if (!storeId) {
     return { data: null, error: new Error("Store ID is required.") };
   }
 
-  const rpcParams: { p_store_id: string; p_limit: number; p_days_period?: number } = {
+  const rpcParams = { 
     p_store_id: storeId,
     p_limit: limit,
+    p_days_period: daysPeriod === undefined ? null : daysPeriod, 
   };
-  if (daysPeriod !== undefined) {
-    rpcParams.p_days_period = daysPeriod;
-  }
 
   const { data, error } = await supabase.rpc('get_top_selling_products', rpcParams);
 
   if (error) {
     console.error('[productService.getStoreTopSellingProductsRPC] Error calling RPC:', error);
+    if (error.message.includes("function get_top_selling_products") && error.message.includes("does not exist")) {
+        return { data: null, error: new Error(`RPC Error: ${error.message}. Ensure the 'get_top_selling_products(UUID, INTEGER, INTEGER)' function is correctly defined in your Supabase SQL Editor and that the 'authenticated' role has EXECUTE permission on it. The function should accept p_store_id (uuid), p_limit (integer), and p_days_period (integer, can be null).`) };
+    }
     return { data: null, error: new Error(error.message || 'Failed to fetch top selling products from RPC.') };
   }
 
