@@ -88,8 +88,8 @@ export interface TopSellingProductFromRPC {
   product_category: string;
   primary_image_url: string | null;
   primary_image_data_ai_hint: string | null;
-  total_quantity_sold?: number; 
-  total_revenue_generated?: number;
+  total_quantity_sold: number; // Ensure this is part of the interface
+  total_revenue_generated?: number; 
 }
 
 
@@ -491,11 +491,14 @@ export async function getStoreTopSellingProductsRPC(
   const { data, error } = await supabase.rpc('get_top_selling_products', rpcParams);
 
   if (error) {
-    console.error('[productService.getStoreTopSellingProductsRPC] Error calling RPC:', error);
+    let detailedErrorMessage = error.message || 'Failed to fetch top selling products from RPC.';
     if (error.message.includes("function get_top_selling_products") && error.message.includes("does not exist")) {
-        return { data: null, error: new Error(`RPC Error: ${error.message}. Ensure the 'get_top_selling_products(UUID, INTEGER, INTEGER)' function is correctly defined in your Supabase SQL Editor and that the 'authenticated' role has EXECUTE permission on it. The function should accept p_store_id (uuid), p_limit (integer), and p_days_period (integer, can be null).`) };
+        detailedErrorMessage = `RPC Error: ${error.message}. Ensure the 'get_top_selling_products(UUID, INTEGER, INTEGER)' function is correctly defined in your Supabase SQL Editor and that the 'authenticated' role has EXECUTE permission on it. The function should accept p_store_id (uuid), p_limit (integer), and p_days_period (integer, can be null).`;
+    } else if (error.message.includes("permission denied for function")) {
+         detailedErrorMessage = `RPC Error: ${error.message}. The 'authenticated' role (or the role your user is using) lacks EXECUTE permission on the 'get_top_selling_products' function. Please grant permission using: GRANT EXECUTE ON FUNCTION get_top_selling_products(UUID, INTEGER, INTEGER) TO authenticated;`;
     }
-    return { data: null, error: new Error(error.message || 'Failed to fetch top selling products from RPC.') };
+    console.error('[productService.getStoreTopSellingProductsRPC] Error calling RPC:', detailedErrorMessage, 'Original Supabase Error:', JSON.stringify(error, null, 2));
+    return { data: null, error: new Error(detailedErrorMessage) };
   }
 
   console.log('[productService.getStoreTopSellingProductsRPC] Data from RPC:', data);

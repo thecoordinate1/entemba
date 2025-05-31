@@ -35,10 +35,9 @@ import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from 'date-fns';
 
 import { getStoreOrderStats, getStoreTotalProductsSold, getMonthlySalesOverviewForStore, type MonthlySalesDataFromRPC } from "@/services/orderService";
-import { getStoreTopSellingProductsRPC, type TopSellingProductFromRPC } from "@/services/productService"; // Updated import
+import { getStoreTopSellingProductsRPC, type TopSellingProductFromRPC } from "@/services/productService";
 import { getRecentGlobalCustomersCount } from "@/services/customerService";
 import { getStoreById, type StoreFromSupabase } from "@/services/storeService";
-import type { Product as ProductUIType } from "@/lib/mockData";
 
 
 const chartConfig = {
@@ -77,6 +76,7 @@ interface DashboardTopProduct {
   category: string;
   image: string | null;
   dataAiHint: string | null;
+  unitsSold: number; // Added unitsSold
 }
 
 
@@ -136,6 +136,7 @@ const mapRpcTopProductToDashboardUI = (rpcProduct: TopSellingProductFromRPC): Da
     category: rpcProduct.product_category,
     image: rpcProduct.primary_image_url,
     dataAiHint: rpcProduct.primary_image_data_ai_hint,
+    unitsSold: rpcProduct.total_quantity_sold || 0, // Map total_quantity_sold
   };
 };
 
@@ -152,7 +153,7 @@ export default function DashboardPage() {
   const [activeOrdersCount, setActiveOrdersCount] = React.useState<number | null>(null);
   const [productsSoldCount, setProductsSoldCount] = React.useState<number | null>(null);
   const [newCustomersCount, setNewCustomersCount] = React.useState<number | null>(null);
-  const [topProducts, setTopProducts] = React.useState<DashboardTopProduct[]>([]); // Use DashboardTopProduct
+  const [topProducts, setTopProducts] = React.useState<DashboardTopProduct[]>([]);
   
   const [salesChartData, setSalesChartData] = React.useState<SalesChartDataItem[]>([]);
   const [isLoadingSalesChart, setIsLoadingSalesChart] = React.useState(true);
@@ -211,7 +212,7 @@ export default function DashboardPage() {
       });
       
       // Fetch Top Selling Products using RPC
-      getStoreTopSellingProductsRPC(storeId, 3, 30).then(({ data, error }) => { // Fetch top 3 for last 30 days
+      getStoreTopSellingProductsRPC(storeId, 3, 30).then(({ data, error }) => { 
         if (error) toast({ variant: "destructive", title: "Error fetching top products", description: error.message });
         if (data) setTopProducts(data.map(mapRpcTopProductToDashboardUI));
         setIsLoadingTopProducts(false);
@@ -391,6 +392,7 @@ export default function DashboardPage() {
                     <div className="flex-1">
                       <p className="text-sm font-medium leading-none">{product.name}</p>
                       <p className="text-xs text-muted-foreground">{product.category}</p>
+                      <p className="text-xs text-muted-foreground">Sold: {product.unitsSold}</p> 
                     </div>
                     <Button variant="outline" size="sm" asChild>
                       <Link href={`/products/${product.id}${queryParams}`}>View</Link>
