@@ -35,7 +35,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from 'date-fns';
 
 import { getStoreOrderStats, getStoreTotalProductsSold, getMonthlySalesOverviewForStore, type MonthlySalesDataFromRPC } from "@/services/orderService";
-import { getStoreProductsSimple, type ProductFromSupabase } from "@/services/productService";
+import { getStoreTopSellingProductsRPC, type TopSellingProductFromRPC } from "@/services/productService"; // Updated import
 import { getRecentGlobalCustomersCount } from "@/services/customerService";
 import { getStoreById, type StoreFromSupabase } from "@/services/storeService";
 import type { Product as ProductUIType } from "@/lib/mockData";
@@ -69,6 +69,16 @@ interface StatCardProps {
   ctaText?: string;
   isLoading?: boolean;
 }
+
+// Simplified product type for dashboard display of top selling products
+interface DashboardTopProduct {
+  id: string;
+  name: string;
+  category: string;
+  image: string | null;
+  dataAiHint: string | null;
+}
+
 
 const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, change, changeType, description, ctaLink, ctaText, isLoading }) => {
   if (isLoading) {
@@ -119,28 +129,13 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, change, c
   );
 };
 
-const mapProductFromSupabaseToUIType = (product: ProductFromSupabase): ProductUIType => {
+const mapRpcTopProductToDashboardUI = (rpcProduct: TopSellingProductFromRPC): DashboardTopProduct => {
   return {
-    id: product.id,
-    name: product.name,
-    images: product.product_images.map(img => img.image_url),
-    dataAiHints: product.product_images.map(img => img.data_ai_hint || ''),
-    category: product.category,
-    price: product.price,
-    orderPrice: product.order_price ?? undefined,
-    stock: product.stock,
-    status: product.status as ProductUIType["status"],
-    createdAt: new Date(product.created_at).toISOString().split("T")[0],
-    description: product.description ?? undefined,
-    fullDescription: product.full_description,
-    sku: product.sku ?? undefined,
-    tags: product.tags ?? undefined,
-    weight: product.weight_kg ?? undefined,
-    dimensions: product.dimensions_cm ? { 
-        length: product.dimensions_cm.length, 
-        width: product.dimensions_cm.width, 
-        height: product.dimensions_cm.height 
-    } : undefined,
+    id: rpcProduct.product_id,
+    name: rpcProduct.product_name,
+    category: rpcProduct.product_category,
+    image: rpcProduct.primary_image_url,
+    dataAiHint: rpcProduct.primary_image_data_ai_hint,
   };
 };
 
@@ -157,7 +152,7 @@ export default function DashboardPage() {
   const [activeOrdersCount, setActiveOrdersCount] = React.useState<number | null>(null);
   const [productsSoldCount, setProductsSoldCount] = React.useState<number | null>(null);
   const [newCustomersCount, setNewCustomersCount] = React.useState<number | null>(null);
-  const [topProducts, setTopProducts] = React.useState<ProductUIType[]>([]);
+  const [topProducts, setTopProducts] = React.useState<DashboardTopProduct[]>([]); // Use DashboardTopProduct
   
   const [salesChartData, setSalesChartData] = React.useState<SalesChartDataItem[]>([]);
   const [isLoadingSalesChart, setIsLoadingSalesChart] = React.useState(true);
@@ -215,10 +210,10 @@ export default function DashboardPage() {
         if (data) setProductsSoldCount(data.totalSold);
       });
       
-      // Fetch Top Products (simulated by lowest stock)
-      getStoreProductsSimple(storeId, 3, 'stock', true).then(({ data, error }) => { 
+      // Fetch Top Selling Products using RPC
+      getStoreTopSellingProductsRPC(storeId, 3, 30).then(({ data, error }) => { // Fetch top 3 for last 30 days
         if (error) toast({ variant: "destructive", title: "Error fetching top products", description: error.message });
-        if (data) setTopProducts(data.map(mapProductFromSupabaseToUIType));
+        if (data) setTopProducts(data.map(mapRpcTopProductToDashboardUI));
         setIsLoadingTopProducts(false);
       });
       
@@ -229,10 +224,10 @@ export default function DashboardPage() {
           setSalesChartData([]);
         } else if (rpcData) {
           const formattedChartData = rpcData.map(item => ({
-            month: format(parseISO(item.period_start_date), 'MMMM'), // Format 'YYYY-MM-DD' to 'MonthName'
+            month: format(parseISO(item.period_start_date), 'MMMM'), 
             sales: item.total_sales,
             orders: item.order_count,
-          })).reverse(); // Assuming RPC returns oldest first, reverse for chart
+          })).reverse(); 
           setSalesChartData(formattedChartData);
         }
         setIsLoadingSalesChart(false);
@@ -361,7 +356,7 @@ export default function DashboardPage() {
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Highest Selling Products</CardTitle>
-            <CardDescription>Top products by lowest stock (simulated){storeContextMessage}.</CardDescription>
+            <CardDescription>Top products by sales (last 30 days){storeContextMessage}.</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoadingTopProducts && (
@@ -379,19 +374,19 @@ export default function DashboardPage() {
               </ul>
             )}
             {!isLoadingTopProducts && topProducts.length === 0 && (
-              <p className="text-sm text-muted-foreground">No products found for this store to determine top sellers.</p>
+              <p className="text-sm text-muted-foreground">No top selling products found for this store or period.</p>
             )}
             {!isLoadingTopProducts && topProducts.length > 0 && (
               <ul className="space-y-4">
                 {topProducts.map((product) => (
                   <li key={product.id} className="flex items-center gap-4">
                     <Image
-                      src={product.images[0] || "https://placehold.co/48x48.png"} 
+                      src={product.image || "https://placehold.co/48x48.png"} 
                       alt={product.name} 
                       width={48}
                       height={48}
                       className="h-12 w-12 rounded-md object-cover border"
-                      data-ai-hint={product.dataAiHints[0] || "product image"} 
+                      data-ai-hint={product.dataAiHint || "product image"} 
                     />
                     <div className="flex-1">
                       <p className="text-sm font-medium leading-none">{product.name}</p>

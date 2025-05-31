@@ -50,8 +50,7 @@ export interface ProductPayload {
   tags?: string[] | null;
   weight_kg?: number | null;
   dimensions_cm?: { length: number; width: number; height: number } | null;
-  average_rating?: number | null; // Added
-  review_count?: number | null;   // Added
+  // average_rating and review_count removed as per previous fix
 }
 
 export interface ProductImageFromSupabase {
@@ -78,12 +77,23 @@ export interface ProductFromSupabase {
   tags?: string[] | null;
   weight_kg?: number | null;
   dimensions_cm?: { length: number; width: number; height: number } | null;
-  average_rating: number | null; // Added
-  review_count: number | null;   // Added
+  // average_rating and review_count removed
   created_at: string;
   updated_at: string;
   product_images: ProductImageFromSupabase[];
 }
+
+// Interface for the data returned by the get_top_selling_products RPC
+export interface TopSellingProductFromRPC {
+  product_id: string;
+  product_name: string;
+  product_category: string;
+  primary_image_url: string | null;
+  primary_image_data_ai_hint: string | null;
+  total_quantity_sold?: number; // Assuming quantity sold, adjust if RPC uses revenue
+  total_revenue_generated?: number;
+}
+
 
 // Helper to upload a single product image
 async function uploadProductImage(
@@ -121,7 +131,7 @@ async function uploadProductImage(
   return { publicUrl: data.publicUrl, error: null };
 }
 
-const COMMON_PRODUCT_SELECT = 'id, store_id, name, category, price, order_price, stock, status, description, full_description, sku, tags, weight_kg, dimensions_cm, average_rating, review_count, created_at, updated_at, product_images(*)';
+const COMMON_PRODUCT_SELECT = 'id, store_id, name, category, price, order_price, stock, status, description, full_description, sku, tags, weight_kg, dimensions_cm, created_at, updated_at, product_images(*)';
 
 export async function getProductsByStoreId(storeId: string): Promise<{ data: ProductFromSupabase[] | null; error: Error | null }> {
   console.log('[productService.getProductsByStoreId] Fetching products for store_id:', storeId);
@@ -172,8 +182,7 @@ export async function createProduct(
     tags: productData.tags,
     weight_kg: productData.weight_kg,
     dimensions_cm: productData.dimensions_cm,
-    average_rating: productData.average_rating,
-    review_count: productData.review_count,
+    // average_rating and review_count removed
   };
 
   const { data: newProduct, error: createProductError } = await supabase
@@ -264,8 +273,7 @@ export async function updateProduct(
     tags: productData.tags,
     weight_kg: productData.weight_kg,
     dimensions_cm: productData.dimensions_cm,
-    average_rating: productData.average_rating,
-    review_count: productData.review_count,
+    // average_rating and review_count removed
     updated_at: new Date().toISOString(),
   };
 
@@ -441,17 +449,17 @@ export async function getProductById(productId: string): Promise<{ data: Product
 export async function getStoreProductsSimple(
   storeId: string,
   limit: number = 3,
-  orderBy: keyof ProductFromSupabase = 'created_at',
+  orderBy: keyof ProductFromSupabase = 'created_at', // Changed to keyof ProductFromSupabase
   ascending: boolean = false
 ): Promise<{ data: ProductFromSupabase[] | null; error: Error | null }> {
-  console.log(`[productService.getStoreProductsSimple] Fetching ${limit} products for store ${storeId}, ordered by ${orderBy}`);
+  console.log(`[productService.getStoreProductsSimple] Fetching ${limit} products for store ${storeId}, ordered by ${String(orderBy)}`);
   if (!storeId) return { data: null, error: new Error("Store ID is required.") };
 
   const { data, error } = await supabase
     .from('products')
     .select(COMMON_PRODUCT_SELECT)
     .eq('store_id', storeId)
-    .order(orderBy, { ascending: ascending })
+    .order(String(orderBy), { ascending: ascending }) // Cast orderBy to string if necessary
     .limit(limit);
 
   if (error) {
@@ -467,3 +475,33 @@ export async function getStoreProductsSimple(
   }
   return { data, error: null };
 }
+
+export async function getStoreTopSellingProductsRPC(
+  storeId: string,
+  limit: number,
+  daysPeriod?: number
+): Promise<{ data: TopSellingProductFromRPC[] | null; error: Error | null }> {
+  console.log(`[productService.getStoreTopSellingProductsRPC] Fetching top ${limit} selling products for store ${storeId}` + (daysPeriod ? `, period: ${daysPeriod} days.` : '.'));
+  if (!storeId) {
+    return { data: null, error: new Error("Store ID is required.") };
+  }
+
+  const rpcParams: { p_store_id: string; p_limit: number; p_days_period?: number } = {
+    p_store_id: storeId,
+    p_limit: limit,
+  };
+  if (daysPeriod !== undefined) {
+    rpcParams.p_days_period = daysPeriod;
+  }
+
+  const { data, error } = await supabase.rpc('get_top_selling_products', rpcParams);
+
+  if (error) {
+    console.error('[productService.getStoreTopSellingProductsRPC] Error calling RPC:', error);
+    return { data: null, error: new Error(error.message || 'Failed to fetch top selling products from RPC.') };
+  }
+
+  console.log('[productService.getStoreTopSellingProductsRPC] Data from RPC:', data);
+  return { data: data as TopSellingProductFromRPC[] | null, error: null };
+}
+
