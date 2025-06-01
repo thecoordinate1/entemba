@@ -338,7 +338,6 @@ export default function ProductDetailPage() {
                 <Skeleton className="h-5 w-full" /> <Skeleton className="h-5 w-2/3" />
                 <Skeleton className="h-10 w-1/2" />
                 <Skeleton className="h-6 w-1/3" />
-                <Skeleton className="h-12 w-full sm:w-auto" />
               </div>
             </div>
           </CardHeader>
@@ -616,9 +615,6 @@ export default function ProductDetailPage() {
               {product.sku && (
                 <div className="text-sm text-muted-foreground">SKU: {product.sku}</div>
               )}
-               <div className="pt-2">
-                <Button size="lg" className="w-full sm:w-auto">Add to Cart (Placeholder)</Button>
-              </div>
             </div>
           </div>
         </CardHeader>
@@ -672,10 +668,10 @@ export default function ProductDetailPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Customer Reviews (Placeholder)</CardTitle>
+          <CardTitle>Customer Reviews</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">Customer reviews will be displayed here.</p>
+          <p className="text-muted-foreground">Customer reviews will be displayed here. (Functionality to be implemented).</p>
         </CardContent>
       </Card>
     </div>

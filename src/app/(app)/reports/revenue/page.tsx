@@ -12,7 +12,8 @@ import {
   CreditCard,
   ArrowLeft,
   Percent,
-  Banknote
+  Banknote,
+  AlertCircle
 } from "lucide-react";
 import {
   ChartContainer,
@@ -25,47 +26,45 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieCha
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import Image from "next/image";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { initialStores, type Store } from "@/lib/mockData";
+import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { format, parseISO } from 'date-fns';
+import { createClient } from '@/lib/supabase/client';
+import type { User as AuthUser } from '@supabase/supabase-js';
+import { getStoreById, type StoreFromSupabase } from "@/services/storeService";
+import {
+  getRevenueSummaryStats,
+  getMonthlyRevenueOverview,
+  getTopProductsByRevenue,
+  type RevenueSummaryStats,
+  type MonthlyRevenueData,
+  type TopProductByRevenue,
+} from "@/services/reportService";
 
-const monthlyRevenueData = [
-  { month: "January", revenue: 30250 },
-  { month: "February", revenue: 35100 },
-  { month: "March", revenue: 40750 },
-  { month: "April", revenue: 25600 },
-  { month: "May", revenue: 45231 },
-  { month: "June", revenue: 51300 },
-];
+interface RevenueChartDataItem {
+  month: string;
+  revenue: number;
+  transactions: number;
+}
 
-const revenueChartConfig = {
-  revenue: {
-    label: "Revenue",
-    color: "hsl(var(--chart-1))",
-  },
-};
-
-const topProductsData = [
-  { id: "prod_1", name: "Ergonomic Office Chair", revenue: 12050.50, unitsSold: 43, image: "https://placehold.co/40x40.png", dataAiHint: "chair office" },
-  { id: "prod_2", name: "Wireless Noise-Cancelling Headphones", revenue: 9850.00, unitsSold: 49, image: "https://placehold.co/40x40.png", dataAiHint: "headphones tech" },
-  { id: "prod_5", name: "Artisan Coffee Blend", revenue: 7500.75, unitsSold: 469, image: "https://placehold.co/40x40.png", dataAiHint: "coffee food" },
-  { id: "prod_3", name: "Organic Cotton T-Shirt", revenue: 5200.25, unitsSold: 231, image: "https://placehold.co/40x40.png", dataAiHint: "shirt fashion" },
-  { id: "prod_mock_1", name: "Premium Laptop Stand", revenue: 4800.00, unitsSold: 120, image: "https://placehold.co/40x40.png", dataAiHint: "laptop stand" },
-];
-
-const revenueSourceData = [
+// Data for "Revenue by Source" Pie Chart - remains static for now
+const revenueSourceDataStatic = [
     { name: 'Online Store', value: 120500, color: 'hsl(var(--chart-1))' },
     { name: 'Marketplace A', value: 45300, color: 'hsl(var(--chart-2))' },
     { name: 'Manual Orders', value: 15750, color: 'hsl(var(--chart-3))' },
     { name: 'Other', value: 8600, color: 'hsl(var(--chart-4))' },
 ];
 
+const revenueChartConfig = {
+  revenue: { label: "Revenue (K)", color: "hsl(var(--chart-1))" },
+  transactions: { label: "Transactions", color: "hsl(var(--chart-2))" },
+};
 
 interface StatCardProps {
   title: string;
@@ -74,69 +73,164 @@ interface StatCardProps {
   description?: string;
   trend?: string;
   trendType?: "positive" | "negative" | "neutral";
+  isLoading?: boolean;
 }
 
-const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, description, trend, trendType }) => (
-  <Card>
-    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-      <CardTitle className="text-sm font-medium">{title}</CardTitle>
-      <Icon className="h-5 w-5 text-muted-foreground" />
-    </CardHeader>
-    <CardContent>
-      <div className="text-3xl font-bold">{value}</div>
-      {trend && (
-        <p className={`text-xs flex items-center ${
-            trendType === "positive" ? "text-emerald-500" :
-            trendType === "negative" ? "text-red-500" :
-            "text-muted-foreground"
-        }`}>
-          {trendType === "positive" && <TrendingUp className="mr-1 h-4 w-4" />}
-          {trendType === "negative" && <TrendingUp className="mr-1 h-4 w-4 rotate-180" />} 
-          {trend}
-        </p>
-      )}
-      {description && <p className="text-xs text-muted-foreground pt-1">{description}</p>}
-    </CardContent>
-  </Card>
-);
+const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, description, trend, trendType, isLoading }) => {
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <Skeleton className="h-5 w-2/5" /> <Skeleton className="h-5 w-5 rounded-full" />
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-8 w-3/5 mb-1" />
+          {description && <Skeleton className="h-3 w-full mb-1" />}
+          {trend && <Skeleton className="h-3 w-3/4" />}
+        </CardContent>
+      </Card>
+    );
+  }
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Icon className="h-5 w-5 text-muted-foreground" />
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-bold">{value}</div>
+        {trend && (
+          <p className={`text-xs flex items-center ${
+              trendType === "positive" ? "text-emerald-500" :
+              trendType === "negative" ? "text-red-500" :
+              "text-muted-foreground"
+          }`}>
+            {trendType === "positive" && <TrendingUp className="mr-1 h-4 w-4" />}
+            {trendType === "negative" && <TrendingUp className="mr-1 h-4 w-4 rotate-180" />} 
+            {trend}
+          </p>
+        )}
+        {description && <p className="text-xs text-muted-foreground pt-1">{description}</p>}
+      </CardContent>
+    </Card>
+  );
+};
 
 export default function RevenueReportPage() {
   const router = useRouter();
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const storeId = searchParams.get("storeId");
-  const [selectedStoreName, setSelectedStoreName] = React.useState<string | null>(null);
+  const storeIdFromUrl = searchParams.get("storeId");
+  
+  const supabase = createClient();
+  const [authUser, setAuthUser] = React.useState<AuthUser | null>(null);
+  const [selectedStore, setSelectedStore] = React.useState<StoreFromSupabase | null>(null);
 
+  const [summaryStats, setSummaryStats] = React.useState<RevenueSummaryStats | null>(null);
+  const [monthlyRevenue, setMonthlyRevenue] = React.useState<RevenueChartDataItem[]>([]);
+  const [topProducts, setTopProducts] = React.useState<TopProductByRevenue[]>([]);
+
+  const [isLoadingStore, setIsLoadingStore] = React.useState(true);
+  const [isLoadingSummary, setIsLoadingSummary] = React.useState(true);
+  const [isLoadingMonthly, setIsLoadingMonthly] = React.useState(true);
+  const [isLoadingTopProducts, setIsLoadingTopProducts] = React.useState(true);
+  
+  const [error, setError] = React.useState<string | null>(null);
+
+  // Revenue Settings state (remains client-side for now)
   const [defaultCurrency, setDefaultCurrency] = React.useState("ZMW");
   const [taxRate, setTaxRate] = React.useState("10"); 
   const [pricesIncludeTax, setPricesIncludeTax] = React.useState(false);
 
   React.useEffect(() => {
-    if (storeId) {
-      const store = initialStores.find((s: Store) => s.id === storeId);
-      setSelectedStoreName(store ? store.name : "Unknown Store");
-    } else if (initialStores.length > 0) {
-        setSelectedStoreName(initialStores[0].name); 
-    } else {
-      setSelectedStoreName("No Store Selected");
-    }
-  }, [storeId]);
+    supabase.auth.getUser().then(({ data: { user } }) => setAuthUser(user));
+  }, [supabase]);
 
-  const storeContextMessage = selectedStoreName ? ` for ${selectedStoreName}` : "";
+  React.useEffect(() => {
+    const fetchStoreAndReportData = async () => {
+      if (!storeIdFromUrl || !authUser) {
+        setIsLoadingStore(false); setIsLoadingSummary(false); setIsLoadingMonthly(false); setIsLoadingTopProducts(false);
+        setError(storeIdFromUrl ? "Authentication issue." : "No store selected.");
+        return;
+      }
+      
+      setIsLoadingStore(true); setIsLoadingSummary(true); setIsLoadingMonthly(true); setIsLoadingTopProducts(true);
+      setError(null);
+
+      // Fetch store details
+      getStoreById(storeIdFromUrl, authUser.id).then(({ data, error: storeError }) => {
+        if (storeError) setError(prev => prev ? `${prev}, Store: ${storeError.message}` : `Store: ${storeError.message}`);
+        setSelectedStore(data);
+        setIsLoadingStore(false);
+      });
+
+      // Fetch summary stats
+      getRevenueSummaryStats(storeIdFromUrl).then(({ data, error: summaryError }) => {
+        if (summaryError) setError(prev => prev ? `${prev}, Summary: ${summaryError.message}` : `Summary: ${summaryError.message}`);
+        setSummaryStats(data);
+        setIsLoadingSummary(false);
+      });
+
+      // Fetch monthly overview (e.g., last 6 months)
+      getMonthlyRevenueOverview(storeIdFromUrl, 6).then(({ data, error: monthlyError }) => {
+        if (monthlyError) setError(prev => prev ? `${prev}, Monthly: ${monthlyError.message}` : `Monthly: ${monthlyError.message}`);
+        if (data) {
+          setMonthlyRevenue(data.map(item => ({
+            month: format(parseISO(item.period_start_date), 'MMMM'),
+            revenue: item.total_revenue,
+            transactions: item.transaction_count,
+          })).reverse());
+        } else {
+          setMonthlyRevenue([]);
+        }
+        setIsLoadingMonthly(false);
+      });
+
+      // Fetch top products (e.g., top 5, last 30 days)
+      getTopProductsByRevenue(storeIdFromUrl, 5, 30).then(({ data, error: productsError }) => {
+        if (productsError) setError(prev => prev ? `${prev}, Top Products: ${productsError.message}` : `Top Products: ${productsError.message}`);
+        setTopProducts(data || []);
+        setIsLoadingTopProducts(false);
+      });
+    };
+
+    fetchStoreAndReportData();
+  }, [storeIdFromUrl, authUser, toast]);
+
+  const storeContextMessage = selectedStore ? ` for ${selectedStore.name}` : storeIdFromUrl ? " for selected store" : "";
+  const queryParams = storeIdFromUrl ? `?storeId=${storeIdFromUrl}` : "";
 
   const handleSaveRevenueSettings = (e: React.FormEvent) => {
     e.preventDefault();
     console.log({ defaultCurrency, taxRate, pricesIncludeTax });
     toast({
-      title: "Settings Saved",
-      description: "Your revenue settings have been (mock) saved.",
+      title: "Settings Saved (Placeholder)",
+      description: "Revenue settings save functionality is not yet fully implemented.",
     });
   };
+
+  const avgOrderValue = summaryStats?.current_month_transactions 
+    ? (summaryStats.current_month_revenue / summaryStats.current_month_transactions) 
+    : 0;
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-center">
+        <AlertCircle className="w-16 h-16 text-destructive mb-4" />
+        <h2 className="text-xl font-semibold mb-2">Error Loading Report Data</h2>
+        <p className="text-muted-foreground mb-6 max-w-md">{error}</p>
+        <p className="text-xs text-muted-foreground mb-6 max-w-md">This might be due to missing RPC functions on the backend. Please ensure `get_revenue_summary_stats`, `get_monthly_revenue_overview`, and `get_top_products_by_revenue` are created in your Supabase SQL Editor.</p>
+        <Button variant="outline" onClick={() => router.push(`/dashboard${queryParams}`)}>
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Revenue Report{storeContextMessage}</h1>
+        <h1 className="text-3xl font-bold">Revenue Report{isLoadingStore ? <Skeleton className="h-8 w-40 inline-block ml-2" /> : storeContextMessage}</h1>
         <Button variant="outline" onClick={() => router.back()}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
@@ -145,35 +239,32 @@ export default function RevenueReportPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Revenue (YTD)"
-          value="K150,750.20"
+          value={summaryStats?.ytd_revenue !== undefined ? `K${summaryStats.ytd_revenue.toFixed(2)}` : "N/A"}
           icon={DollarSign}
           description={`Year-to-date gross revenue${storeContextMessage}.`}
-          trend="+15.2% vs last year"
-          trendType="positive"
+          // trend="+15.2% vs last year" // Trend data would require more complex RPC
+          isLoading={isLoadingSummary}
         />
         <StatCard
           title="Revenue (This Month)"
-          value="K45,231.89"
+          value={summaryStats?.current_month_revenue !== undefined ? `K${summaryStats.current_month_revenue.toFixed(2)}` : "N/A"}
           icon={DollarSign}
           description={`Gross revenue for current month${storeContextMessage}.`}
-          trend="+K5,231 vs last month"
-          trendType="positive"
+          isLoading={isLoadingSummary}
         />
         <StatCard
           title="Average Order Value"
-          value="K85.50"
+          value={avgOrderValue !== undefined ? `K${avgOrderValue.toFixed(2)}` : "N/A"}
           icon={ShoppingCart}
-          description={`Average amount spent per order${storeContextMessage}.`}
-          trend="-2.5% vs last month"
-          trendType="negative"
+          description={`Avg. amount per order (current month)${storeContextMessage}.`}
+          isLoading={isLoadingSummary}
         />
         <StatCard
-          title="Total Transactions"
-          value="1,763"
+          title="Total Transactions (YTD)"
+          value={summaryStats?.ytd_transactions !== undefined ? summaryStats.ytd_transactions.toString() : "N/A"}
           icon={CreditCard}
           description={`Total successful transactions YTD${storeContextMessage}.`}
-          trend="+120 transactions this month"
-          trendType="positive"
+          isLoading={isLoadingSummary}
         />
       </div>
 
@@ -181,45 +272,65 @@ export default function RevenueReportPage() {
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Monthly Revenue Trend</CardTitle>
-            <CardDescription>Track your gross revenue month over month{storeContextMessage}.</CardDescription>
+            <CardDescription>Track your gross revenue and transaction volume month over month{storeContextMessage}.</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
-            <ChartContainer config={revenueChartConfig} className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={monthlyRevenueData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis
-                    dataKey="month"
-                    tickLine={false}
-                    tickMargin={10}
-                    axisLine={false}
-                    stroke="hsl(var(--muted-foreground))"
-                    fontSize={12}
-                  />
-                  <YAxis
-                    stroke="hsl(var(--muted-foreground))"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={10}
-                    tickFormatter={(value) => `K${Number(value / 1000).toFixed(0)}k`}
-                  />
-                  <ChartTooltip
-                    cursor={false}
-                    content={<ChartTooltipContent indicator="dashed" formatter={(value) => `K${Number(value).toLocaleString()}`} />}
-                  />
-                  <ChartLegend content={<ChartLegendContent />} />
-                  <Bar dataKey="revenue" fill="var(--color-revenue)" radius={4} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartContainer>
+            {isLoadingMonthly ? (
+                <Skeleton className="h-[300px] w-full" />
+            ) : monthlyRevenue.length > 0 ? (
+              <ChartContainer config={revenueChartConfig} className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlyRevenue} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="month"
+                      tickLine={false}
+                      tickMargin={10}
+                      axisLine={false}
+                      stroke="hsl(var(--muted-foreground))"
+                      fontSize={12}
+                    />
+                    <YAxis
+                      yAxisId="left"
+                      stroke="hsl(var(--chart-1))"
+                      fontSize={12}
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={10}
+                      tickFormatter={(value) => `K${Number(value / 1000).toFixed(0)}k`}
+                    />
+                     <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      stroke="hsl(var(--chart-2))"
+                      fontSize={12}
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={10}
+                      tickFormatter={(value) => `${value}`}
+                    />
+                    <ChartTooltip
+                      cursor={false}
+                      content={<ChartTooltipContent indicator="dashed" 
+                        formatter={(value, name) => name === "revenue" ? `K${Number(value).toLocaleString()}` : value } 
+                      />}
+                    />
+                    <ChartLegend content={<ChartLegendContent />} />
+                    <Bar yAxisId="left" dataKey="revenue" fill="var(--color-revenue)" radius={4} />
+                    <Bar yAxisId="right" dataKey="transactions" fill="var(--color-transactions)" radius={4} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            ) : (
+                <p className="text-sm text-muted-foreground h-[300px] flex items-center justify-center">No monthly revenue data available for this period{storeContextMessage}.</p>
+            )}
           </CardContent>
         </Card>
         
         <Card className="lg:col-span-2">
             <CardHeader>
-                <CardTitle>Revenue by Source</CardTitle>
-                <CardDescription>Distribution of revenue across different channels{storeContextMessage}.</CardDescription>
+                <CardTitle>Revenue by Source (Static)</CardTitle>
+                <CardDescription>Distribution of revenue across different channels{storeContextMessage}. (This chart uses static data for now).</CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center items-center h-[300px]">
                  <ChartContainer config={{}} className="h-full w-full max-h-[250px]">
@@ -235,7 +346,7 @@ export default function RevenueReportPage() {
                             )} />}
                         />
                         <Pie
-                            data={revenueSourceData}
+                            data={revenueSourceDataStatic}
                             dataKey="value"
                             nameKey="name"
                             cx="50%"
@@ -259,7 +370,7 @@ export default function RevenueReportPage() {
                                 );
                             }}
                         >
-                            {revenueSourceData.map((entry, index) => (
+                            {revenueSourceDataStatic.map((entry, index) => (
                                 <Cell key={`cell-${index}`} fill={entry.color} />
                             ))}
                         </Pie>
@@ -274,54 +385,67 @@ export default function RevenueReportPage() {
       <Card>
         <CardHeader>
           <CardTitle>Top Products by Revenue</CardTitle>
-          <CardDescription>Detailed breakdown of revenue by products this month{storeContextMessage}.</CardDescription>
+          <CardDescription>Detailed breakdown of revenue by products (last 30 days){storeContextMessage}.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="hidden sm:table-cell">Image</TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead className="text-right">Revenue</TableHead>
-                <TableHead className="text-right hidden md:table-cell">Units Sold</TableHead>
-                <TableHead className="text-right hidden md:table-cell">AOV</TableHead>
-                <TableHead className="text-center">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {topProductsData.map((product) => (
-                <TableRow key={product.id}>
-                  <TableCell className="hidden sm:table-cell">
-                    <Image
-                      src={product.image}
-                      alt={product.name}
-                      width={40}
-                      height={40}
-                      className="rounded-md object-cover"
-                      data-ai-hint={product.dataAiHint}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Link href={`/products/${product.id}`} className="font-medium hover:underline">
-                      {product.name}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="text-right">K{product.revenue.toFixed(2)}</TableCell>
-                  <TableCell className="text-right hidden md:table-cell">{product.unitsSold}</TableCell>
-                  <TableCell className="text-right hidden md:table-cell">K{(product.revenue / product.unitsSold).toFixed(2)}</TableCell>
-                  <TableCell className="text-center">
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`/products/${product.id}`}>View</Link>
-                    </Button>
-                  </TableCell>
+          {isLoadingTopProducts ? (
+            <div className="space-y-3">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+            </div>
+          ) : topProducts.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="hidden sm:table-cell">Image</TableHead>
+                  <TableHead>Product</TableHead>
+                  <TableHead className="text-right">Revenue</TableHead>
+                  <TableHead className="text-right hidden md:table-cell">Units Sold</TableHead>
+                  <TableHead className="text-right hidden md:table-cell">Avg. Price/Unit</TableHead>
+                  <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {topProducts.map((product) => (
+                  <TableRow key={product.product_id}>
+                    <TableCell className="hidden sm:table-cell">
+                      <Image
+                        src={product.primary_image_url || "https://placehold.co/40x40.png"}
+                        alt={product.product_name}
+                        width={40}
+                        height={40}
+                        className="rounded-md object-cover border"
+                        data-ai-hint={product.primary_image_data_ai_hint || "product"}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Link href={`/products/${product.product_id}${queryParams}`} className="font-medium hover:underline">
+                        {product.product_name}
+                      </Link>
+                      <div className="text-xs text-muted-foreground">{product.product_category}</div>
+                    </TableCell>
+                    <TableCell className="text-right">K{product.total_revenue_generated.toFixed(2)}</TableCell>
+                    <TableCell className="text-right hidden md:table-cell">{product.units_sold}</TableCell>
+                    <TableCell className="text-right hidden md:table-cell">
+                      {product.units_sold > 0 ? `K${(product.total_revenue_generated / product.units_sold).toFixed(2)}` : "K0.00"}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href={`/products/${product.product_id}${queryParams}`}>View</Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+             <p className="text-sm text-muted-foreground text-center py-4">No top product data available for this period{storeContextMessage}.</p>
+          )}
         </CardContent>
         <CardFooter className="justify-center border-t pt-4">
             <Button variant="outline" asChild>
-              <Link href="/reports/revenue/products">View All Products Revenue</Link>
+              <Link href={`/reports/revenue/products${queryParams}`}>View All Products Revenue</Link>
             </Button>
         </CardFooter>
       </Card>
@@ -329,7 +453,7 @@ export default function RevenueReportPage() {
       <Card>
         <CardHeader>
             <CardTitle>Revenue Settings</CardTitle>
-            <CardDescription>Configure currency, tax, and payment gateway options{storeContextMessage}.</CardDescription>
+            <CardDescription>Configure currency, tax, and payment gateway options{storeContextMessage}. (These settings are UI placeholders)</CardDescription>
         </CardHeader>
         <CardContent>
             <form onSubmit={handleSaveRevenueSettings} className="space-y-6">
@@ -346,8 +470,6 @@ export default function RevenueReportPage() {
                             <SelectItem value="USD">USD - United States Dollar</SelectItem>
                             <SelectItem value="EUR">EUR - Euro</SelectItem>
                             <SelectItem value="GBP">GBP - British Pound</SelectItem>
-                            <SelectItem value="CAD">CAD - Canadian Dollar</SelectItem>
-                            <SelectItem value="AUD">AUD - Australian Dollar</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
@@ -381,7 +503,7 @@ export default function RevenueReportPage() {
               <Separator />
               <h4 className="text-md font-medium">Payment Gateways (Placeholder)</h4>
               <p className="text-sm text-muted-foreground">
-                Connect payment gateways. (Integration TBD).
+                Connect payment gateways. (This section is a UI placeholder for future integration).
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" disabled>Connect MoMo</Button>
@@ -395,7 +517,6 @@ export default function RevenueReportPage() {
             </form>
         </CardContent>
       </Card>
-
     </div>
   );
 }

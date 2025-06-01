@@ -330,13 +330,15 @@ export default function OrderDetailPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Order History & Notes (Placeholder)</CardTitle>
+          <CardTitle>Order Notes</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">Timeline of order events and internal notes will be displayed here.</p>
+          <Textarea placeholder="Add internal notes about this order..." rows={3}/>
+          <Button className="mt-3">Add Note</Button>
+          <Separator className="my-4"/>
+          <p className="text-muted-foreground text-sm">No notes added yet. Timeline of order events will also be displayed here in the future.</p>
         </CardContent>
       </Card>
     </div>
   );
 }
-```
