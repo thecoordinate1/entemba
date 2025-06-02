@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation"; // Added useRouter
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -26,7 +26,6 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -62,7 +61,7 @@ const revenueSourceDataStatic = [
 ];
 
 const revenueChartConfig = {
-  revenue: { label: "Revenue (K)", color: "hsl(var(--chart-1))" },
+  revenue: { label: "Revenue (Ksh)", color: "hsl(var(--chart-1))" }, // Updated label
   transactions: { label: "Transactions", color: "hsl(var(--chart-2))" },
 };
 
@@ -102,7 +101,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, descripti
         {trend && (
           <p className={`text-xs flex items-center ${
               trendType === "positive" ? "text-emerald-500" :
-              trendType === "negative" ? "text-red-500" :
+              trendType === "negative" ? "text-red-500" : // Corrected typo here
               "text-muted-foreground"
           }`}>
             {trendType === "positive" && <TrendingUp className="mr-1 h-4 w-4" />}
@@ -152,51 +151,52 @@ export default function RevenueReportPage() {
       setIsLoadingSummary(true); 
       setIsLoadingMonthly(true); 
       setIsLoadingTopProducts(true);
-      setErrorMessages([]);
+      setErrorMessages([]); // Clear previous errors
 
       if (!storeIdFromUrl) {
         currentErrorMessages.push("No store selected. Please select a store to view reports.");
         setIsLoadingStore(false); setIsLoadingSummary(false); setIsLoadingMonthly(false); setIsLoadingTopProducts(false);
+        setSummaryStats(null); setMonthlyRevenue([]); setTopProducts([]); // Reset data states
         setErrorMessages(currentErrorMessages);
         return;
       }
       if (!authUser) {
         currentErrorMessages.push("Authentication issue. Please ensure you are logged in.");
         setIsLoadingStore(false); setIsLoadingSummary(false); setIsLoadingMonthly(false); setIsLoadingTopProducts(false);
+        setSummaryStats(null); setMonthlyRevenue([]); setTopProducts([]); // Reset data states
         setErrorMessages(currentErrorMessages);
         return;
       }
       
+      // Fetch Store Info
       try {
         const storeResult = await getStoreById(storeIdFromUrl, authUser.id);
-        if (storeResult.error) {
-            currentErrorMessages.push(`Store: ${storeResult.error.message}`);
-        }
+        if (storeResult.error) throw storeResult.error;
         setSelectedStore(storeResult.data);
       } catch (e: any) {
-        currentErrorMessages.push(`Store (Unexpected): ${e.message}`);
+        currentErrorMessages.push(`Store Details: ${e.message || 'Failed to fetch store details.'}`);
+        setSelectedStore(null);
       } finally {
         setIsLoadingStore(false);
       }
 
+      // Fetch Summary Stats
       try {
         const summaryResult = await getRevenueSummaryStats(storeIdFromUrl);
-        if (summaryResult.error) {
-            currentErrorMessages.push(`Summary Stats: ${summaryResult.error.message}`);
-        }
+        if (summaryResult.error) throw summaryResult.error;
         setSummaryStats(summaryResult.data);
       } catch (e: any) {
-         currentErrorMessages.push(`Summary Stats (Unexpected): ${e.message}`);
+         currentErrorMessages.push(`Summary Stats: ${e.message || 'Failed to fetch summary stats.'}`);
+         setSummaryStats(null);
       } finally {
         setIsLoadingSummary(false);
       }
 
+      // Fetch Monthly Revenue
       try {
         const monthlyResult = await getMonthlyRevenueOverview(storeIdFromUrl, 6);
-        if (monthlyResult.error) {
-            currentErrorMessages.push(`Monthly Overview: ${monthlyResult.error.message}`);
-            setMonthlyRevenue([]);
-        } else if (monthlyResult.data) {
+        if (monthlyResult.error) throw monthlyResult.error;
+        if (monthlyResult.data) {
           setMonthlyRevenue(monthlyResult.data.map(item => {
             const parsedDate = parseISO(item.period_start_date);
             return {
@@ -209,22 +209,19 @@ export default function RevenueReportPage() {
             setMonthlyRevenue([]);
         }
       } catch (e: any) {
-        currentErrorMessages.push(`Monthly Overview (Unexpected): ${e.message}`);
+        currentErrorMessages.push(`Monthly Overview: ${e.message || 'Failed to fetch monthly overview.'}`);
         setMonthlyRevenue([]);
       } finally {
         setIsLoadingMonthly(false);
       }
 
+      // Fetch Top Products
       try {
-        const topProductsResult = await getTopProductsByRevenue(storeIdFromUrl, 5, 30);
-        if (topProductsResult.error) {
-            currentErrorMessages.push(`Top Products: ${topProductsResult.error.message}`);
-            setTopProducts([]);
-        } else {
-            setTopProducts(topProductsResult.data || []);
-        }
+        const topProductsResult = await getTopProductsByRevenue(storeIdFromUrl, 5, 30); // last 30 days, top 5
+        if (topProductsResult.error) throw topProductsResult.error;
+        setTopProducts(topProductsResult.data || []);
       } catch (e: any) {
-        currentErrorMessages.push(`Top Products (Unexpected): ${e.message}`);
+        currentErrorMessages.push(`Top Products: ${e.message || 'Failed to fetch top products.'}`);
         setTopProducts([]);
       } finally {
         setIsLoadingTopProducts(false);
@@ -232,6 +229,7 @@ export default function RevenueReportPage() {
 
       if (currentErrorMessages.length > 0) {
         setErrorMessages(currentErrorMessages);
+        currentErrorMessages.forEach(msg => toast({ variant: "destructive", title: "Data Fetch Error", description: msg }));
       }
     };
 
@@ -243,7 +241,6 @@ export default function RevenueReportPage() {
 
   const handleSaveRevenueSettings = (e: React.FormEvent) => {
     e.preventDefault();
-    // console.log({ defaultCurrency, taxRate, pricesIncludeTax });
     toast({
       title: "Settings Saved (Placeholder)",
       description: "Revenue settings save functionality is not yet fully implemented.",
@@ -254,7 +251,18 @@ export default function RevenueReportPage() {
     ? (summaryStats.current_month_revenue / summaryStats.current_month_transactions) 
     : 0;
 
-  if (errorMessages.length > 0 && !isLoadingStore && !isLoadingSummary && !isLoadingMonthly && !isLoadingTopProducts) {
+  if (!storeIdFromUrl && !isLoadingStore) {
+    return (
+       <div className="flex flex-col items-center justify-center h-full text-center p-4">
+        <AlertCircle className="w-16 h-16 text-destructive mb-4" />
+        <h2 className="text-xl font-semibold mb-2">No Store Selected</h2>
+        <p className="text-muted-foreground mb-6 max-w-md">Please select a store from the sidebar to view its revenue report.</p>
+        <Button variant="outline" onClick={() => router.push('/stores')}>Go to Stores Page</Button>
+      </div>
+    )
+  }
+  
+  if (errorMessages.length > 0 && !isLoadingSummary && !isLoadingMonthly && !isLoadingTopProducts) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-4">
         <AlertCircle className="w-16 h-16 text-destructive mb-4" />
@@ -262,7 +270,7 @@ export default function RevenueReportPage() {
         <div className="text-muted-foreground mb-6 max-w-md space-y-1">
             {errorMessages.map((msg, index) => <p key={index}>{msg}</p>)}
         </div>
-        <p className="text-xs text-muted-foreground mb-6 max-w-md">This might be due to missing or misconfigured RPC functions on the backend. Please ensure `get_revenue_summary_stats`, `get_monthly_revenue_overview`, and `get_top_products_by_revenue` are created correctly in your Supabase SQL Editor and permissions are granted.</p>
+        <p className="text-xs text-muted-foreground mb-6 max-w-md">This might be due to missing or misconfigured RPC functions on the backend. Please ensure `get_revenue_summary_stats`, `get_monthly_revenue_overview`, and `get_top_products_by_revenue` are created correctly in your Supabase SQL Editor, and permissions are granted.</p>
         <Button variant="outline" onClick={() => router.push(`/dashboard${queryParams}`)}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
         </Button>
@@ -283,28 +291,28 @@ export default function RevenueReportPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Revenue (YTD)"
-          value={summaryStats?.ytd_revenue !== undefined ? `K${Number(summaryStats.ytd_revenue).toFixed(2)}` : "N/A"}
+          value={summaryStats?.ytd_revenue !== undefined ? `Ksh ${Number(summaryStats.ytd_revenue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A"}
           icon={DollarSign}
           description={`Year-to-date gross revenue${storeContextMessage}.`}
           isLoading={isLoadingSummary}
         />
         <StatCard
           title="Revenue (This Month)"
-          value={summaryStats?.current_month_revenue !== undefined ? `K${Number(summaryStats.current_month_revenue).toFixed(2)}` : "N/A"}
+          value={summaryStats?.current_month_revenue !== undefined ? `Ksh ${Number(summaryStats.current_month_revenue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A"}
           icon={DollarSign}
           description={`Gross revenue for current month${storeContextMessage}.`}
           isLoading={isLoadingSummary}
         />
         <StatCard
           title="Average Order Value"
-          value={avgOrderValue !== undefined ? `K${Number(avgOrderValue).toFixed(2)}` : "N/A"}
+          value={avgOrderValue !== undefined ? `Ksh ${Number(avgOrderValue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A"}
           icon={ShoppingCart}
           description={`Avg. amount per order (current month)${storeContextMessage}.`}
           isLoading={isLoadingSummary}
         />
         <StatCard
           title="Total Transactions (YTD)"
-          value={summaryStats?.ytd_transactions !== undefined ? summaryStats.ytd_transactions.toString() : "N/A"}
+          value={summaryStats?.ytd_transactions !== undefined ? summaryStats.ytd_transactions.toLocaleString() : "N/A"}
           icon={CreditCard}
           description={`Total successful transactions YTD${storeContextMessage}.`}
           isLoading={isLoadingSummary}
@@ -323,7 +331,7 @@ export default function RevenueReportPage() {
             ) : monthlyRevenue.length > 0 ? (
               <ChartContainer config={revenueChartConfig} className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={monthlyRevenue} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+                  <BarChart data={monthlyRevenue} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis
                       dataKey="month"
@@ -340,7 +348,7 @@ export default function RevenueReportPage() {
                       tickLine={false}
                       axisLine={false}
                       tickMargin={10}
-                      tickFormatter={(value) => `K${Number(value / 1000).toFixed(0)}k`}
+                      tickFormatter={(value) => `Ksh ${Number(value / 1000).toFixed(0)}k`}
                     />
                      <YAxis
                       yAxisId="right"
@@ -355,7 +363,7 @@ export default function RevenueReportPage() {
                     <ChartTooltip
                       cursor={false}
                       content={<ChartTooltipContent indicator="dashed" 
-                        formatter={(value, name) => name === "revenue" ? `K${Number(value).toLocaleString()}` : value } 
+                        formatter={(value, name) => name === "revenue" ? `Ksh ${Number(value).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : Number(value).toLocaleString() } 
                       />}
                     />
                     <ChartLegend content={<ChartLegendContent />} />
@@ -373,7 +381,7 @@ export default function RevenueReportPage() {
         <Card className="lg:col-span-2">
             <CardHeader>
                 <CardTitle>Revenue by Source (Static)</CardTitle>
-                <CardDescription>Distribution of revenue across different channels{storeContextMessage}. (This chart uses static data for now as order source is not tracked).</CardDescription>
+                <CardDescription>Distribution of revenue across different channels{storeContextMessage}. (This chart uses static data as order source is not tracked).</CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center items-center h-[300px]">
                  <ChartContainer config={{}} className="h-full w-full max-h-[250px]">
@@ -384,7 +392,7 @@ export default function RevenueReportPage() {
                             content={<ChartTooltipContent hideLabel formatter={(value, name, props) => (
                                 <div className="flex flex-col">
                                     <span className="font-medium">{props.payload?.name}</span>
-                                    <span>K{Number(value).toLocaleString()} ({(props.payload?.percent * 100).toFixed(1)}%)</span>
+                                    <span>Ksh {Number(value).toLocaleString()} ({(props.payload?.percent * 100).toFixed(1)}%)</span>
                                 </div>
                             )} />}
                         />
@@ -468,10 +476,10 @@ export default function RevenueReportPage() {
                       </Link>
                       <div className="text-xs text-muted-foreground">{product.product_category}</div>
                     </TableCell>
-                    <TableCell className="text-right">K{Number(product.total_revenue_generated).toFixed(2)}</TableCell>
-                    <TableCell className="text-right hidden md:table-cell">{product.units_sold}</TableCell>
+                    <TableCell className="text-right">Ksh {Number(product.total_revenue_generated).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
+                    <TableCell className="text-right hidden md:table-cell">{product.units_sold.toLocaleString()}</TableCell>
                     <TableCell className="text-right hidden md:table-cell">
-                      {product.units_sold > 0 ? `K${(Number(product.total_revenue_generated) / product.units_sold).toFixed(2)}` : "K0.00"}
+                      {product.units_sold > 0 ? `Ksh ${(Number(product.total_revenue_generated) / product.units_sold).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "Ksh 0.00"}
                     </TableCell>
                     <TableCell className="text-center">
                       <Button variant="outline" size="sm" asChild>

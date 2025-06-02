@@ -13,8 +13,8 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Edit, User as UserIcon, Users, ShieldCheck, ShieldX, Phone, MapPin, CalendarDays, ShoppingCart, DollarSign, Tag, AlertCircle, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { CustomerStatus, Customer as CustomerUIType, OrderStatus as OrderStatusUIType, Order as OrderUIType } from "@/lib/mockData"; // Added OrderUIType
-import { customerStatusColors, orderStatusColors, orderStatusIcons } from "@/lib/mockData"; // Added orderStatusColors, orderStatusIcons
+import type { CustomerStatus, Customer as CustomerUIType, OrderStatus as OrderStatusUIType, Order as OrderUIType } from "@/lib/mockData"; 
+import { customerStatusColors, orderStatusColors, orderStatusIcons } from "@/lib/mockData"; 
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -30,7 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"; // Added Table imports
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"; 
 import { createClient } from '@/lib/supabase/client';
 import type { User as AuthUser } from '@supabase/supabase-js';
 import {
@@ -39,7 +39,7 @@ import {
   type CustomerFromSupabase,
   type CustomerPayload,
 } from "@/services/customerService";
-import { getOrdersByCustomerAndStore, type OrderFromSupabase } from "@/services/orderService"; // Added getOrdersByCustomerAndStore
+import { getOrdersByCustomerAndStore, type OrderFromSupabase } from "@/services/orderService"; 
 
 
 // Form data type for Edit dialog
@@ -65,9 +65,9 @@ const mapCustomerFromSupabaseToUI = (customer: CustomerFromSupabase): CustomerUI
     email: customer.email,
     avatar: customer.avatar_url || "https://placehold.co/96x96.png",
     dataAiHintAvatar: customer.data_ai_hint_avatar || "person",
-    totalSpent: customer.total_spent,
-    totalOrders: customer.total_orders,
-    joinedDate: new Date(customer.joined_date).toISOString().split("T")[0],
+    totalSpent: customer.total_spent || 0, // Ensure default value
+    totalOrders: customer.total_orders || 0, // Ensure default value
+    joinedDate: customer.joined_date ? new Date(customer.joined_date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0], // Ensure default
     lastOrderDate: customer.last_order_date ? new Date(customer.last_order_date).toISOString().split("T")[0] : undefined,
     status: customer.status as CustomerStatus,
     tags: customer.tags || [],
@@ -90,15 +90,15 @@ const mapOrderFromSupabaseToUI_CustomerOrders = (order: OrderFromSupabase): Orde
     date: new Date(order.order_date).toISOString().split("T")[0],
     total: order.total_amount,
     status: order.status as OrderStatusUIType,
-    itemsCount: order.order_items.reduce((sum, item) => sum + item.quantity, 0),
-    detailedItems: order.order_items.map(item => ({
+    itemsCount: order.order_items?.reduce((sum, item) => sum + item.quantity, 0) || 0, // Add null check for order_items
+    detailedItems: order.order_items?.map(item => ({ // Add null check for order_items
       productId: item.product_id || `deleted_${item.id}`,
       name: item.product_name_snapshot,
       quantity: item.quantity,
       price: item.price_per_unit_snapshot,
       image: item.product_image_url_snapshot || "https://placehold.co/50x50.png",
       dataAiHint: item.data_ai_hint_snapshot || "product",
-    })),
+    })) || [], // Default to empty array
     shippingAddress: order.shipping_address,
     billingAddress: order.billing_address,
     shippingMethod: order.shipping_method || undefined,
@@ -139,63 +139,75 @@ export default function CustomerDetailPage() {
 
   React.useEffect(() => {
     const fetchCustomerDetails = async () => {
-      if (customerId && authUser) {
-        setIsLoadingCustomer(true);
-        setErrorLoadingCustomer(null);
-        try {
-          const { data: fetchedCustomerData, error } = await getCustomerById(customerId);
-          if (error) throw error;
-          if (fetchedCustomerData) {
-            const uiCustomer = mapCustomerFromSupabaseToUI(fetchedCustomerData);
-            setCustomer(uiCustomer);
-            setFormData({
-              name: uiCustomer.name,
-              email: uiCustomer.email,
-              status: uiCustomer.status,
-              phone: uiCustomer.phone || "",
-              street_address: uiCustomer.address?.street || "",
-              city: uiCustomer.address?.city || "",
-              state_province: uiCustomer.address?.state || "",
-              zip_postal_code: uiCustomer.address?.zip || "",
-              country: uiCustomer.address?.country || "",
-              tags: uiCustomer.tags || [],
-              avatar_url: uiCustomer.avatar,
-              data_ai_hint_avatar: uiCustomer.dataAiHintAvatar,
-            });
-
-            // Fetch customer orders if storeId is available
-            if (storeId) {
-              setIsLoadingCustomerOrders(true);
-              const { data: ordersData, error: ordersError } = await getOrdersByCustomerAndStore(fetchedCustomerData.id, storeId);
-              if (ordersError) {
-                toast({ variant: "destructive", title: "Error Fetching Orders", description: ordersError.message });
-                setCustomerOrders([]);
-              } else if (ordersData) {
-                setCustomerOrders(ordersData.map(mapOrderFromSupabaseToUI_CustomerOrders));
-              }
-              setIsLoadingCustomerOrders(false);
-            }
-
-
-          } else {
-            setErrorLoadingCustomer("Customer not found or you do not have access.");
-            setCustomer(null);
-          }
-        } catch (err: any) {
-          console.error("Error fetching customer details:", err);
-          setErrorLoadingCustomer(err.message || "Failed to fetch customer details.");
-          toast({ variant: "destructive", title: "Error", description: err.message || "Could not fetch customer details." });
-          setCustomer(null);
-        } finally {
-          setIsLoadingCustomer(false);
-        }
-      } else if (!authUser) {
+      if (!customerId) {
+        setErrorLoadingCustomer("Customer ID is missing.");
+        setIsLoadingCustomer(false);
+        return;
+      }
+      if (!authUser) {
         setErrorLoadingCustomer("You must be signed in to view customer details.");
+        setIsLoadingCustomer(false);
+        return;
+      }
+
+      setIsLoadingCustomer(true);
+      setErrorLoadingCustomer(null);
+      setCustomer(null); // Reset customer state on new fetch
+      setCustomerOrders([]); // Reset orders state
+
+      try {
+        const { data: fetchedCustomerData, error } = await getCustomerById(customerId);
+        if (error) throw error;
+
+        if (fetchedCustomerData) {
+          const uiCustomer = mapCustomerFromSupabaseToUI(fetchedCustomerData);
+          setCustomer(uiCustomer);
+          setFormData({
+            name: uiCustomer.name,
+            email: uiCustomer.email,
+            status: uiCustomer.status,
+            phone: uiCustomer.phone || "",
+            street_address: uiCustomer.address?.street || "",
+            city: uiCustomer.address?.city || "",
+            state_province: uiCustomer.address?.state || "",
+            zip_postal_code: uiCustomer.address?.zip || "",
+            country: uiCustomer.address?.country || "",
+            tags: uiCustomer.tags || [],
+            avatar_url: uiCustomer.avatar,
+            data_ai_hint_avatar: uiCustomer.dataAiHintAvatar,
+          });
+
+          if (storeId) {
+            setIsLoadingCustomerOrders(true);
+            try {
+                const { data: ordersData, error: ordersError } = await getOrdersByCustomerAndStore(fetchedCustomerData.id, storeId);
+                if (ordersError) throw ordersError;
+                setCustomerOrders(ordersData?.map(mapOrderFromSupabaseToUI_CustomerOrders) || []);
+            } catch (ordersErr: any) {
+                toast({ variant: "destructive", title: "Error Fetching Orders", description: ordersErr.message });
+                setCustomerOrders([]);
+            } finally {
+                setIsLoadingCustomerOrders(false);
+            }
+          } else {
+            // If no storeId, maybe show all orders globally or a message
+            // For now, we assume storeId context is important for orders display here
+            setCustomerOrders([]);
+            console.warn("No storeId provided, not fetching customer orders for a specific store.");
+          }
+        } else {
+          setErrorLoadingCustomer("Customer not found or you do not have access.");
+        }
+      } catch (err: any) {
+        console.error("Error fetching customer details:", err);
+        setErrorLoadingCustomer(err.message || "Failed to fetch customer details.");
+        toast({ variant: "destructive", title: "Error", description: err.message || "Could not fetch customer details." });
+      } finally {
         setIsLoadingCustomer(false);
       }
     };
     fetchCustomerDetails();
-  }, [customerId, authUser, toast, storeId]);
+  }, [customerId, authUser, storeId, toast]); // Added storeId to dependency array
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -430,7 +442,7 @@ export default function CustomerDetailPage() {
                 <dt className="text-muted-foreground flex items-center gap-1"><ShoppingCart className="h-4 w-4"/>Total Orders:</dt>
                 <dd>{customer.totalOrders}</dd>
                 <dt className="text-muted-foreground flex items-center gap-1"><DollarSign className="h-4 w-4"/>Total Spent:</dt>
-                <dd>${customer.totalSpent.toFixed(2)}</dd>
+                <dd>Ksh {customer.totalSpent.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</dd>
               </dl>
             </div>
           </div>
@@ -454,13 +466,18 @@ export default function CustomerDetailPage() {
       <Card>
         <CardHeader>
           <CardTitle>Order History {storeId ? `from this Store` : `(All Stores)`}</CardTitle>
-          <CardDescription>Recent orders placed by {customer.name}.</CardDescription>
+          <CardDescription>Recent orders placed by {customer.name}. {storeId ? "" : "Select a store from the sidebar to see store-specific orders."}</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoadingCustomerOrders && <p className="text-muted-foreground">Loading order history...</p>}
-          {!isLoadingCustomerOrders && customerOrders.length === 0 && (
+          {!isLoadingCustomerOrders && customerOrders.length === 0 && storeId && (
             <p className="text-muted-foreground">
-              {storeId ? "No orders found for this customer in the current store." : "No orders found for this customer."}
+              No orders found for this customer in the current store.
+            </p>
+          )}
+           {!isLoadingCustomerOrders && customerOrders.length === 0 && !storeId && (
+            <p className="text-muted-foreground">
+              Select a store from the sidebar to view order history for this customer.
             </p>
           )}
           {!isLoadingCustomerOrders && customerOrders.length > 0 && (
@@ -479,9 +496,9 @@ export default function CustomerDetailPage() {
                    const OrderStatusIcon = orderStatusIcons[order.status];
                    return (
                     <TableRow key={order.id}>
-                      <TableCell className="font-medium">{order.id}</TableCell>
+                      <TableCell className="font-medium">{order.id.substring(0,8)}...</TableCell>
                       <TableCell>{new Date(order.date).toLocaleDateString()}</TableCell>
-                      <TableCell className="text-right">${order.total.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">Ksh {order.total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={cn(orderStatusColors[order.status], "flex items-center gap-1.5 whitespace-nowrap text-xs")}>
                           <OrderStatusIcon className="h-3.5 w-3.5" />
@@ -506,4 +523,3 @@ export default function CustomerDetailPage() {
     </div>
   );
 }
-

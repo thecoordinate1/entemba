@@ -47,8 +47,14 @@ export async function getRevenueSummaryStats(
     console.error('[reportService.getRevenueSummaryStats] Error calling RPC:', JSON.stringify(error, null, 2));
     return { data: null, error: new Error(error.message || 'Failed to fetch revenue summary stats from RPC.') };
   }
+  if (!data) {
+    // RPC might return empty if no data, handle as null or default structure
+    console.warn('[reportService.getRevenueSummaryStats] No data returned from RPC for store:', storeId);
+    return { data: null, error: new Error('No summary data returned from RPC.') };
+  }
   console.log('[reportService.getRevenueSummaryStats] Data from RPC:', data);
-  return { data: data as RevenueSummaryStats | null, error: null };
+  // Supabase RPC returns an array with one object if successful for this type of function
+  return { data: data[0] as RevenueSummaryStats, error: null };
 }
 
 
