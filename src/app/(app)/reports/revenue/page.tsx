@@ -34,7 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
 import { createClient } from '@/lib/supabase/client';
 import type { User as AuthUser } from '@supabase/supabase-js';
 import { getStoreById, type StoreFromSupabase } from "@/services/storeService";
@@ -53,7 +53,6 @@ interface RevenueChartDataItem {
   transactions: number;
 }
 
-// Data for "Revenue by Source" Pie Chart - remains static for now
 const revenueSourceDataStatic = [
     { name: 'Online Store', value: 120500, color: 'hsl(var(--chart-1))' },
     { name: 'Marketplace A', value: 45300, color: 'hsl(var(--chart-2))' },
@@ -102,11 +101,11 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, descripti
         {trend && (
           <p className={`text-xs flex items-center ${
               trendType === "positive" ? "text-emerald-500" :
-              trendType === "negative" ? "text-red-500" :
+              trendType === "negative" ? "text-red-500" : // Corrected trendType for negative
               "text-muted-foreground"
           }`}>
             {trendType === "positive" && <TrendingUp className="mr-1 h-4 w-4" />}
-            {trendType === "negative" && <TrendingUp className="mr-1 h-4 w-4 rotate-180" />} 
+            {trendType === "negative" && <TrendingDown className="mr-1 h-4 w-4" />} 
             {trend}
           </p>
         )}
@@ -137,7 +136,6 @@ export default function RevenueReportPage() {
   
   const [error, setError] = React.useState<string | null>(null);
 
-  // Revenue Settings state (remains client-side for now)
   const [defaultCurrency, setDefaultCurrency] = React.useState("ZMW");
   const [taxRate, setTaxRate] = React.useState("10"); 
   const [pricesIncludeTax, setPricesIncludeTax] = React.useState(false);
@@ -150,43 +148,42 @@ export default function RevenueReportPage() {
     const fetchStoreAndReportData = async () => {
       if (!storeIdFromUrl || !authUser) {
         setIsLoadingStore(false); setIsLoadingSummary(false); setIsLoadingMonthly(false); setIsLoadingTopProducts(false);
-        setError(storeIdFromUrl ? "Authentication issue." : "No store selected.");
+        setError(storeIdFromUrl ? "Authentication issue. Please ensure you are logged in." : "No store selected. Please select a store to view reports.");
         return;
       }
       
       setIsLoadingStore(true); setIsLoadingSummary(true); setIsLoadingMonthly(true); setIsLoadingTopProducts(true);
       setError(null);
 
-      // Fetch store details
       getStoreById(storeIdFromUrl, authUser.id).then(({ data, error: storeError }) => {
         if (storeError) setError(prev => prev ? `${prev}, Store: ${storeError.message}` : `Store: ${storeError.message}`);
         setSelectedStore(data);
         setIsLoadingStore(false);
       });
 
-      // Fetch summary stats
       getRevenueSummaryStats(storeIdFromUrl).then(({ data, error: summaryError }) => {
         if (summaryError) setError(prev => prev ? `${prev}, Summary: ${summaryError.message}` : `Summary: ${summaryError.message}`);
         setSummaryStats(data);
         setIsLoadingSummary(false);
       });
 
-      // Fetch monthly overview (e.g., last 6 months)
       getMonthlyRevenueOverview(storeIdFromUrl, 6).then(({ data, error: monthlyError }) => {
         if (monthlyError) setError(prev => prev ? `${prev}, Monthly: ${monthlyError.message}` : `Monthly: ${monthlyError.message}`);
         if (data) {
-          setMonthlyRevenue(data.map(item => ({
-            month: format(parseISO(item.period_start_date), 'MMMM'),
-            revenue: item.total_revenue,
-            transactions: item.transaction_count,
-          })).reverse());
+          setMonthlyRevenue(data.map(item => {
+            const parsedDate = parseISO(item.period_start_date);
+            return {
+              month: isValid(parsedDate) ? format(parsedDate, 'MMMM') : 'Unknown Month',
+              revenue: item.total_revenue || 0,
+              transactions: item.transaction_count || 0,
+            };
+          }).reverse());
         } else {
           setMonthlyRevenue([]);
         }
         setIsLoadingMonthly(false);
       });
 
-      // Fetch top products (e.g., top 5, last 30 days)
       getTopProductsByRevenue(storeIdFromUrl, 5, 30).then(({ data, error: productsError }) => {
         if (productsError) setError(prev => prev ? `${prev}, Top Products: ${productsError.message}` : `Top Products: ${productsError.message}`);
         setTopProducts(data || []);
@@ -209,19 +206,31 @@ export default function RevenueReportPage() {
     });
   };
 
-  const avgOrderValue = summaryStats?.current_month_transactions 
+  const avgOrderValue = (summaryStats?.current_month_transactions && summaryStats?.current_month_revenue)
     ? (summaryStats.current_month_revenue / summaryStats.current_month_transactions) 
     : 0;
 
-  if (error) {
+  if (error && !isLoadingStore && !isLoadingSummary && !isLoadingMonthly && !isLoadingTopProducts) { // Only show full page error if all loading is done
     return (
-      <div className="flex flex-col items-center justify-center h-full text-center">
+      <div className="flex flex-col items-center justify-center h-full text-center p-4">
         <AlertCircle className="w-16 h-16 text-destructive mb-4" />
         <h2 className="text-xl font-semibold mb-2">Error Loading Report Data</h2>
-        <p className="text-muted-foreground mb-6 max-w-md">{error}</p>
-        <p className="text-xs text-muted-foreground mb-6 max-w-md">This might be due to missing RPC functions on the backend. Please ensure `get_revenue_summary_stats`, `get_monthly_revenue_overview`, and `get_top_products_by_revenue` are created in your Supabase SQL Editor.</p>
+        <p className="text-muted-foreground mb-6 max-w-md whitespace-pre-wrap">{error}</p>
+        <p className="text-xs text-muted-foreground mb-6 max-w-md">This might be due to missing or misconfigured RPC functions on the backend. Please ensure `get_revenue_summary_stats`, `get_monthly_revenue_overview`, and `get_top_products_by_revenue` are created correctly in your Supabase SQL Editor and permissions are granted.</p>
         <Button variant="outline" onClick={() => router.push(`/dashboard${queryParams}`)}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+        </Button>
+      </div>
+    );
+  }
+  if (!storeIdFromUrl && !error) {
+     return (
+      <div className="flex flex-col items-center justify-center h-full text-center p-4">
+        <AlertCircle className="w-16 h-16 text-primary mb-4" />
+        <h2 className="text-xl font-semibold mb-2">No Store Selected</h2>
+        <p className="text-muted-foreground mb-6 max-w-md">Please select a store from the sidebar to view its revenue report.</p>
+        <Button variant="outline" onClick={() => router.push(`/stores`)}>
+          <ArrowLeft className="mr-2 h-4 w-4" /> Go to Stores
         </Button>
       </div>
     );
@@ -239,22 +248,21 @@ export default function RevenueReportPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Revenue (YTD)"
-          value={summaryStats?.ytd_revenue !== undefined ? `K${summaryStats.ytd_revenue.toFixed(2)}` : "N/A"}
+          value={summaryStats?.ytd_revenue !== undefined ? `K${Number(summaryStats.ytd_revenue).toFixed(2)}` : "N/A"}
           icon={DollarSign}
           description={`Year-to-date gross revenue${storeContextMessage}.`}
-          // trend="+15.2% vs last year" // Trend data would require more complex RPC
           isLoading={isLoadingSummary}
         />
         <StatCard
           title="Revenue (This Month)"
-          value={summaryStats?.current_month_revenue !== undefined ? `K${summaryStats.current_month_revenue.toFixed(2)}` : "N/A"}
+          value={summaryStats?.current_month_revenue !== undefined ? `K${Number(summaryStats.current_month_revenue).toFixed(2)}` : "N/A"}
           icon={DollarSign}
           description={`Gross revenue for current month${storeContextMessage}.`}
           isLoading={isLoadingSummary}
         />
         <StatCard
           title="Average Order Value"
-          value={avgOrderValue !== undefined ? `K${avgOrderValue.toFixed(2)}` : "N/A"}
+          value={avgOrderValue !== undefined ? `K${Number(avgOrderValue).toFixed(2)}` : "N/A"}
           icon={ShoppingCart}
           description={`Avg. amount per order (current month)${storeContextMessage}.`}
           isLoading={isLoadingSummary}
@@ -277,7 +285,7 @@ export default function RevenueReportPage() {
           <CardContent className="pl-2">
             {isLoadingMonthly ? (
                 <Skeleton className="h-[300px] w-full" />
-            ) : monthlyRevenue.length > 0 ? (
+            ) : monthlyRevenue && monthlyRevenue.length > 0 ? (
               <ChartContainer config={revenueChartConfig} className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={monthlyRevenue} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
@@ -330,7 +338,7 @@ export default function RevenueReportPage() {
         <Card className="lg:col-span-2">
             <CardHeader>
                 <CardTitle>Revenue by Source (Static)</CardTitle>
-                <CardDescription>Distribution of revenue across different channels{storeContextMessage}. (This chart uses static data for now).</CardDescription>
+                <CardDescription>Distribution of revenue across different channels{storeContextMessage}. (This chart uses static data for now as order source is not tracked).</CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center items-center h-[300px]">
                  <ChartContainer config={{}} className="h-full w-full max-h-[250px]">
@@ -394,7 +402,7 @@ export default function RevenueReportPage() {
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
             </div>
-          ) : topProducts.length > 0 ? (
+          ) : topProducts && topProducts.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -425,10 +433,10 @@ export default function RevenueReportPage() {
                       </Link>
                       <div className="text-xs text-muted-foreground">{product.product_category}</div>
                     </TableCell>
-                    <TableCell className="text-right">K{product.total_revenue_generated.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">K{Number(product.total_revenue_generated).toFixed(2)}</TableCell>
                     <TableCell className="text-right hidden md:table-cell">{product.units_sold}</TableCell>
                     <TableCell className="text-right hidden md:table-cell">
-                      {product.units_sold > 0 ? `K${(product.total_revenue_generated / product.units_sold).toFixed(2)}` : "K0.00"}
+                      {product.units_sold > 0 ? `K${(Number(product.total_revenue_generated) / product.units_sold).toFixed(2)}` : "K0.00"}
                     </TableCell>
                     <TableCell className="text-center">
                       <Button variant="outline" size="sm" asChild>
@@ -520,3 +528,4 @@ export default function RevenueReportPage() {
     </div>
   );
 }
+
