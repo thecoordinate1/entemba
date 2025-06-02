@@ -44,11 +44,9 @@ export async function getRevenueSummaryStats(
   });
 
   if (error) {
-    console.error('[reportService.getRevenueSummaryStats] Error calling RPC:', error);
+    console.error('[reportService.getRevenueSummaryStats] Error calling RPC:', JSON.stringify(error, null, 2));
     return { data: null, error: new Error(error.message || 'Failed to fetch revenue summary stats from RPC.') };
   }
-  // RPCs that return a single row are returned as an object, not an array.
-  // If your RPC returns a SETOF, it would be an array. Assuming single row for stats.
   console.log('[reportService.getRevenueSummaryStats] Data from RPC:', data);
   return { data: data as RevenueSummaryStats | null, error: null };
 }
@@ -72,7 +70,7 @@ export async function getMonthlyRevenueOverview(
   });
 
   if (error) {
-    console.error('[reportService.getMonthlyRevenueOverview] Error calling RPC:', error);
+    console.error('[reportService.getMonthlyRevenueOverview] Error calling RPC:', JSON.stringify(error, null, 2));
     return { data: null, error: new Error(error.message || 'Failed to fetch monthly revenue overview from RPC.') };
   }
 
@@ -97,7 +95,7 @@ export async function getTopProductsByRevenue(
   });
 
   if (error) {
-    console.error('[reportService.getTopProductsByRevenue] Error calling RPC:', error);
+    console.error('[reportService.getTopProductsByRevenue] Error calling RPC:', JSON.stringify(error, null, 2));
     return { data: null, error: new Error(error.message || 'Failed to fetch top products by revenue from RPC.') };
   }
 

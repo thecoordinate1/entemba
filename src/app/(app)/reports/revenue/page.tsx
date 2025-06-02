@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   DollarSign,
   TrendingUp,
+  TrendingDown,
   ShoppingCart,
   CreditCard,
   ArrowLeft,
@@ -101,7 +102,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, descripti
         {trend && (
           <p className={`text-xs flex items-center ${
               trendType === "positive" ? "text-emerald-500" :
-              trendType === "negative" ? "text-red-500" : // Corrected trendType for negative
+              trendType === "negative" ? "text-red-500" :
               "text-muted-foreground"
           }`}>
             {trendType === "positive" && <TrendingUp className="mr-1 h-4 w-4" />}
@@ -134,7 +135,7 @@ export default function RevenueReportPage() {
   const [isLoadingMonthly, setIsLoadingMonthly] = React.useState(true);
   const [isLoadingTopProducts, setIsLoadingTopProducts] = React.useState(true);
   
-  const [error, setError] = React.useState<string | null>(null);
+  const [errorMessages, setErrorMessages] = React.useState<string[]>([]);
 
   const [defaultCurrency, setDefaultCurrency] = React.useState("ZMW");
   const [taxRate, setTaxRate] = React.useState("10"); 
@@ -146,49 +147,92 @@ export default function RevenueReportPage() {
 
   React.useEffect(() => {
     const fetchStoreAndReportData = async () => {
-      if (!storeIdFromUrl || !authUser) {
+      let currentErrorMessages: string[] = [];
+      setIsLoadingStore(true); 
+      setIsLoadingSummary(true); 
+      setIsLoadingMonthly(true); 
+      setIsLoadingTopProducts(true);
+      setErrorMessages([]);
+
+      if (!storeIdFromUrl) {
+        currentErrorMessages.push("No store selected. Please select a store to view reports.");
         setIsLoadingStore(false); setIsLoadingSummary(false); setIsLoadingMonthly(false); setIsLoadingTopProducts(false);
-        setError(storeIdFromUrl ? "Authentication issue. Please ensure you are logged in." : "No store selected. Please select a store to view reports.");
+        setErrorMessages(currentErrorMessages);
+        return;
+      }
+      if (!authUser) {
+        currentErrorMessages.push("Authentication issue. Please ensure you are logged in.");
+        setIsLoadingStore(false); setIsLoadingSummary(false); setIsLoadingMonthly(false); setIsLoadingTopProducts(false);
+        setErrorMessages(currentErrorMessages);
         return;
       }
       
-      setIsLoadingStore(true); setIsLoadingSummary(true); setIsLoadingMonthly(true); setIsLoadingTopProducts(true);
-      setError(null);
-
-      getStoreById(storeIdFromUrl, authUser.id).then(({ data, error: storeError }) => {
-        if (storeError) setError(prev => prev ? `${prev}, Store: ${storeError.message}` : `Store: ${storeError.message}`);
-        setSelectedStore(data);
+      try {
+        const storeResult = await getStoreById(storeIdFromUrl, authUser.id);
+        if (storeResult.error) {
+            currentErrorMessages.push(`Store: ${storeResult.error.message}`);
+        }
+        setSelectedStore(storeResult.data);
+      } catch (e: any) {
+        currentErrorMessages.push(`Store (Unexpected): ${e.message}`);
+      } finally {
         setIsLoadingStore(false);
-      });
+      }
 
-      getRevenueSummaryStats(storeIdFromUrl).then(({ data, error: summaryError }) => {
-        if (summaryError) setError(prev => prev ? `${prev}, Summary: ${summaryError.message}` : `Summary: ${summaryError.message}`);
-        setSummaryStats(data);
+      try {
+        const summaryResult = await getRevenueSummaryStats(storeIdFromUrl);
+        if (summaryResult.error) {
+            currentErrorMessages.push(`Summary Stats: ${summaryResult.error.message}`);
+        }
+        setSummaryStats(summaryResult.data);
+      } catch (e: any) {
+         currentErrorMessages.push(`Summary Stats (Unexpected): ${e.message}`);
+      } finally {
         setIsLoadingSummary(false);
-      });
+      }
 
-      getMonthlyRevenueOverview(storeIdFromUrl, 6).then(({ data, error: monthlyError }) => {
-        if (monthlyError) setError(prev => prev ? `${prev}, Monthly: ${monthlyError.message}` : `Monthly: ${monthlyError.message}`);
-        if (data) {
-          setMonthlyRevenue(data.map(item => {
+      try {
+        const monthlyResult = await getMonthlyRevenueOverview(storeIdFromUrl, 6);
+        if (monthlyResult.error) {
+            currentErrorMessages.push(`Monthly Overview: ${monthlyResult.error.message}`);
+            setMonthlyRevenue([]);
+        } else if (monthlyResult.data) {
+          setMonthlyRevenue(monthlyResult.data.map(item => {
             const parsedDate = parseISO(item.period_start_date);
             return {
-              month: isValid(parsedDate) ? format(parsedDate, 'MMMM') : 'Unknown Month',
+              month: isValid(parsedDate) ? format(parsedDate, 'MMMM') : 'Unknown',
               revenue: item.total_revenue || 0,
               transactions: item.transaction_count || 0,
             };
           }).reverse());
         } else {
-          setMonthlyRevenue([]);
+            setMonthlyRevenue([]);
         }
+      } catch (e: any) {
+        currentErrorMessages.push(`Monthly Overview (Unexpected): ${e.message}`);
+        setMonthlyRevenue([]);
+      } finally {
         setIsLoadingMonthly(false);
-      });
+      }
 
-      getTopProductsByRevenue(storeIdFromUrl, 5, 30).then(({ data, error: productsError }) => {
-        if (productsError) setError(prev => prev ? `${prev}, Top Products: ${productsError.message}` : `Top Products: ${productsError.message}`);
-        setTopProducts(data || []);
+      try {
+        const topProductsResult = await getTopProductsByRevenue(storeIdFromUrl, 5, 30);
+        if (topProductsResult.error) {
+            currentErrorMessages.push(`Top Products: ${topProductsResult.error.message}`);
+            setTopProducts([]);
+        } else {
+            setTopProducts(topProductsResult.data || []);
+        }
+      } catch (e: any) {
+        currentErrorMessages.push(`Top Products (Unexpected): ${e.message}`);
+        setTopProducts([]);
+      } finally {
         setIsLoadingTopProducts(false);
-      });
+      }
+
+      if (currentErrorMessages.length > 0) {
+        setErrorMessages(currentErrorMessages);
+      }
     };
 
     fetchStoreAndReportData();
@@ -199,23 +243,25 @@ export default function RevenueReportPage() {
 
   const handleSaveRevenueSettings = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log({ defaultCurrency, taxRate, pricesIncludeTax });
+    // console.log({ defaultCurrency, taxRate, pricesIncludeTax });
     toast({
       title: "Settings Saved (Placeholder)",
       description: "Revenue settings save functionality is not yet fully implemented.",
     });
   };
 
-  const avgOrderValue = (summaryStats?.current_month_transactions && summaryStats?.current_month_revenue)
+  const avgOrderValue = (summaryStats?.current_month_transactions && summaryStats?.current_month_revenue && summaryStats.current_month_transactions > 0)
     ? (summaryStats.current_month_revenue / summaryStats.current_month_transactions) 
     : 0;
 
-  if (error && !isLoadingStore && !isLoadingSummary && !isLoadingMonthly && !isLoadingTopProducts) { // Only show full page error if all loading is done
+  if (errorMessages.length > 0 && !isLoadingStore && !isLoadingSummary && !isLoadingMonthly && !isLoadingTopProducts) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-4">
         <AlertCircle className="w-16 h-16 text-destructive mb-4" />
         <h2 className="text-xl font-semibold mb-2">Error Loading Report Data</h2>
-        <p className="text-muted-foreground mb-6 max-w-md whitespace-pre-wrap">{error}</p>
+        <div className="text-muted-foreground mb-6 max-w-md space-y-1">
+            {errorMessages.map((msg, index) => <p key={index}>{msg}</p>)}
+        </div>
         <p className="text-xs text-muted-foreground mb-6 max-w-md">This might be due to missing or misconfigured RPC functions on the backend. Please ensure `get_revenue_summary_stats`, `get_monthly_revenue_overview`, and `get_top_products_by_revenue` are created correctly in your Supabase SQL Editor and permissions are granted.</p>
         <Button variant="outline" onClick={() => router.push(`/dashboard${queryParams}`)}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
@@ -223,18 +269,7 @@ export default function RevenueReportPage() {
       </div>
     );
   }
-  if (!storeIdFromUrl && !error) {
-     return (
-      <div className="flex flex-col items-center justify-center h-full text-center p-4">
-        <AlertCircle className="w-16 h-16 text-primary mb-4" />
-        <h2 className="text-xl font-semibold mb-2">No Store Selected</h2>
-        <p className="text-muted-foreground mb-6 max-w-md">Please select a store from the sidebar to view its revenue report.</p>
-        <Button variant="outline" onClick={() => router.push(`/stores`)}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Go to Stores
-        </Button>
-      </div>
-    );
-  }
+
 
   return (
     <div className="flex flex-col gap-6">
@@ -285,7 +320,7 @@ export default function RevenueReportPage() {
           <CardContent className="pl-2">
             {isLoadingMonthly ? (
                 <Skeleton className="h-[300px] w-full" />
-            ) : monthlyRevenue && monthlyRevenue.length > 0 ? (
+            ) : monthlyRevenue.length > 0 ? (
               <ChartContainer config={revenueChartConfig} className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={monthlyRevenue} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
@@ -402,7 +437,7 @@ export default function RevenueReportPage() {
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
             </div>
-          ) : topProducts && topProducts.length > 0 ? (
+          ) : topProducts.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -528,4 +563,3 @@ export default function RevenueReportPage() {
     </div>
   );
 }
-
