@@ -20,12 +20,11 @@ This document outlines the steps to refine the E-Ntemba application, implement n
     - [x] Ensure loading/error states handled gracefully.
 - [ ] **Stock Quantity Logic (Inventory Management)**
     - [ ] **Backend Option Discussion:**
-        - [ ] Decide between Database Trigger or RPC for stock updates.
+        - [x] Decide between Database Trigger or RPC for stock updates. (Decision: Database Trigger)
     - [ ] **Backend Implementation (based on decision):**
-        - [ ] Implement Supabase Trigger on `orders` table (status change) OR
-        - [ ] Implement RPC function `update_product_stock_for_order(order_id UUID)`.
+        - [ ] Implement Supabase Trigger on `orders` table (status change to 'Shipped'/'Delivered') and its associated PL/pgSQL function.
     - [ ] **Frontend (if RPC used):**
-        - [ ] Modify `updateOrderStatus` in `orderService.ts` to call the stock update RPC.
+        - [ ] (Not applicable as Trigger is chosen)
     - [ ] **Considerations:**
         - [ ] Plan for handling stock for order cancellations/returns.
     - [ ] **Testing:**
