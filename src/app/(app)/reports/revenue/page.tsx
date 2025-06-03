@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { useSearchParams, useRouter } from "next/navigation"; // Added useRouter
+import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -61,7 +61,7 @@ const revenueSourceDataStatic = [
 ];
 
 const revenueChartConfig = {
-  revenue: { label: "Revenue (Ksh)", color: "hsl(var(--chart-1))" }, // Updated label
+  revenue: { label: "Revenue (Ksh)", color: "hsl(var(--chart-1))" },
   transactions: { label: "Transactions", color: "hsl(var(--chart-2))" },
 };
 
@@ -101,7 +101,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, descripti
         {trend && (
           <p className={`text-xs flex items-center ${
               trendType === "positive" ? "text-emerald-500" :
-              trendType === "negative" ? "text-red-500" : // Corrected typo here
+              trendType === "negative" ? "text-red-500" :
               "text-muted-foreground"
           }`}>
             {trendType === "positive" && <TrendingUp className="mr-1 h-4 w-4" />}
@@ -129,14 +129,10 @@ export default function RevenueReportPage() {
   const [monthlyRevenue, setMonthlyRevenue] = React.useState<RevenueChartDataItem[]>([]);
   const [topProducts, setTopProducts] = React.useState<TopProductByRevenue[]>([]);
 
-  const [isLoadingStore, setIsLoadingStore] = React.useState(true);
-  const [isLoadingSummary, setIsLoadingSummary] = React.useState(true);
-  const [isLoadingMonthly, setIsLoadingMonthly] = React.useState(true);
-  const [isLoadingTopProducts, setIsLoadingTopProducts] = React.useState(true);
-  
+  const [isLoading, setIsLoading] = React.useState(true);
   const [errorMessages, setErrorMessages] = React.useState<string[]>([]);
 
-  const [defaultCurrency, setDefaultCurrency] = React.useState("ZMW");
+  const [defaultCurrency, setDefaultCurrency] = React.useState("Ksh"); // Changed to Ksh
   const [taxRate, setTaxRate] = React.useState("10"); 
   const [pricesIncludeTax, setPricesIncludeTax] = React.useState(false);
 
@@ -145,59 +141,66 @@ export default function RevenueReportPage() {
   }, [supabase]);
 
   React.useEffect(() => {
-    const fetchStoreAndReportData = async () => {
+    const fetchReportData = async () => {
+      setIsLoading(true);
+      setErrorMessages([]);
       let currentErrorMessages: string[] = [];
-      setIsLoadingStore(true); 
-      setIsLoadingSummary(true); 
-      setIsLoadingMonthly(true); 
-      setIsLoadingTopProducts(true);
-      setErrorMessages([]); // Clear previous errors
 
       if (!storeIdFromUrl) {
         currentErrorMessages.push("No store selected. Please select a store to view reports.");
-        setIsLoadingStore(false); setIsLoadingSummary(false); setIsLoadingMonthly(false); setIsLoadingTopProducts(false);
-        setSummaryStats(null); setMonthlyRevenue([]); setTopProducts([]); // Reset data states
+        setIsLoading(false);
+        setSummaryStats(null); setMonthlyRevenue([]); setTopProducts([]); setSelectedStore(null);
         setErrorMessages(currentErrorMessages);
         return;
       }
       if (!authUser) {
         currentErrorMessages.push("Authentication issue. Please ensure you are logged in.");
-        setIsLoadingStore(false); setIsLoadingSummary(false); setIsLoadingMonthly(false); setIsLoadingTopProducts(false);
-        setSummaryStats(null); setMonthlyRevenue([]); setTopProducts([]); // Reset data states
+        setIsLoading(false);
+        setSummaryStats(null); setMonthlyRevenue([]); setTopProducts([]); setSelectedStore(null);
         setErrorMessages(currentErrorMessages);
         return;
       }
       
-      // Fetch Store Info
-      try {
-        const storeResult = await getStoreById(storeIdFromUrl, authUser.id);
-        if (storeResult.error) throw storeResult.error;
-        setSelectedStore(storeResult.data);
-      } catch (e: any) {
-        currentErrorMessages.push(`Store Details: ${e.message || 'Failed to fetch store details.'}`);
+      const storePromise = getStoreById(storeIdFromUrl, authUser.id);
+      const summaryStatsPromise = getRevenueSummaryStats(storeIdFromUrl);
+      const monthlyRevenuePromise = getMonthlyRevenueOverview(storeIdFromUrl, 6);
+      const topProductsPromise = getTopProductsByRevenue(storeIdFromUrl, 5, 30);
+
+      const results = await Promise.allSettled([
+        storePromise,
+        summaryStatsPromise,
+        monthlyRevenuePromise,
+        topProductsPromise
+      ]);
+
+      const [storeResult, summaryResult, monthlyResult, topProductsResult] = results;
+
+      // Process Store Info
+      if (storeResult.status === 'fulfilled') {
+        const { data, error } = storeResult.value;
+        if (error) currentErrorMessages.push(`Store Details: ${error.message || 'Failed to fetch.'}`);
+        setSelectedStore(data);
+      } else {
+        currentErrorMessages.push(`Store Details: ${(storeResult.reason as Error).message || 'Failed to fetch.'}`);
         setSelectedStore(null);
-      } finally {
-        setIsLoadingStore(false);
       }
 
-      // Fetch Summary Stats
-      try {
-        const summaryResult = await getRevenueSummaryStats(storeIdFromUrl);
-        if (summaryResult.error) throw summaryResult.error;
-        setSummaryStats(summaryResult.data);
-      } catch (e: any) {
-         currentErrorMessages.push(`Summary Stats: ${e.message || 'Failed to fetch summary stats.'}`);
-         setSummaryStats(null);
-      } finally {
-        setIsLoadingSummary(false);
+      // Process Summary Stats
+      if (summaryResult.status === 'fulfilled') {
+        const { data, error } = summaryResult.value;
+        if (error) currentErrorMessages.push(`Summary Stats: ${error.message || 'Failed to fetch.'}`);
+        setSummaryStats(data);
+      } else {
+        currentErrorMessages.push(`Summary Stats: ${(summaryResult.reason as Error).message || 'Failed to fetch.'}`);
+        setSummaryStats(null);
       }
 
-      // Fetch Monthly Revenue
-      try {
-        const monthlyResult = await getMonthlyRevenueOverview(storeIdFromUrl, 6);
-        if (monthlyResult.error) throw monthlyResult.error;
-        if (monthlyResult.data) {
-          setMonthlyRevenue(monthlyResult.data.map(item => {
+      // Process Monthly Revenue
+      if (monthlyResult.status === 'fulfilled') {
+        const { data, error } = monthlyResult.value;
+        if (error) currentErrorMessages.push(`Monthly Overview: ${error.message || 'Failed to fetch.'}`);
+        if (data) {
+          setMonthlyRevenue(data.map(item => {
             const parsedDate = parseISO(item.period_start_date);
             return {
               month: isValid(parsedDate) ? format(parsedDate, 'MMMM') : 'Unknown',
@@ -206,34 +209,31 @@ export default function RevenueReportPage() {
             };
           }).reverse());
         } else {
-            setMonthlyRevenue([]);
+          setMonthlyRevenue([]);
         }
-      } catch (e: any) {
-        currentErrorMessages.push(`Monthly Overview: ${e.message || 'Failed to fetch monthly overview.'}`);
+      } else {
+        currentErrorMessages.push(`Monthly Overview: ${(monthlyResult.reason as Error).message || 'Failed to fetch.'}`);
         setMonthlyRevenue([]);
-      } finally {
-        setIsLoadingMonthly(false);
       }
-
-      // Fetch Top Products
-      try {
-        const topProductsResult = await getTopProductsByRevenue(storeIdFromUrl, 5, 30); // last 30 days, top 5
-        if (topProductsResult.error) throw topProductsResult.error;
-        setTopProducts(topProductsResult.data || []);
-      } catch (e: any) {
-        currentErrorMessages.push(`Top Products: ${e.message || 'Failed to fetch top products.'}`);
+      
+      // Process Top Products
+      if (topProductsResult.status === 'fulfilled') {
+        const { data, error } = topProductsResult.value;
+        if (error) currentErrorMessages.push(`Top Products: ${error.message || 'Failed to fetch.'}`);
+        setTopProducts(data || []);
+      } else {
+        currentErrorMessages.push(`Top Products: ${(topProductsResult.reason as Error).message || 'Failed to fetch.'}`);
         setTopProducts([]);
-      } finally {
-        setIsLoadingTopProducts(false);
       }
 
       if (currentErrorMessages.length > 0) {
         setErrorMessages(currentErrorMessages);
-        currentErrorMessages.forEach(msg => toast({ variant: "destructive", title: "Data Fetch Error", description: msg }));
+        currentErrorMessages.forEach(msg => toast({ variant: "destructive", title: "Data Fetch Error", description: msg, duration: 5000 }));
       }
+      setIsLoading(false);
     };
 
-    fetchStoreAndReportData();
+    fetchReportData();
   }, [storeIdFromUrl, authUser, toast]);
 
   const storeContextMessage = selectedStore ? ` for ${selectedStore.name}` : storeIdFromUrl ? " for selected store" : "";
@@ -251,18 +251,7 @@ export default function RevenueReportPage() {
     ? (summaryStats.current_month_revenue / summaryStats.current_month_transactions) 
     : 0;
 
-  if (!storeIdFromUrl && !isLoadingStore) {
-    return (
-       <div className="flex flex-col items-center justify-center h-full text-center p-4">
-        <AlertCircle className="w-16 h-16 text-destructive mb-4" />
-        <h2 className="text-xl font-semibold mb-2">No Store Selected</h2>
-        <p className="text-muted-foreground mb-6 max-w-md">Please select a store from the sidebar to view its revenue report.</p>
-        <Button variant="outline" onClick={() => router.push('/stores')}>Go to Stores Page</Button>
-      </div>
-    )
-  }
-  
-  if (errorMessages.length > 0 && !isLoadingSummary && !isLoadingMonthly && !isLoadingTopProducts) {
+  if (errorMessages.length > 0 && !isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-4">
         <AlertCircle className="w-16 h-16 text-destructive mb-4" />
@@ -282,7 +271,7 @@ export default function RevenueReportPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Revenue Report{isLoadingStore ? <Skeleton className="h-8 w-40 inline-block ml-2" /> : storeContextMessage}</h1>
+        <h1 className="text-3xl font-bold">Revenue Report{isLoading && !selectedStore ? <Skeleton className="h-8 w-40 inline-block ml-2" /> : storeContextMessage}</h1>
         <Button variant="outline" onClick={() => router.back()}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
@@ -291,31 +280,31 @@ export default function RevenueReportPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Revenue (YTD)"
-          value={summaryStats?.ytd_revenue !== undefined ? `Ksh ${Number(summaryStats.ytd_revenue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A"}
+          value={isLoading ? "Loading..." : (summaryStats?.ytd_revenue !== undefined ? `Ksh ${Number(summaryStats.ytd_revenue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
           icon={DollarSign}
           description={`Year-to-date gross revenue${storeContextMessage}.`}
-          isLoading={isLoadingSummary}
+          isLoading={isLoading}
         />
         <StatCard
           title="Revenue (This Month)"
-          value={summaryStats?.current_month_revenue !== undefined ? `Ksh ${Number(summaryStats.current_month_revenue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A"}
+          value={isLoading ? "Loading..." : (summaryStats?.current_month_revenue !== undefined ? `Ksh ${Number(summaryStats.current_month_revenue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
           icon={DollarSign}
           description={`Gross revenue for current month${storeContextMessage}.`}
-          isLoading={isLoadingSummary}
+          isLoading={isLoading}
         />
         <StatCard
           title="Average Order Value"
-          value={avgOrderValue !== undefined ? `Ksh ${Number(avgOrderValue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A"}
+          value={isLoading ? "Loading..." : (summaryStats && avgOrderValue !== undefined ? `Ksh ${Number(avgOrderValue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
           icon={ShoppingCart}
           description={`Avg. amount per order (current month)${storeContextMessage}.`}
-          isLoading={isLoadingSummary}
+          isLoading={isLoading}
         />
         <StatCard
           title="Total Transactions (YTD)"
-          value={summaryStats?.ytd_transactions !== undefined ? summaryStats.ytd_transactions.toLocaleString() : "N/A"}
+          value={isLoading ? "Loading..." : (summaryStats?.ytd_transactions !== undefined ? summaryStats.ytd_transactions.toLocaleString() : "N/A")}
           icon={CreditCard}
           description={`Total successful transactions YTD${storeContextMessage}.`}
-          isLoading={isLoadingSummary}
+          isLoading={isLoading}
         />
       </div>
 
@@ -326,7 +315,7 @@ export default function RevenueReportPage() {
             <CardDescription>Track your gross revenue and transaction volume month over month{storeContextMessage}.</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
-            {isLoadingMonthly ? (
+            {isLoading ? (
                 <Skeleton className="h-[300px] w-full" />
             ) : monthlyRevenue.length > 0 ? (
               <ChartContainer config={revenueChartConfig} className="h-[300px] w-full">
@@ -439,7 +428,7 @@ export default function RevenueReportPage() {
           <CardDescription>Detailed breakdown of revenue by products (last 30 days){storeContextMessage}.</CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoadingTopProducts ? (
+          {isLoading ? (
             <div className="space-y-3">
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
@@ -517,7 +506,7 @@ export default function RevenueReportPage() {
                             <SelectValue placeholder="Select currency" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="ZMW">ZMW - Zambian Kwacha</SelectItem>
+                            <SelectItem value="Ksh">Ksh - Kenyan Shilling</SelectItem>
                             <SelectItem value="USD">USD - United States Dollar</SelectItem>
                             <SelectItem value="EUR">EUR - Euro</SelectItem>
                             <SelectItem value="GBP">GBP - British Pound</SelectItem>
@@ -571,3 +560,4 @@ export default function RevenueReportPage() {
     </div>
   );
 }
+
