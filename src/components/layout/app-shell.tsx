@@ -90,8 +90,8 @@ const StoreSelector = ({ stores, selectedStoreId, onStoreChange, isLoading, isLo
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="w-full justify-center text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground my-2" disabled={isLoading || stores.length === 0}>
-              {isLoading ? <Skeleton className="h-5 w-5 rounded-full" /> : <StoreIcon className="h-5 w-5" />}
+            <Button variant="ghost" size="icon" className="w-full justify-center text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground my-2" disabled={isLoading || (!isLoadingStoresReady && stores.length === 0) || (isLoadingStoresReady && stores.length === 0) }>
+              {isLoading || (!isLoadingStoresReady && stores.length === 0) ? <Skeleton className="h-5 w-5 rounded-full" /> : <StoreIcon className="h-5 w-5" />}
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right" className="bg-sidebar-accent text-sidebar-accent-foreground">
@@ -102,39 +102,42 @@ const StoreSelector = ({ stores, selectedStoreId, onStoreChange, isLoading, isLo
     );
   }
 
-  if (isLoading) { // Overall loading for stores data (initial fetch)
-    return (
-        <div className="w-full my-2 h-11 group-data-[collapsible=icon]:hidden">
-            <Skeleton className="h-full w-full" />
-        </div>
-    );
+  // Expanded sidebar:
+  if (isLoading) { // True if (isLoadingStores && !areStoresFetched) in AppShell
+    return <Skeleton className="w-full my-2 h-11" />;
   }
-  
-  if (stores.length === 0 && !isLoading) { // Stores fetched, but none exist
+
+  if (!isLoadingStoresReady) {
+    // This case indicates store fetch attempt hasn't completed, even if main isLoading might be false
+    // due to other data. Show skeleton to prevent rendering Select prematurely.
+    return <Skeleton className="w-full my-2 h-11" />;
+  }
+
+  // At this point: sidebar is expanded, initial store fetch attempt is complete (isLoadingStoresReady = true)
+  // and the primary isLoading prop is also false.
+  if (stores.length === 0) {
      return (
-        <Link href="/stores" className="w-full my-2 group-data-[collapsible=icon]:hidden">
+        <Link href="/stores" className="w-full my-2">
             <Button variant="outline" className="w-full h-11 text-sm border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
                 <StoreIcon className="h-5 w-5 mr-2 text-sidebar-primary" />
                 Create a Store
             </Button>
         </Link>
-     )
+     );
   }
 
-  // If we reach here, it means !isLoading (initial store fetch is done) and stores.length > 0.
-  // isLoadingStoresReady should be true at this point.
-  const placeholderText = !selectedStoreId && stores.length > 0 ? "Loading store..." : "Select a store";
+  // Render Select only if stores are available and ready
+  const displayPlaceholder = !selectedStoreId ? "Select a store" : undefined;
 
   return (
-    <Select 
+    <Select
       value={selectedStoreId || ""} 
-      onValueChange={onStoreChange} 
-      disabled={stores.length === 0} // Only truly disable if no stores. "Loading store..." is a visual cue.
+      onValueChange={onStoreChange}
     >
-      <SelectTrigger className="w-full my-2 h-11 text-sm bg-sidebar-background border-sidebar-border text-sidebar-foreground focus:ring-sidebar-ring group-data-[collapsible=icon]:hidden">
+      <SelectTrigger className="w-full my-2 h-11 text-sm bg-sidebar-background border-sidebar-border text-sidebar-foreground focus:ring-sidebar-ring">
         <div className="flex items-center gap-2 truncate">
           <StoreIcon className="h-5 w-5 text-sidebar-primary" />
-          <SelectValue placeholder={placeholderText} />
+          <SelectValue placeholder={displayPlaceholder} />
         </div>
       </SelectTrigger>
       <SelectContent className="bg-popover text-popover-foreground border-border">
@@ -176,7 +179,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const fetchInitialUserData = React.useCallback(async (user: AuthUser) => {
     setIsLoadingProfile(true);
     setIsLoadingStores(true);
-    setAreStoresFetched(false);
+    setAreStoresFetched(false); // Reset before fetching
     
     const profilePromise = getCurrentVendorProfile(user.id);
     const storesPromise = getStoresByUserId(user.id);
@@ -224,6 +227,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       const currentUser = session?.user ?? null;
       setAuthUser(currentUser);
+      if (!currentUser) { // User logged out or session expired
+          setVendorDisplayName(null); setVendorEmail(null); setVendorAvatarUrl(null);
+          setAvailableStores([]); setSelectedStoreId(null);
+          setIsLoadingProfile(false); setIsLoadingStores(false); setAreStoresFetched(true); // Ensure loading states are reset
+      }
     });
 
     supabase.auth.getUser().then(async ({ data: { user: initialUser } }) => {
@@ -241,63 +249,79 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (authUser) {
       fetchInitialUserData(authUser);
     } else {
+      // Ensure all user-specific state is cleared on logout
       setVendorDisplayName(null); setVendorEmail(null); setVendorAvatarUrl(null);
       setAvailableStores([]); setSelectedStoreId(null);
       setIsLoadingProfile(false); setIsLoadingStores(false); setAreStoresFetched(true);
     }
   }, [authUser, fetchInitialUserData]);
 
+  // Effect to manage storeId in URL and reflect it in selectedStoreId state
   React.useEffect(() => {
-    if (!areStoresFetched || !hasMounted) return; 
+    if (!areStoresFetched || !hasMounted) return;
 
     const currentStoreIdFromUrl = searchParamsHook.get("storeId");
     const currentPathIsPublic = ["/", "/about", "/login", "/signup", "/forgot-password", "/update-password"].includes(pathname) || pathname.startsWith('/auth/callback');
 
-    if (!authUser && !currentPathIsPublic) { 
-        if (currentStoreIdFromUrl) {
-             const newParams = new URLSearchParams(searchParamsHook.toString());
-             newParams.delete("storeId");
-             router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
-        }
-        return;
+    if (!authUser && !currentPathIsPublic) {
+      // If not authenticated and on a protected page, potentially clear storeId from URL if app logic requires
+      // For now, this case is mostly handled by middleware redirecting to login.
+      return;
     }
 
     if (availableStores.length > 0) {
       const isValidStoreInUrl = currentStoreIdFromUrl && availableStores.some(s => s.id === currentStoreIdFromUrl);
-      if (!isValidStoreInUrl) {
+      if (isValidStoreInUrl) {
+        if (selectedStoreId !== currentStoreIdFromUrl) setSelectedStoreId(currentStoreIdFromUrl);
+      } else {
         const firstStoreId = availableStores[0].id;
-        if (currentStoreIdFromUrl !== firstStoreId && !currentPathIsPublic) {
+        // Only redirect if not on a public page and if the URL doesn't already have the first store ID
+        if (!currentPathIsPublic && currentStoreIdFromUrl !== firstStoreId) {
           const newParams = new URLSearchParams(searchParamsHook.toString());
           newParams.set("storeId", firstStoreId);
           router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
+          // selectedStoreId will be updated by the effect below once URL changes
+        } else if (currentPathIsPublic && selectedStoreId !== firstStoreId) {
+             // If on a public page but a store was previously selected, keep it, or set if needed
+             // but don't redirect. If no storeId in URL, but we have stores, then select first.
+            if (!currentStoreIdFromUrl) setSelectedStoreId(firstStoreId);
+            else setSelectedStoreId(currentStoreIdFromUrl);
+        } else {
+            setSelectedStoreId(firstStoreId); // Default to first store if no valid one in URL
         }
       }
-    } else { 
+    } else { // No stores available
+      if (selectedStoreId !== null) setSelectedStoreId(null);
       if (currentStoreIdFromUrl && !currentPathIsPublic) {
         const newParams = new URLSearchParams(searchParamsHook.toString());
         newParams.delete("storeId");
         router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
       }
     }
-  }, [availableStores, areStoresFetched, hasMounted, pathname, router, searchParamsHook, authUser]);
+  }, [availableStores, areStoresFetched, hasMounted, pathname, router, searchParamsHook, authUser, selectedStoreId]);
 
-  React.useEffect(() => {
+
+  // Effect to set selectedStoreId state based on URL changes
+   React.useEffect(() => {
     const storeIdFromUrl = searchParamsHook.get("storeId");
     if (storeIdFromUrl && availableStores.some(s => s.id === storeIdFromUrl)) {
-      setSelectedStoreId(storeIdFromUrl);
-    } else if (availableStores.length > 0) {
-      setSelectedStoreId(null); // Let the URL management effect set the default if needed
-    } else {
-      setSelectedStoreId(null);
+      if (selectedStoreId !== storeIdFromUrl) setSelectedStoreId(storeIdFromUrl);
+    } else if (availableStores.length > 0 && areStoresFetched) {
+      // If no valid store in URL, but stores exist, let the URL management effect handle setting a default.
+      // If selectedStoreId is already set to the first store (or another valid one), don't clear it here unnecessarily.
+      // This effect primarily ensures the state reflects the URL if URL is valid.
+    } else if (availableStores.length === 0 && areStoresFetched) {
+      if (selectedStoreId !== null) setSelectedStoreId(null);
     }
-  }, [searchParamsHook, availableStores, areStoresFetched]);
+  }, [searchParamsHook, availableStores, areStoresFetched, selectedStoreId]);
 
 
   React.useEffect(() => {
     const currentNavItem = navItems.find((item) => {
       const baseHref = item.href.split("?")[0];
       const currentPathBase = pathname.split("?")[0];
-      return currentPathBase.startsWith(baseHref) && (baseHref !== '/' || currentPathBase === '/');
+      // Ensure exact match for root, otherwise startsWith
+      return (baseHref === '/' && currentPathBase === '/') || (baseHref !== '/' && currentPathBase.startsWith(baseHref));
     });
     const baseTitle = currentNavItem?.title || "E-Ntemba";
     
@@ -325,16 +349,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const handleStoreChange = (storeId: string) => {
-    if (storeId === "no-stores") return;
+    if (storeId === "no-stores") return; // Should not happen with new logic
     const newParams = new URLSearchParams(searchParamsHook.toString());
     newParams.set("storeId", storeId);
     router.push(`${pathname}?${newParams.toString()}`); 
+    // selectedStoreId state will update via the useEffect listening to searchParamsHook
   };
   
   const getHrefWithStoreId = (href: string) => {
     const currentParams = new URLSearchParams(searchParamsHook.toString());
     if (selectedStoreId) { 
       currentParams.set("storeId", selectedStoreId);
+    } else if (availableStores.length > 0 && areStoresFetched) {
+      // If no store selected yet, but stores are available, use the first one for nav links
+      currentParams.set("storeId", availableStores[0].id);
     } else {
       currentParams.delete("storeId"); 
     }
@@ -348,16 +376,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       toast({ variant: "destructive", title: "Logout Failed", description: error.message });
     } else {
       toast({ title: "Logged Out", description: "You have been successfully logged out." });
-      setAuthUser(null); 
+      // Auth user state will be cleared by onAuthStateChange listener
       router.push("/login");
     }
   };
 
   const disableNavCondition = (itemHref: string) => {
     if (!authUser) return false; 
-    const noStoreSelectedAndRequired = (selectedStoreId === null || availableStores.length === 0) && !isLoadingStores && areStoresFetched;
-    const protectedRoutesRequireStore = !["/stores", "/settings"].includes(itemHref.split("?")[0]);
-    return noStoreSelectedAndRequired && protectedRoutesRequireStore;
+    // Disable if stores are fetched, no stores are available, and route is not /stores or /settings
+    const noStoresAndRequired = areStoresFetched && availableStores.length === 0 && !["/stores", "/settings"].includes(itemHref.split("?")[0]);
+    // Disable if stores are fetched, stores ARE available, but NO store is currently selected, and route is not /stores or /settings
+    const storeSelectedRequiredButMissing = areStoresFetched && availableStores.length > 0 && selectedStoreId === null && !["/stores", "/settings"].includes(itemHref.split("?")[0]);
+    
+    return noStoresAndRequired || storeSelectedRequiredButMissing;
   };
 
 
@@ -390,7 +421,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <SidebarMenuButton
                     asChild
                     size="lg"
-                    isActive={pathname.startsWith(item.href.split("?")[0]) && (item.href !== '/' || pathname === '/')}
+                    isActive={pathname.startsWith(item.href.split("?")[0]) && ((item.href === '/' && pathname === '/') || item.href !== '/')}
                     tooltip={{children: item.title, className:"bg-sidebar-accent text-sidebar-accent-foreground"}}
                     className="h-12 text-base"
                     disabled={disableNavCondition(item.href)}
@@ -452,3 +483,4 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </SidebarProvider>
   );
 }
+
