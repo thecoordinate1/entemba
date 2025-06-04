@@ -82,7 +82,7 @@ const UserDisplay: React.FC<UserDisplayProps> = ({ displayName, email, avatarUrl
   );
 };
 
-const StoreSelector = ({ stores, selectedStoreId, onStoreChange, isLoading }: { stores: StoreFromSupabase[], selectedStoreId: string | null, onStoreChange: (storeId: string) => void, isLoading: boolean }) => {
+const StoreSelector = ({ stores, selectedStoreId, onStoreChange, isLoading, isLoadingStoresReady }: { stores: StoreFromSupabase[], selectedStoreId: string | null, onStoreChange: (storeId: string) => void, isLoading: boolean, isLoadingStoresReady: boolean }) => {
   const { state: sidebarState } = useSidebar();
 
   if (sidebarState === "collapsed") {
@@ -102,7 +102,7 @@ const StoreSelector = ({ stores, selectedStoreId, onStoreChange, isLoading }: { 
     );
   }
 
-  if (isLoading) {
+  if (isLoading) { // Overall loading for stores data
     return (
         <div className="w-full my-2 h-11 group-data-[collapsible=icon]:hidden">
             <Skeleton className="h-full w-full" />
@@ -119,6 +119,18 @@ const StoreSelector = ({ stores, selectedStoreId, onStoreChange, isLoading }: { 
             </Button>
         </Link>
      )
+  }
+
+  // Stores are loaded, but selectedStoreId might not be set yet if URL needs to be updated
+  if (isLoadingStoresReady && stores.length > 0 && !selectedStoreId) {
+    return (
+      <SelectTrigger className="w-full my-2 h-11 text-sm bg-sidebar-background border-sidebar-border text-sidebar-foreground focus:ring-sidebar-ring group-data-[collapsible=icon]:hidden" disabled>
+        <div className="flex items-center gap-2 truncate">
+          <StoreIcon className="h-5 w-5 text-sidebar-primary" />
+          <span>Loading store...</span>
+        </div>
+      </SelectTrigger>
+    );
   }
 
 
@@ -145,12 +157,14 @@ const StoreSelector = ({ stores, selectedStoreId, onStoreChange, isLoading }: { 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const searchParamsHook = useSearchParams(); // Renamed to avoid conflict
   const { toast } = useToast();
   
   const [selectedStoreId, setSelectedStoreId] = React.useState<string | null>(null);
   const [availableStores, setAvailableStores] = React.useState<StoreFromSupabase[]>([]);
   const [isLoadingStores, setIsLoadingStores] = React.useState(true);
+  const [areStoresFetched, setAreStoresFetched] = React.useState(false);
+
 
   const [defaultOpen, setDefaultOpen] = React.useState(true);
   const [hasMounted, setHasMounted] = React.useState(false);
@@ -164,109 +178,143 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const supabase = createClient();
 
+  const fetchInitialUserData = React.useCallback(async (user: AuthUser) => {
+    setIsLoadingProfile(true);
+    setIsLoadingStores(true);
+    setAreStoresFetched(false);
+    
+    const profilePromise = getCurrentVendorProfile(user.id);
+    const storesPromise = getStoresByUserId(user.id);
+
+    const [profileResult, storesResult] = await Promise.allSettled([profilePromise, storesPromise]);
+
+    if (profileResult.status === 'fulfilled') {
+      const { profile, error: profileError } = profileResult.value;
+      if (profile) {
+        setVendorDisplayName(profile.display_name); setVendorEmail(profile.email); setVendorAvatarUrl(profile.avatar_url);
+      } else {
+        setVendorDisplayName(user.user_metadata?.display_name || user.email);
+        setVendorEmail(user.email); setVendorAvatarUrl(user.user_metadata?.avatar_url);
+        if (profileError) console.warn("Error fetching vendor profile:", (profileError as Error).message);
+      }
+    } else {
+      console.error("Failed to fetch vendor profile:", profileResult.reason);
+      setVendorDisplayName(user.user_metadata?.display_name || user.email);
+      setVendorEmail(user.email); setVendorAvatarUrl(user.user_metadata?.avatar_url);
+    }
+    setIsLoadingProfile(false);
+
+    if (storesResult.status === 'fulfilled') {
+      const { data: storesData, error: storesError } = storesResult.value;
+      if (storesError) {
+        toast({ variant: "destructive", title: "Error fetching stores", description: storesError.message });
+        setAvailableStores([]);
+      } else {
+        setAvailableStores(storesData || []);
+      }
+    } else {
+      console.error("Failed to fetch stores:", storesResult.reason);
+      toast({ variant: "destructive", title: "Error fetching stores", description: (storesResult.reason as Error).message });
+      setAvailableStores([]);
+    }
+    setIsLoadingStores(false);
+    setAreStoresFetched(true);
+  }, [supabase, toast]); // fetchInitialUserData dependencies
+
   React.useEffect(() => {
     setHasMounted(true);
     const cookieValue = document.cookie.split("; ").find((row) => row.startsWith("sidebar_state="))?.split("=")[1];
     if (cookieValue) setDefaultOpen(cookieValue === "true");
     
-    const fetchInitialUserData = async (user: AuthUser) => {
-      setIsLoadingProfile(true);
-      setIsLoadingStores(true);
-      
-      const profilePromise = getCurrentVendorProfile(user.id);
-      const storesPromise = getStoresByUserId(user.id);
-
-      const [profileResult, storesResult] = await Promise.allSettled([profilePromise, storesPromise]);
-
-      if (profileResult.status === 'fulfilled') {
-        const { profile, error: profileError } = profileResult.value;
-        if (profile) {
-          setVendorDisplayName(profile.display_name); setVendorEmail(profile.email); setVendorAvatarUrl(profile.avatar_url);
-        } else {
-          setVendorDisplayName(user.user_metadata?.display_name || user.email);
-          setVendorEmail(user.email); setVendorAvatarUrl(user.user_metadata?.avatar_url);
-          if (profileError) console.warn("Error fetching vendor profile:", (profileError as Error).message);
-        }
-      } else {
-        console.error("Failed to fetch vendor profile:", profileResult.reason);
-        setVendorDisplayName(user.user_metadata?.display_name || user.email);
-        setVendorEmail(user.email); setVendorAvatarUrl(user.user_metadata?.avatar_url);
-      }
-      setIsLoadingProfile(false);
-
-      if (storesResult.status === 'fulfilled') {
-        const { data: storesData, error: storesError } = storesResult.value;
-        if (storesError) {
-          toast({ variant: "destructive", title: "Error fetching stores", description: storesError.message });
-          setAvailableStores([]);
-        } else {
-          setAvailableStores(storesData || []);
-        }
-      } else {
-        console.error("Failed to fetch stores:", storesResult.reason);
-        toast({ variant: "destructive", title: "Error fetching stores", description: (storesResult.reason as Error).message });
-        setAvailableStores([]);
-      }
-      setIsLoadingStores(false);
-    };
-    
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       const currentUser = session?.user ?? null;
       setAuthUser(currentUser);
-      if (currentUser) {
-        await fetchInitialUserData(currentUser);
-      } else {
-        setVendorDisplayName(null); setVendorEmail(null); setVendorAvatarUrl(null);
-        setAvailableStores([]); setIsLoadingProfile(false); setIsLoadingStores(false); setSelectedStoreId(null);
-      }
+      // No direct data fetching here, handled by the effect below that watches authUser
     });
 
-    // Initial check for user
     supabase.auth.getUser().then(async ({ data: { user: initialUser } }) => {
-      if (initialUser) {
-        if (!authUser) setAuthUser(initialUser); // Set authUser if not already set by listener
-        await fetchInitialUserData(initialUser);
-      } else {
-        setIsLoadingProfile(false); setIsLoadingStores(false);
+      setAuthUser(initialUser); // Set authUser which will trigger the data fetching effect
+      if (!initialUser) { // If no user, ensure loading states are false
+        setIsLoadingProfile(false);
+        setIsLoadingStores(false);
+        setAreStoresFetched(true);
       }
     });
     return () => { authListener?.subscription.unsubscribe(); };
-  }, [supabase, toast, authUser]); // Added authUser to re-run if it changes externally.
+  }, [supabase]);
 
-
+  // Effect to fetch data when authUser changes
   React.useEffect(() => {
-    if (isLoadingStores || !hasMounted) return;
-    const currentStoreIdFromUrl = searchParams.get("storeId");
+    if (authUser) {
+      fetchInitialUserData(authUser);
+    } else {
+      // Clear states when logged out
+      setVendorDisplayName(null); setVendorEmail(null); setVendorAvatarUrl(null);
+      setAvailableStores([]); setSelectedStoreId(null);
+      setIsLoadingProfile(false); setIsLoadingStores(false); setAreStoresFetched(true);
+    }
+  }, [authUser, fetchInitialUserData]);
+
+  // Effect to manage storeId in URL
+  React.useEffect(() => {
+    if (!areStoresFetched || !hasMounted) return; // Wait until stores are fetched and component is mounted
+
+    const currentStoreIdFromUrl = searchParamsHook.get("storeId");
+    const currentPathIsPublic = ["/", "/about", "/login", "/signup", "/forgot-password", "/update-password"].includes(pathname) || pathname.startsWith('/auth/callback');
+
+
+    if (!authUser && !currentPathIsPublic) { // If logged out and not on a public page
+        // Middleware should handle redirect, but client-side might also manage URL state
+        if (currentStoreIdFromUrl) {
+             const newParams = new URLSearchParams(searchParamsHook.toString());
+             newParams.delete("storeId");
+             router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
+        }
+        return;
+    }
+
 
     if (availableStores.length > 0) {
-      if (currentStoreIdFromUrl && availableStores.some(s => s.id === currentStoreIdFromUrl)) {
-        if (selectedStoreId !== currentStoreIdFromUrl) setSelectedStoreId(currentStoreIdFromUrl);
-      } else {
+      const isValidStoreInUrl = currentStoreIdFromUrl && availableStores.some(s => s.id === currentStoreIdFromUrl);
+      if (!isValidStoreInUrl) {
         const firstStoreId = availableStores[0].id;
-        // Only update if selectedStoreId is not already set or different
-        if (selectedStoreId !== firstStoreId && !currentStoreIdFromUrl) {
-            setSelectedStoreId(firstStoreId);
-            const newParams = new URLSearchParams(searchParams.toString());
-            newParams.set("storeId", firstStoreId);
-            router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
-        } else if (!selectedStoreId && !currentStoreIdFromUrl) { // If no store selected and none in URL, pick first
-            setSelectedStoreId(firstStoreId);
-             const newParams = new URLSearchParams(searchParams.toString());
-            newParams.set("storeId", firstStoreId);
-            router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
-        } else if (!selectedStoreId && currentStoreIdFromUrl && availableStores.some(s => s.id === currentStoreIdFromUrl)) {
-             setSelectedStoreId(currentStoreIdFromUrl); // Sync state if URL has valid one but state is null
+        if (currentStoreIdFromUrl !== firstStoreId && !currentPathIsPublic) {
+          const newParams = new URLSearchParams(searchParamsHook.toString());
+          newParams.set("storeId", firstStoreId);
+          router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
         }
       }
-    } else if (availableStores.length === 0 && !isLoadingStores) { 
-      if (selectedStoreId !== null) {
-        setSelectedStoreId(null);
-        const newParams = new URLSearchParams(searchParams.toString());
+    } else { // No stores available
+      if (currentStoreIdFromUrl && !currentPathIsPublic) {
+        const newParams = new URLSearchParams(searchParamsHook.toString());
         newParams.delete("storeId");
         router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
       }
     }
-  }, [availableStores, searchParams, pathname, router, isLoadingStores, hasMounted, selectedStoreId]);
+  }, [availableStores, areStoresFetched, hasMounted, pathname, router, searchParamsHook, authUser]);
+
+  // Effect to sync selectedStoreId state from URL
+  React.useEffect(() => {
+    if (!areStoresFetched) return;
+
+    const storeIdFromUrl = searchParamsHook.get("storeId");
+    if (storeIdFromUrl && availableStores.some(s => s.id === storeIdFromUrl)) {
+      if (selectedStoreId !== storeIdFromUrl) setSelectedStoreId(storeIdFromUrl);
+    } else if (availableStores.length > 0) {
+      // If URL param is missing or invalid, but stores exist,
+      // the URL management effect should set a default in the URL.
+      // If current selectedStoreId is not valid anymore, clear it.
+      if (selectedStoreId && !availableStores.some(s => s.id === selectedStoreId)) {
+          setSelectedStoreId(null);
+      } else if (!storeIdFromUrl && selectedStoreId && availableStores.length > 0){
+          // This case means URL will soon have the first store, so nullify selectedStoreId to let it pick up.
+          setSelectedStoreId(null);
+      }
+    } else { // No stores or invalid URL with no stores
+      if (selectedStoreId !== null) setSelectedStoreId(null);
+    }
+  }, [searchParamsHook, availableStores, areStoresFetched, selectedStoreId]);
+
 
   React.useEffect(() => {
     const currentNavItem = navItems.find((item) => {
@@ -275,11 +323,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       return currentPathBase.startsWith(baseHref) && (baseHref !== '/' || currentPathBase === '/');
     });
     const baseTitle = currentNavItem?.title || "E-Ntemba";
-    const store = availableStores.find(s => s.id === selectedStoreId);
-    const newPageTitle = store ? `${store.name} - ${baseTitle}` : baseTitle;
+    
+    let newPageTitle;
+    if (isLoadingProfile || (isLoadingStores && !areStoresFetched)) { // More precise loading condition
+      newPageTitle = "Loading...";
+    } else {
+      const store = availableStores.find(s => s.id === selectedStoreId);
+      newPageTitle = store ? `${store.name} - ${baseTitle}` : baseTitle;
+    }
     setPageTitle(newPageTitle);
-    document.title = `${newPageTitle} | E-Ntemba`;
-  }, [pathname, selectedStoreId, availableStores]);
+    document.title = `${newPageTitle === "Loading..." && baseTitle !== "E-Ntemba" ? baseTitle : newPageTitle} | E-Ntemba`;
+  }, [pathname, selectedStoreId, availableStores, isLoadingProfile, isLoadingStores, areStoresFetched]);
 
 
   if (!hasMounted) {
@@ -295,15 +349,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const handleStoreChange = (storeId: string) => {
     if (storeId === "no-stores") return;
-    setSelectedStoreId(storeId);
-    const newParams = new URLSearchParams(searchParams.toString());
+    // setSelectedStoreId(storeId); // State will update from URL change via effect
+    const newParams = new URLSearchParams(searchParamsHook.toString());
     newParams.set("storeId", storeId);
     router.push(`${pathname}?${newParams.toString()}`); 
   };
   
   const getHrefWithStoreId = (href: string) => {
-    const currentParams = new URLSearchParams(searchParams.toString());
-    if (selectedStoreId) {
+    const currentParams = new URLSearchParams(searchParamsHook.toString());
+    if (selectedStoreId) { // Use the state variable which is synced from URL
       currentParams.set("storeId", selectedStoreId);
     } else {
       currentParams.delete("storeId"); 
@@ -323,6 +377,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Determine if navigation should be disabled (excluding specific routes)
+  const noStoreSelectedAndRequired = availableStores.length === 0 && !isLoadingStores && authUser;
+  const disableNavCondition = (itemHref: string) => {
+    if (!authUser) return false; // Let middleware handle unauth access
+    const protectedRoutesRequireStore = !["/stores", "/settings"].includes(itemHref.split("?")[0]);
+    return noStoreSelectedAndRequired && protectedRoutesRequireStore;
+  };
+
 
   return (
     <SidebarProvider defaultOpen={defaultOpen} collapsible="icon">
@@ -337,7 +399,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </SidebarHeader>
 
         <SidebarContent className="p-3 space-y-1">
-          <StoreSelector stores={availableStores} selectedStoreId={selectedStoreId} onStoreChange={handleStoreChange} isLoading={isLoadingStores} />
+          {authUser && (
+            <StoreSelector 
+              stores={availableStores} 
+              selectedStoreId={selectedStoreId} 
+              onStoreChange={handleStoreChange} 
+              isLoading={isLoadingStores && !areStoresFetched}
+              isLoadingStoresReady={areStoresFetched} 
+            />
+          )}
           <ScrollArea className="h-full">
             <SidebarMenu className="space-y-1">
               {navItems.map((item) => (
@@ -345,10 +415,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <SidebarMenuButton
                     asChild
                     size="lg"
-                    isActive={pathname === item.href.split("?")[0] || (pathname.startsWith(item.href.split("?")[0]) && item.href !== '/')}
+                    isActive={pathname.startsWith(item.href.split("?")[0]) && (item.href !== '/' || pathname === '/')}
                     tooltip={{children: item.title, className:"bg-sidebar-accent text-sidebar-accent-foreground"}}
                     className="h-12 text-base"
-                    disabled={(item.href !== "/stores" && item.href !== "/settings") && availableStores.length === 0 && !isLoadingStores} 
+                    disabled={disableNavCondition(item.href)}
                   >
                     <Link href={getHrefWithStoreId(item.href)}>
                       <item.icon className="h-5 w-5" />
@@ -362,31 +432,42 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </SidebarContent>
         
         <SidebarFooter className="p-4 space-y-2">
-          <UserDisplay 
-            displayName={vendorDisplayName} 
-            email={vendorEmail}
-            avatarUrl={vendorAvatarUrl}
-            isLoading={isLoadingProfile}
-          />
-          <Button variant="ghost" asChild className="w-full justify-start h-11 text-base group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:aspect-square group-data-[collapsible=icon]:h-11">
-            <Link href={getHrefWithStoreId("/settings")}>
-              <Settings className="mr-2 group-data-[collapsible=icon]:mr-0 h-5 w-5" /> <span className="group-data-[collapsible=icon]:hidden">Settings</span>
-            </Link>
-          </Button>
-          <Button 
-            variant="ghost" 
-            className="w-full justify-start h-11 text-base group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:aspect-square group-data-[collapsible=icon]:h-11"
-            onClick={handleLogout}
-          >
-            <LogOut className="mr-2 group-data-[collapsible=icon]:mr-0 h-5 w-5" /> <span className="group-data-[collapsible=icon]:hidden">Logout</span>
-          </Button>
+          {authUser && (
+            <>
+            <UserDisplay 
+                displayName={vendorDisplayName} 
+                email={vendorEmail}
+                avatarUrl={vendorAvatarUrl}
+                isLoading={isLoadingProfile}
+            />
+            <Button variant="ghost" asChild className="w-full justify-start h-11 text-base group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:aspect-square group-data-[collapsible=icon]:h-11">
+                <Link href={getHrefWithStoreId("/settings")}>
+                <Settings className="mr-2 group-data-[collapsible=icon]:mr-0 h-5 w-5" /> <span className="group-data-[collapsible=icon]:hidden">Settings</span>
+                </Link>
+            </Button>
+            <Button 
+                variant="ghost" 
+                className="w-full justify-start h-11 text-base group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:aspect-square group-data-[collapsible=icon]:h-11"
+                onClick={handleLogout}
+            >
+                <LogOut className="mr-2 group-data-[collapsible=icon]:mr-0 h-5 w-5" /> <span className="group-data-[collapsible=icon]:hidden">Logout</span>
+            </Button>
+            </>
+          )}
+          {!authUser && !isLoadingProfile && ( // Show login button if not logged in and not loading profile
+             <Button variant="outline" asChild className="w-full justify-start h-11 text-base group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:aspect-square group-data-[collapsible=icon]:h-11">
+                <Link href="/login">
+                    <LogOut className="mr-2 group-data-[collapsible=icon]:mr-0 h-5 w-5" /> <span className="group-data-[collapsible=icon]:hidden">Login</span>
+                </Link>
+            </Button>
+          )}
         </SidebarFooter>
       </Sidebar>
       <SidebarInset className="flex flex-col">
         <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm sm:h-20 sm:px-6">
           <SidebarTrigger className="md:hidden" />
            <h1 className="text-xl font-semibold sm:text-2xl truncate">
-            {(isLoadingStores || isLoadingProfile) && !pageTitle.includes("E-Ntemba") ? "Loading..." : pageTitle}
+            {pageTitle}
           </h1>
         </header>
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
@@ -396,4 +477,3 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </SidebarProvider>
   );
 }
-
