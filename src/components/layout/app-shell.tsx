@@ -102,7 +102,7 @@ const StoreSelector = ({ stores, selectedStoreId, onStoreChange, isLoading, isLo
     );
   }
 
-  if (isLoading) { // Overall loading for stores data
+  if (isLoading) { // Overall loading for stores data (initial fetch)
     return (
         <div className="w-full my-2 h-11 group-data-[collapsible=icon]:hidden">
             <Skeleton className="h-full w-full" />
@@ -110,7 +110,7 @@ const StoreSelector = ({ stores, selectedStoreId, onStoreChange, isLoading, isLo
     );
   }
   
-  if (stores.length === 0 && !isLoading) {
+  if (stores.length === 0 && !isLoading) { // Stores fetched, but none exist
      return (
         <Link href="/stores" className="w-full my-2 group-data-[collapsible=icon]:hidden">
             <Button variant="outline" className="w-full h-11 text-sm border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
@@ -121,25 +121,20 @@ const StoreSelector = ({ stores, selectedStoreId, onStoreChange, isLoading, isLo
      )
   }
 
-  // Stores are loaded, but selectedStoreId might not be set yet if URL needs to be updated
-  if (isLoadingStoresReady && stores.length > 0 && !selectedStoreId) {
-    return (
-      <SelectTrigger className="w-full my-2 h-11 text-sm bg-sidebar-background border-sidebar-border text-sidebar-foreground focus:ring-sidebar-ring group-data-[collapsible=icon]:hidden" disabled>
-        <div className="flex items-center gap-2 truncate">
-          <StoreIcon className="h-5 w-5 text-sidebar-primary" />
-          <span>Loading store...</span>
-        </div>
-      </SelectTrigger>
-    );
-  }
-
+  // If we reach here, it means !isLoading (initial store fetch is done) and stores.length > 0.
+  // isLoadingStoresReady should be true at this point.
+  const placeholderText = !selectedStoreId && stores.length > 0 ? "Loading store..." : "Select a store";
 
   return (
-    <Select value={selectedStoreId || ""} onValueChange={onStoreChange} disabled={isLoading || stores.length === 0}>
+    <Select 
+      value={selectedStoreId || ""} 
+      onValueChange={onStoreChange} 
+      disabled={stores.length === 0} // Only truly disable if no stores. "Loading store..." is a visual cue.
+    >
       <SelectTrigger className="w-full my-2 h-11 text-sm bg-sidebar-background border-sidebar-border text-sidebar-foreground focus:ring-sidebar-ring group-data-[collapsible=icon]:hidden">
         <div className="flex items-center gap-2 truncate">
           <StoreIcon className="h-5 w-5 text-sidebar-primary" />
-          <SelectValue placeholder={stores.length === 0 ? "No stores available" : "Select a store"} />
+          <SelectValue placeholder={placeholderText} />
         </div>
       </SelectTrigger>
       <SelectContent className="bg-popover text-popover-foreground border-border">
@@ -157,7 +152,7 @@ const StoreSelector = ({ stores, selectedStoreId, onStoreChange, isLoading, isLo
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const searchParamsHook = useSearchParams(); // Renamed to avoid conflict
+  const searchParamsHook = useSearchParams(); 
   const { toast } = useToast();
   
   const [selectedStoreId, setSelectedStoreId] = React.useState<string | null>(null);
@@ -219,7 +214,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
     setIsLoadingStores(false);
     setAreStoresFetched(true);
-  }, [supabase, toast]); // fetchInitialUserData dependencies
+  }, [toast]); 
 
   React.useEffect(() => {
     setHasMounted(true);
@@ -229,12 +224,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       const currentUser = session?.user ?? null;
       setAuthUser(currentUser);
-      // No direct data fetching here, handled by the effect below that watches authUser
     });
 
     supabase.auth.getUser().then(async ({ data: { user: initialUser } }) => {
-      setAuthUser(initialUser); // Set authUser which will trigger the data fetching effect
-      if (!initialUser) { // If no user, ensure loading states are false
+      setAuthUser(initialUser); 
+      if (!initialUser) { 
         setIsLoadingProfile(false);
         setIsLoadingStores(false);
         setAreStoresFetched(true);
@@ -243,28 +237,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => { authListener?.subscription.unsubscribe(); };
   }, [supabase]);
 
-  // Effect to fetch data when authUser changes
   React.useEffect(() => {
     if (authUser) {
       fetchInitialUserData(authUser);
     } else {
-      // Clear states when logged out
       setVendorDisplayName(null); setVendorEmail(null); setVendorAvatarUrl(null);
       setAvailableStores([]); setSelectedStoreId(null);
       setIsLoadingProfile(false); setIsLoadingStores(false); setAreStoresFetched(true);
     }
   }, [authUser, fetchInitialUserData]);
 
-  // Effect to manage storeId in URL
   React.useEffect(() => {
-    if (!areStoresFetched || !hasMounted) return; // Wait until stores are fetched and component is mounted
+    if (!areStoresFetched || !hasMounted) return; 
 
     const currentStoreIdFromUrl = searchParamsHook.get("storeId");
     const currentPathIsPublic = ["/", "/about", "/login", "/signup", "/forgot-password", "/update-password"].includes(pathname) || pathname.startsWith('/auth/callback');
 
-
-    if (!authUser && !currentPathIsPublic) { // If logged out and not on a public page
-        // Middleware should handle redirect, but client-side might also manage URL state
+    if (!authUser && !currentPathIsPublic) { 
         if (currentStoreIdFromUrl) {
              const newParams = new URLSearchParams(searchParamsHook.toString());
              newParams.delete("storeId");
@@ -272,7 +261,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         }
         return;
     }
-
 
     if (availableStores.length > 0) {
       const isValidStoreInUrl = currentStoreIdFromUrl && availableStores.some(s => s.id === currentStoreIdFromUrl);
@@ -284,7 +272,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
         }
       }
-    } else { // No stores available
+    } else { 
       if (currentStoreIdFromUrl && !currentPathIsPublic) {
         const newParams = new URLSearchParams(searchParamsHook.toString());
         newParams.delete("storeId");
@@ -293,27 +281,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [availableStores, areStoresFetched, hasMounted, pathname, router, searchParamsHook, authUser]);
 
-  // Effect to sync selectedStoreId state from URL
   React.useEffect(() => {
-    if (!areStoresFetched) return;
-
     const storeIdFromUrl = searchParamsHook.get("storeId");
     if (storeIdFromUrl && availableStores.some(s => s.id === storeIdFromUrl)) {
-      if (selectedStoreId !== storeIdFromUrl) setSelectedStoreId(storeIdFromUrl);
+      setSelectedStoreId(storeIdFromUrl);
     } else if (availableStores.length > 0) {
-      // If URL param is missing or invalid, but stores exist,
-      // the URL management effect should set a default in the URL.
-      // If current selectedStoreId is not valid anymore, clear it.
-      if (selectedStoreId && !availableStores.some(s => s.id === selectedStoreId)) {
-          setSelectedStoreId(null);
-      } else if (!storeIdFromUrl && selectedStoreId && availableStores.length > 0){
-          // This case means URL will soon have the first store, so nullify selectedStoreId to let it pick up.
-          setSelectedStoreId(null);
-      }
-    } else { // No stores or invalid URL with no stores
-      if (selectedStoreId !== null) setSelectedStoreId(null);
+      setSelectedStoreId(null); // Let the URL management effect set the default if needed
+    } else {
+      setSelectedStoreId(null);
     }
-  }, [searchParamsHook, availableStores, areStoresFetched, selectedStoreId]);
+  }, [searchParamsHook, availableStores, areStoresFetched]);
 
 
   React.useEffect(() => {
@@ -325,7 +302,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const baseTitle = currentNavItem?.title || "E-Ntemba";
     
     let newPageTitle;
-    if (isLoadingProfile || (isLoadingStores && !areStoresFetched)) { // More precise loading condition
+    if (isLoadingProfile || (isLoadingStores && !areStoresFetched)) { 
       newPageTitle = "Loading...";
     } else {
       const store = availableStores.find(s => s.id === selectedStoreId);
@@ -349,7 +326,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const handleStoreChange = (storeId: string) => {
     if (storeId === "no-stores") return;
-    // setSelectedStoreId(storeId); // State will update from URL change via effect
     const newParams = new URLSearchParams(searchParamsHook.toString());
     newParams.set("storeId", storeId);
     router.push(`${pathname}?${newParams.toString()}`); 
@@ -357,7 +333,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   
   const getHrefWithStoreId = (href: string) => {
     const currentParams = new URLSearchParams(searchParamsHook.toString());
-    if (selectedStoreId) { // Use the state variable which is synced from URL
+    if (selectedStoreId) { 
       currentParams.set("storeId", selectedStoreId);
     } else {
       currentParams.delete("storeId"); 
@@ -377,10 +353,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Determine if navigation should be disabled (excluding specific routes)
-  const noStoreSelectedAndRequired = availableStores.length === 0 && !isLoadingStores && authUser;
   const disableNavCondition = (itemHref: string) => {
-    if (!authUser) return false; // Let middleware handle unauth access
+    if (!authUser) return false; 
+    const noStoreSelectedAndRequired = (selectedStoreId === null || availableStores.length === 0) && !isLoadingStores && areStoresFetched;
     const protectedRoutesRequireStore = !["/stores", "/settings"].includes(itemHref.split("?")[0]);
     return noStoreSelectedAndRequired && protectedRoutesRequireStore;
   };
@@ -454,7 +429,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Button>
             </>
           )}
-          {!authUser && !isLoadingProfile && ( // Show login button if not logged in and not loading profile
+          {!authUser && !isLoadingProfile && ( 
              <Button variant="outline" asChild className="w-full justify-start h-11 text-base group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:aspect-square group-data-[collapsible=icon]:h-11">
                 <Link href="/login">
                     <LogOut className="mr-2 group-data-[collapsible=icon]:mr-0 h-5 w-5" /> <span className="group-data-[collapsible=icon]:hidden">Login</span>
