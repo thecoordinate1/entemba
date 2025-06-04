@@ -18,17 +18,17 @@ This document outlines the steps to refine the E-Ntemba application, implement n
     - [x] Review and refactor data fetching logic in `useEffect` and service calls.
     - [x] Verify filtering and mapping of Supabase data to UI types.
     - [x] Ensure loading/error states handled gracefully.
-- [ ] **Stock Quantity Logic (Inventory Management)**
-    - [ ] **Backend Option Discussion:**
+- [x] **Stock Quantity Logic (Inventory Management)**
+    - [x] **Backend Option Discussion:**
         - [x] Decide between Database Trigger or RPC for stock updates. (Decision: Database Trigger)
-    - [ ] **Backend Implementation (based on decision):**
-        - [ ] Implement Supabase Trigger on `orders` table (status change to 'Shipped'/'Delivered') and its associated PL/pgSQL function.
+    - [x] **Backend Implementation (based on decision):**
+        - [x] Implement Supabase Trigger on `orders` table (status change to 'Shipped'/'Delivered') and its associated PL/pgSQL function.
     - [ ] **Frontend (if RPC used):**
         - [ ] (Not applicable as Trigger is chosen)
     - [ ] **Considerations:**
         - [ ] Plan for handling stock for order cancellations/returns.
     - [ ] **Testing:**
-        - [ ] Test stock decrement on order completion.
+        - [x] Test stock decrement on order completion.
         - [ ] Test stock increment on order cancellation/return (if implemented).
 
 ## Phase 2: Profit Reporting
@@ -41,9 +41,16 @@ This document outlines the steps to refine the E-Ntemba application, implement n
         - [ ] Grant permissions for new RPCs.
     - [ ] **Frontend (`reportService.ts` or new `profitService.ts` & Page Component):**
         - [ ] Create/update service functions.
-        *   Refactor `/reports/profit/page.tsx` to use dynamic data.
-        *   Implement loading and error states.
-    - [ ] **Note:** "Profit by Category" pie chart might need a specific RPC.
+        - [ ] Refactor `/reports/profit/page.tsx` to use dynamic data.
+        - [ ] Implement loading and error states.
+    - [ ] **Note:** "Profit by Category" pie chart might need a specific RPC or client-side aggregation. Will initially remain static or simplified.
+- [ ] **Dynamic "All Products Profit" Sub-Page (`/reports/profit/products/page.tsx`)**
+    - [ ] **Backend (Supabase RPC):**
+        - [ ] Define & Implement `get_all_products_profit_for_store(p_store_id UUID, p_days_period INTEGER DEFAULT NULL)`.
+        - [ ] Grant permissions for new RPC.
+    - [ ] **Frontend (Service & UI Update):**
+        - [ ] Update `reportService.ts` (or new `profitService.ts`).
+        - [ ] Refactor `/reports/profit/products/page.tsx` to use dynamic data.
 
 ## Phase 3: UI/UX Refinements & Performance
 
@@ -51,11 +58,11 @@ This document outlines the steps to refine the E-Ntemba application, implement n
     - [x] Refactor `AppShell` to set dynamic page titles based on route and selected store.
 - [ ] **Settings Page Layout (`/settings/page.tsx`)**
     - [ ] Fix any overlapping UI elements on the settings page tabs.
-- [ ] **Loading States & Performance**
-    - [ ] Review all pages for consistent skeleton loaders or loading messages.
-    *   Identify and optimize slow API calls or client-side computations.
-    *   Consider pagination for tables (Products, Orders, Customers) if not already sufficient.
-    *   Review database indexes in Supabase for frequently queried columns.
+- [x] **Loading States & Performance**
+    - [x] Review all pages for consistent skeleton loaders or loading messages.
+    - [x] Identify and optimize slow API calls or client-side computations.
+    - [x] Consider pagination for tables (Products, Orders, Customers) if not already sufficient.
+    - [ ] Review database indexes in Supabase for frequently queried columns.
 
 ## Phase 4: Aggregated Reporting Views
 
