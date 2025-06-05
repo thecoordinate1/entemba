@@ -23,6 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Textarea } from "@/components/ui/textarea";
 import { getOrderById, updateOrderStatus, type OrderFromSupabase, type OrderStatus as OrderStatusFromSupabase } from "@/services/orderService";
 import { createClient } from '@/lib/supabase/client';
 import type { User as AuthUser } from '@supabase/supabase-js';
@@ -250,7 +251,7 @@ export default function OrderDetailPage() {
             <div className="space-y-1">
               <h4 className="font-semibold flex items-center"><CreditCard className="mr-2 h-5 w-5 text-primary" /> Payment</h4>
               <p className="text-sm">{order.paymentMethod || "Not specified"}</p>
-              <p className="text-sm font-semibold flex items-center"><DollarSign className="mr-1 h-4 w-4 text-primary" /> Total: ${order.total.toFixed(2)}</p>
+              <p className="text-sm font-semibold flex items-center"><DollarSign className="mr-1 h-4 w-4 text-primary" /> Total: ZMW {order.total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
             </div>
           </div>
           
@@ -295,8 +296,8 @@ export default function OrderDetailPage() {
                   </TableCell>
                   <TableCell className="text-muted-foreground">{item.productId}</TableCell>
                   <TableCell className="text-right">{item.quantity}</TableCell>
-                  <TableCell className="text-right">${item.price.toFixed(2)}</TableCell>
-                  <TableCell className="text-right">${(item.quantity * item.price).toFixed(2)}</TableCell>
+                  <TableCell className="text-right">ZMW {item.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
+                  <TableCell className="text-right">ZMW {(item.quantity * item.price).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -305,20 +306,20 @@ export default function OrderDetailPage() {
              <div className="w-full sm:w-1/3 space-y-2">
                 <div className="flex justify-between">
                     <span>Subtotal:</span>
-                    <span>${order.total.toFixed(2)}</span>
+                    <span>ZMW {order.total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
                 <div className="flex justify-between">
                     <span>Shipping:</span>
-                    <span>$0.00</span>
+                    <span>ZMW 0.00</span>
                 </div>
                  <div className="flex justify-between">
                     <span>Tax:</span>
-                    <span>$0.00</span>
+                    <span>ZMW 0.00</span>
                 </div>
                 <Separator />
                  <div className="flex justify-between font-bold text-lg">
                     <span>Order Total:</span>
-                    <span>${order.total.toFixed(2)}</span>
+                    <span>ZMW {order.total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
              </div>
           </div>
@@ -342,3 +343,4 @@ export default function OrderDetailPage() {
     </div>
   );
 }
+

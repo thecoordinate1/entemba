@@ -61,7 +61,7 @@ const revenueSourceDataStatic = [
 ];
 
 const revenueChartConfig = {
-  revenue: { label: "Revenue (Ksh)", color: "hsl(var(--chart-1))" },
+  revenue: { label: "Revenue (ZMW)", color: "hsl(var(--chart-1))" },
   transactions: { label: "Transactions", color: "hsl(var(--chart-2))" },
 };
 
@@ -132,7 +132,7 @@ export default function RevenueReportPage() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [errorMessages, setErrorMessages] = React.useState<string[]>([]);
 
-  const [defaultCurrency, setDefaultCurrency] = React.useState("Ksh"); // Changed to Ksh
+  const [defaultCurrency, setDefaultCurrency] = React.useState("ZMW");
   const [taxRate, setTaxRate] = React.useState("10"); 
   const [pricesIncludeTax, setPricesIncludeTax] = React.useState(false);
 
@@ -280,21 +280,21 @@ export default function RevenueReportPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Revenue (YTD)"
-          value={isLoading ? "Loading..." : (summaryStats?.ytd_revenue !== undefined ? `Ksh ${Number(summaryStats.ytd_revenue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
+          value={isLoading ? "Loading..." : (summaryStats?.ytd_revenue !== undefined ? `ZMW ${Number(summaryStats.ytd_revenue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
           icon={DollarSign}
           description={`Year-to-date gross revenue${storeContextMessage}.`}
           isLoading={isLoading}
         />
         <StatCard
           title="Revenue (This Month)"
-          value={isLoading ? "Loading..." : (summaryStats?.current_month_revenue !== undefined ? `Ksh ${Number(summaryStats.current_month_revenue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
+          value={isLoading ? "Loading..." : (summaryStats?.current_month_revenue !== undefined ? `ZMW ${Number(summaryStats.current_month_revenue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
           icon={DollarSign}
           description={`Gross revenue for current month${storeContextMessage}.`}
           isLoading={isLoading}
         />
         <StatCard
           title="Average Order Value"
-          value={isLoading ? "Loading..." : (summaryStats && avgOrderValue !== undefined ? `Ksh ${Number(avgOrderValue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
+          value={isLoading ? "Loading..." : (summaryStats && avgOrderValue !== undefined ? `ZMW ${Number(avgOrderValue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
           icon={ShoppingCart}
           description={`Avg. amount per order (current month)${storeContextMessage}.`}
           isLoading={isLoading}
@@ -337,7 +337,7 @@ export default function RevenueReportPage() {
                       tickLine={false}
                       axisLine={false}
                       tickMargin={10}
-                      tickFormatter={(value) => `Ksh ${Number(value / 1000).toFixed(0)}k`}
+                      tickFormatter={(value) => `ZMW ${Number(value / 1000).toFixed(0)}k`}
                     />
                      <YAxis
                       yAxisId="right"
@@ -352,7 +352,7 @@ export default function RevenueReportPage() {
                     <ChartTooltip
                       cursor={false}
                       content={<ChartTooltipContent indicator="dashed" 
-                        formatter={(value, name) => name === "revenue" ? `Ksh ${Number(value).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : Number(value).toLocaleString() } 
+                        formatter={(value, name) => name === "revenue" ? `ZMW ${Number(value).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : Number(value).toLocaleString() } 
                       />}
                     />
                     <ChartLegend content={<ChartLegendContent />} />
@@ -381,7 +381,7 @@ export default function RevenueReportPage() {
                             content={<ChartTooltipContent hideLabel formatter={(value, name, props) => (
                                 <div className="flex flex-col">
                                     <span className="font-medium">{props.payload?.name}</span>
-                                    <span>Ksh {Number(value).toLocaleString()} ({(props.payload?.percent * 100).toFixed(1)}%)</span>
+                                    <span>ZMW {Number(value).toLocaleString()} ({(props.payload?.percent * 100).toFixed(1)}%)</span>
                                 </div>
                             )} />}
                         />
@@ -465,10 +465,10 @@ export default function RevenueReportPage() {
                       </Link>
                       <div className="text-xs text-muted-foreground">{product.product_category}</div>
                     </TableCell>
-                    <TableCell className="text-right">Ksh {Number(product.total_revenue_generated).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
+                    <TableCell className="text-right">ZMW {Number(product.total_revenue_generated).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
                     <TableCell className="text-right hidden md:table-cell">{product.units_sold.toLocaleString()}</TableCell>
                     <TableCell className="text-right hidden md:table-cell">
-                      {product.units_sold > 0 ? `Ksh ${(Number(product.total_revenue_generated) / product.units_sold).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "Ksh 0.00"}
+                      {product.units_sold > 0 ? `ZMW ${(Number(product.total_revenue_generated) / product.units_sold).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "ZMW 0.00"}
                     </TableCell>
                     <TableCell className="text-center">
                       <Button variant="outline" size="sm" asChild>
@@ -506,7 +506,7 @@ export default function RevenueReportPage() {
                             <SelectValue placeholder="Select currency" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="Ksh">Ksh - Kenyan Shilling</SelectItem>
+                            <SelectItem value="ZMW">ZMW - Zambian Kwacha</SelectItem>
                             <SelectItem value="USD">USD - United States Dollar</SelectItem>
                             <SelectItem value="EUR">EUR - Euro</SelectItem>
                             <SelectItem value="GBP">GBP - British Pound</SelectItem>

@@ -123,7 +123,7 @@ export default function ProfitReportPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Gross Profit (YTD)"
-          value="K76,500.75"
+          value="ZMW 76,500.75"
           icon={DollarSign}
           description={`Total revenue minus COGS${storeContextMessage}.`}
           trend="+12.5% vs last year"
@@ -131,10 +131,10 @@ export default function ProfitReportPage() {
         />
         <StatCard
           title="Net Profit (YTD)"
-          value="K55,200.30"
+          value="ZMW 55,200.30"
           icon={Landmark} 
           description={`Profit after all expenses${storeContextMessage}.`}
-          trend="+K8,100 vs last period"
+          trend="+ZMW 8,100 vs last period"
           trendType="positive"
         />
         <StatCard
@@ -147,10 +147,10 @@ export default function ProfitReportPage() {
         />
         <StatCard
           title="Cost of Goods Sold (COGS)"
-          value="K21,300.45"
+          value="ZMW 21,300.45"
           icon={Receipt}
           description={`Direct costs of producing goods${storeContextMessage}.`}
-          trend="-K1,200 vs last month (lower is better)"
+          trend="-ZMW 1,200 vs last month (lower is better)"
           trendType="positive" 
         />
       </div>
@@ -180,11 +180,11 @@ export default function ProfitReportPage() {
                     tickLine={false}
                     axisLine={false}
                     tickMargin={10}
-                    tickFormatter={(value) => `K${Number(value / 1000).toFixed(0)}k`}
+                    tickFormatter={(value) => `ZMW ${Number(value / 1000).toFixed(0)}k`}
                   />
                   <ChartTooltip
                     cursor={false}
-                    content={<ChartTooltipContent indicator="dashed" formatter={(value) => `K${Number(value).toLocaleString()}`} />}
+                    content={<ChartTooltipContent indicator="dashed" formatter={(value) => `ZMW ${Number(value).toLocaleString()}`} />}
                   />
                   <ChartLegend content={<ChartLegendContent />} />
                   <Bar dataKey="profit" fill="var(--color-profit)" radius={4} />
@@ -208,7 +208,7 @@ export default function ProfitReportPage() {
                             content={<ChartTooltipContent hideLabel formatter={(value, name, props) => (
                                 <div className="flex flex-col">
                                     <span className="font-medium">{props.payload?.name}</span>
-                                    <span>K{Number(value).toLocaleString()} ({(props.payload?.percent * 100).toFixed(1)}%)</span>
+                                    <span>ZMW {Number(value).toLocaleString()} ({(props.payload?.percent * 100).toFixed(1)}%)</span>
                                 </div>
                             )} />}
                         />
@@ -279,10 +279,10 @@ export default function ProfitReportPage() {
                       {product.name}
                     </Link>
                   </TableCell>
-                  <TableCell className="text-right">K{product.profit.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">ZMW {product.profit.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
                   <TableCell className="text-right hidden md:table-cell">{product.unitsSold}</TableCell>
                   <TableCell className="text-right hidden md:table-cell">
-                    {product.unitsSold > 0 ? `K${(product.profit / product.unitsSold).toFixed(2)}` : "K0.00"}
+                    {product.unitsSold > 0 ? `ZMW ${(product.profit / product.unitsSold).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "ZMW 0.00"}
                   </TableCell>
                   <TableCell className="text-center">
                     <Button variant="outline" size="sm" asChild>
@@ -303,3 +303,4 @@ export default function ProfitReportPage() {
     </div>
   );
 }
+

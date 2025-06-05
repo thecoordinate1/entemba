@@ -501,7 +501,7 @@ export default function OrdersPage() {
                             <SelectContent>
                               {storeProducts.map(product => (
                                 <SelectItem key={product.id} value={product.id}>
-                                  {product.name} (${product.orderPrice !== undefined ? product.orderPrice.toFixed(2) : product.price.toFixed(2)})
+                                  {product.name} (ZMW {product.orderPrice !== undefined ? product.orderPrice.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : product.price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})})
                                 </SelectItem>
                               ))}
                               {storeProducts.length === 0 && !isLoadingStoreProducts && <SelectItem value="no-prods" disabled>No active products</SelectItem>}
@@ -537,8 +537,8 @@ export default function OrdersPage() {
                                   </TableCell>
                                   <TableCell className="font-medium">{item.productName}</TableCell>
                                   <TableCell className="text-right">{item.quantity}</TableCell>
-                                  <TableCell className="text-right">${item.unitPrice.toFixed(2)}</TableCell>
-                                  <TableCell className="text-right">${(item.unitPrice * item.quantity).toFixed(2)}</TableCell>
+                                  <TableCell className="text-right">ZMW {item.unitPrice.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</TableCell>
+                                  <TableCell className="text-right">ZMW {(item.unitPrice * item.quantity).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</TableCell>
                                   <TableCell>
                                     <Button type="button" variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleRemoveProductFromOrder(item.productId)}>
                                       <Trash2 className="h-4 w-4" />
@@ -554,7 +554,7 @@ export default function OrdersPage() {
                       <div className="flex justify-end items-center gap-4">
                             <Label className="text-lg font-semibold">Order Total:</Label>
                             <div className="text-xl font-bold flex items-center">
-                                <DollarSign className="h-5 w-5 mr-1 text-primary"/> {calculateNewOrderTotal.toFixed(2)}
+                                <DollarSign className="h-5 w-5 mr-1 text-primary"/> {calculateNewOrderTotal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}
                             </div>
                       </div>
                     </CardContent>
@@ -621,7 +621,7 @@ export default function OrdersPage() {
                         <div className="text-xs text-muted-foreground hidden sm:block">{order.customerEmail}</div>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">{new Date(order.date).toLocaleDateString()}</TableCell>
-                      <TableCell className="hidden md:table-cell text-right">${order.total.toFixed(2)}</TableCell>
+                      <TableCell className="hidden md:table-cell text-right">ZMW {order.total.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={cn(orderStatusColors[order.status], "flex items-center gap-1.5 whitespace-nowrap")}>
                           <Icon className="h-3.5 w-3.5" />
@@ -674,3 +674,4 @@ export default function OrdersPage() {
     </div>
   );
 }
+

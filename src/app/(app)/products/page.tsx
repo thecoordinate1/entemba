@@ -466,8 +466,8 @@ export default function ProductsPage() {
          <div className="grid gap-2">
           <Label htmlFor="formPrice">Regular Price</Label>
           <div className="relative">
-            <DollarSign className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input id="formPrice" type="number" step="0.01" value={formPrice} onChange={(e) => setFormPrice(e.target.value)} required className="pl-8" />
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">ZMW</span>
+            <Input id="formPrice" type="number" step="0.01" value={formPrice} onChange={(e) => setFormPrice(e.target.value)} required className="pl-12" />
           </div>
         </div>
       </div>
@@ -475,8 +475,8 @@ export default function ProductsPage() {
         <div className="grid gap-2">
           <Label htmlFor="formOrderPrice">Order Price (Optional)</Label>
           <div className="relative">
-             <DollarSign className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input id="formOrderPrice" type="number" step="0.01" value={formOrderPrice ?? ""} onChange={(e) => setFormOrderPrice(e.target.value)} placeholder="Defaults to regular price" className="pl-8" />
+             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">ZMW</span>
+            <Input id="formOrderPrice" type="number" step="0.01" value={formOrderPrice ?? ""} onChange={(e) => setFormOrderPrice(e.target.value)} placeholder="Defaults to regular price" className="pl-12" />
           </div>
         </div>
         <div className="grid gap-2">
@@ -677,9 +677,9 @@ export default function ProductsPage() {
                         {product.status}
                     </Badge>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell">${product.price.toFixed(2)}</TableCell>
+                    <TableCell className="hidden md:table-cell">ZMW {product.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
                     <TableCell className="hidden md:table-cell">
-                    {product.orderPrice !== undefined ? `$${product.orderPrice.toFixed(2)}` : "-"}
+                    {product.orderPrice !== undefined ? `ZMW ${product.orderPrice.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "-"}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                     {product.stock === 0 && product.status === "Active" ? (

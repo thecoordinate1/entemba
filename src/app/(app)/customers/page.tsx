@@ -386,7 +386,7 @@ export default function CustomersPage() {
                       </TableCell>
                       <TableCell className="font-medium">{customer.name}</TableCell>
                       <TableCell className="hidden md:table-cell text-muted-foreground">{customer.email}</TableCell>
-                      <TableCell className="text-right hidden lg:table-cell">${customer.totalSpent.toFixed(2)}</TableCell>
+                      <TableCell className="text-right hidden lg:table-cell">ZMW {customer.totalSpent.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
                       <TableCell className="text-center hidden lg:table-cell">{customer.totalOrders}</TableCell>
                       <TableCell className="hidden md:table-cell text-muted-foreground">{new Date(customer.joinedDate).toLocaleDateString()}</TableCell>
                       <TableCell>

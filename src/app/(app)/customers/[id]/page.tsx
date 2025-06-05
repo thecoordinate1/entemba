@@ -442,7 +442,7 @@ export default function CustomerDetailPage() {
                 <dt className="text-muted-foreground flex items-center gap-1"><ShoppingCart className="h-4 w-4"/>Total Orders:</dt>
                 <dd>{customer.totalOrders}</dd>
                 <dt className="text-muted-foreground flex items-center gap-1"><DollarSign className="h-4 w-4"/>Total Spent:</dt>
-                <dd>Ksh {customer.totalSpent.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</dd>
+                <dd>ZMW {customer.totalSpent.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</dd>
               </dl>
             </div>
           </div>
@@ -498,7 +498,7 @@ export default function CustomerDetailPage() {
                     <TableRow key={order.id}>
                       <TableCell className="font-medium">{order.id.substring(0,8)}...</TableCell>
                       <TableCell>{new Date(order.date).toLocaleDateString()}</TableCell>
-                      <TableCell className="text-right">Ksh {order.total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
+                      <TableCell className="text-right">ZMW {order.total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={cn(orderStatusColors[order.status], "flex items-center gap-1.5 whitespace-nowrap text-xs")}>
                           <OrderStatusIcon className="h-3.5 w-3.5" />

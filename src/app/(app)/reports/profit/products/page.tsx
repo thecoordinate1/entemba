@@ -68,10 +68,10 @@ export default function AllProductsProfitPage() {
                     </Link>
                   </TableCell>
                   <TableCell>{product.category}</TableCell>
-                  <TableCell className="text-right">K{product.profit.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">ZMW {product.profit.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
                   <TableCell className="text-right">{product.unitsSold}</TableCell>
                   <TableCell className="text-right">
-                    {product.unitsSold > 0 ? `K${(product.profit / product.unitsSold).toFixed(2)}` : "K0.00"}
+                    {product.unitsSold > 0 ? `ZMW ${(product.profit / product.unitsSold).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "ZMW 0.00"}
                   </TableCell>
                   <TableCell className="text-center">
                     <Button variant="outline" size="sm" asChild>
@@ -90,3 +90,4 @@ export default function AllProductsProfitPage() {
     </div>
   );
 }
+

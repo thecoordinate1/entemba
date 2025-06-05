@@ -43,7 +43,7 @@ import { getStoreById, type StoreFromSupabase } from "@/services/storeService";
 
 const chartConfig = {
   sales: {
-    label: "Sales (Ksh)", 
+    label: "Sales (ZMW)", 
     color: "hsl(var(--chart-1))",
   },
   orders: {
@@ -312,7 +312,7 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Revenue"
-          value={isLoading ? "Loading..." : (totalRevenue !== null ? `Ksh ${totalRevenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
+          value={isLoading ? "Loading..." : (totalRevenue !== null ? `ZMW ${totalRevenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
           icon={DollarSign}
           description={`Total earnings this period${storeContextMessage}.`}
           ctaLink={`/reports/revenue${queryParams}`}
@@ -321,7 +321,7 @@ export default function DashboardPage() {
         />
          <StatCard 
           title="Profit (Est.)"
-          value={isLoading ? "Loading..." : (totalRevenue !== null ? `Ksh ${(totalRevenue * 0.25).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")} 
+          value={isLoading ? "Loading..." : (totalRevenue !== null ? `ZMW ${(totalRevenue * 0.25).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")} 
           icon={LineChart} 
           description={`Estimated profit${storeContextMessage}.`}
           ctaLink={`/reports/profit${queryParams}`}
@@ -392,7 +392,7 @@ export default function DashboardPage() {
                       tickLine={false}
                       axisLine={false}
                       tickMargin={10}
-                      tickFormatter={(value) => `Ksh ${Number(value / 1000).toFixed(0)}k`}
+                      tickFormatter={(value) => `ZMW ${Number(value / 1000).toFixed(0)}k`}
                     />
                     <YAxis
                       yAxisId="right"
@@ -406,7 +406,7 @@ export default function DashboardPage() {
                     />
                     <ChartTooltip
                       cursor={false}
-                      content={<ChartTooltipContent indicator="dashed" formatter={(value, name) => name === "sales" ? `Ksh ${Number(value).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}` : Number(value).toLocaleString() } />}
+                      content={<ChartTooltipContent indicator="dashed" formatter={(value, name) => name === "sales" ? `ZMW ${Number(value).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}` : Number(value).toLocaleString() } />}
                     />
                     <ChartLegend content={<ChartLegendContent />} />
                     <Bar yAxisId="left" dataKey="sales" fill="var(--color-sales)" radius={4} />
