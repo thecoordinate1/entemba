@@ -230,9 +230,6 @@ export default function ProfitReportPage() {
   const revenueYTDForMargin = summaryStats?.ytd_revenue_for_margin_calc ?? 0;
   const profitMarginYTD = revenueYTDForMargin > 0 ? (grossProfitYTD / revenueYTDForMargin) * 100 : 0;
 
-  // For "Net Profit" card, we will display Gross Profit for now, as true Net Profit is complex.
-  // Or, we can make a simple estimation or show a placeholder.
-  // Let's show Gross Profit and label it clearly.
   const netProfitDisplayValue = isLoading ? "Loading..." : `ZMW ${Number(grossProfitYTD).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   const netProfitDescription = `YTD Gross Profit (Revenue - COGS)${storeContextMessage}. True Net Profit requires more expense data.`;
 
@@ -325,11 +322,11 @@ export default function ProfitReportPage() {
                   />
                   <ChartTooltip
                     cursor={false}
-                    content={<ChartTooltipContent indicator="dashed" formatter={(value, name) => `ZMW ${Number(value).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}`} />}
+                    content={<ChartTooltipContent indicator="dashed" formatter={(value) => `ZMW ${Number(value).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}`} />}
                   />
                   <ChartLegend content={<ChartLegendContent />} />
                   <Bar dataKey="profit" fill="var(--color-profit)" radius={4} name="Gross Profit" />
-                  {/* <Bar dataKey="cogs" fill="var(--color-cogs)" radius={4} name="COGS" /> // If you want to stack/compare */}
+                  {/* Consider adding COGS bar if desired: <Bar dataKey="cogs" fill="var(--color-cogs)" radius={4} name="COGS" /> */}
                 </BarChart>
               </ResponsiveContainer>
             </ChartContainer>

@@ -30,8 +30,7 @@ export default function AllProductsProfitPage() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [errorMessages, setErrorMessages] = React.useState<string[]>([]);
   
-  // Consider adding a date range filter later
-  const [daysPeriod] = React.useState<number | null>(null); // null for all-time for now
+  const [daysPeriod] = React.useState<number | null>(null); // null for all-time for now, can be expanded with a filter
 
   React.useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setAuthUser(user));

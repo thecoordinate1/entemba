@@ -36,8 +36,8 @@ export interface ProfitSummaryStats {
   ytd_cogs: number;
   current_month_gross_profit: number;
   current_month_cogs: number;
-  ytd_revenue_for_margin_calc: number;
-  current_month_revenue_for_margin_calc: number;
+  ytd_revenue_for_margin_calc: number; // Total revenue for YTD to calculate margin
+  current_month_revenue_for_margin_calc: number; // Total revenue for current month
 }
 
 export interface MonthlyProfitData {
@@ -75,8 +75,12 @@ export async function getRevenueSummaryStats(
     console.error('[reportService.getRevenueSummaryStats] Error calling RPC:', JSON.stringify(error, null, 2));
     return { data: null, error: new Error(error.message || 'Failed to fetch revenue summary stats from RPC.') };
   }
+  // RPCs returning a single row often wrap it in an array
   if (!data || data.length === 0) {
     console.warn('[reportService.getRevenueSummaryStats] No data returned from RPC for store:', storeId);
+    // It's better to return an empty/default structure than null if the RPC ran but found no data for a valid store
+    // This allows the UI to display 0s instead of erroring out if data is expected.
+    // However, for this summary, if nothing is returned, it might imply an issue.
     return { data: null, error: new Error('No summary data returned from RPC for revenue.') };
   }
   console.log('[reportService.getRevenueSummaryStats] Data from RPC:', data[0]);
@@ -154,7 +158,7 @@ export async function getProfitSummaryStats(
     console.error('[reportService.getProfitSummaryStats] Error calling RPC:', JSON.stringify(error, null, 2));
     return { data: null, error: new Error(error.message || 'Failed to fetch profit summary stats from RPC.') };
   }
-   if (!data || data.length === 0) {
+  if (!data || data.length === 0) {
     console.warn('[reportService.getProfitSummaryStats] No data returned from RPC for store:', storeId);
     return { data: null, error: new Error('No summary data returned from RPC for profit.') };
   }

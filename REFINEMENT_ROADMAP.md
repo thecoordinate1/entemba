@@ -27,27 +27,32 @@ This document outlines the steps to refine the E-Ntemba application, implement n
         - [ ] (Not applicable as Trigger is chosen)
     - [ ] **Considerations:**
         - [ ] Plan for handling stock for order cancellations/returns.
-    - [ ] **Testing:**
+    - [x] **Testing:**
         - [x] Test stock decrement on order completion.
         - [ ] Test stock increment on order cancellation/return (if implemented).
+- [x] **RLS Policy Implementation & Testing**
+    - [x] Define and apply RLS policies for `stores`, `products`, `orders`, `order_items`, `product_images`, `social_links`, `vendors`, `customers`.
+    - [x] Test data access thoroughly for different vendor accounts.
+- [ ] **Order Data Segregation (Cross-Store Items in Single Order)**
+    - [x] Issue confirmed resolved at customer frontend (orders are split per store). Vendor dashboard relies on this.
 
 ## Phase 2: Profit Reporting
 
 - [ ] **Dynamic Profit Report (`/reports/profit/page.tsx`)**
-    - [ ] **Backend (Supabase RPCs):**
-        - [ ] Define & Implement `get_profit_summary_stats(p_store_id UUID)` (Gross Profit, Net Profit, Profit Margin, COGS - requires `products.order_price` or similar for cost).
-        - [ ] Define & Implement `get_monthly_profit_overview(p_store_id UUID, p_number_of_months INTEGER)`.
-        - [ ] Define & Implement `get_top_products_by_profit(p_store_id UUID, p_limit INTEGER, p_days_period INTEGER)`.
-        - [ ] Grant permissions for new RPCs.
+    - [x] **Backend (Supabase RPCs):**
+        - [x] Define & Implement `get_profit_summary_stats(p_store_id UUID)` (Gross Profit, Net Profit, Profit Margin, COGS - requires `products.order_price` or similar for cost).
+        - [x] Define & Implement `get_monthly_profit_overview(p_store_id UUID, p_number_of_months INTEGER)`.
+        - [x] Define & Implement `get_top_products_by_profit(p_store_id UUID, p_limit INTEGER, p_days_period INTEGER)`.
+        - [x] Grant permissions for new RPCs.
     - [ ] **Frontend (`reportService.ts` or new `profitService.ts` & Page Component):**
         - [ ] Create/update service functions.
         - [ ] Refactor `/reports/profit/page.tsx` to use dynamic data.
         - [ ] Implement loading and error states.
     - [ ] **Note:** "Profit by Category" pie chart might need a specific RPC or client-side aggregation. Will initially remain static or simplified.
 - [ ] **Dynamic "All Products Profit" Sub-Page (`/reports/profit/products/page.tsx`)**
-    - [ ] **Backend (Supabase RPC):**
-        - [ ] Define & Implement `get_all_products_profit_for_store(p_store_id UUID, p_days_period INTEGER DEFAULT NULL)`.
-        - [ ] Grant permissions for new RPC.
+    - [x] **Backend (Supabase RPC):**
+        - [x] Define & Implement `get_all_products_profit_for_store(p_store_id UUID, p_days_period INTEGER DEFAULT NULL)`.
+        - [x] Grant permissions for new RPC.
     - [ ] **Frontend (Service & UI Update):**
         - [ ] Update `reportService.ts` (or new `profitService.ts`).
         - [ ] Refactor `/reports/profit/products/page.tsx` to use dynamic data.
@@ -60,8 +65,8 @@ This document outlines the steps to refine the E-Ntemba application, implement n
     - [ ] Fix any overlapping UI elements on the settings page tabs.
 - [x] **Loading States & Performance**
     - [x] Review all pages for consistent skeleton loaders or loading messages.
-    - [x] Identify and optimize slow API calls or client-side computations.
-    - [x] Consider pagination for tables (Products, Orders, Customers) if not already sufficient.
+    - [x] Identify and optimize slow API calls or client-side computations. (Initial pass done, further backend optimization might be needed for RPCs if slowness persists).
+    - [ ] Consider pagination for tables (Products, Orders, Customers) if not already sufficient.
     - [ ] Review database indexes in Supabase for frequently queried columns.
 
 ## Phase 4: Aggregated Reporting Views
