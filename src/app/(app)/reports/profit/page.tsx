@@ -36,28 +36,35 @@ import {
   getProfitSummaryStats,
   getMonthlyProfitOverview,
   getTopProductsByProfit,
+  getProfitByCategory, // New import
   type ProfitSummaryStats,
   type MonthlyProfitData,
   type ProductProfitData,
+  type CategoryProfitData, // New import
 } from "@/services/reportService";
 
 interface ProfitChartDataItem {
   month: string;
-  profit: number; // Representing gross profit here
+  profit: number; 
   cogs: number;
 }
 
-// Static data for pie chart, as dynamic category profit is complex
-const profitByCategoryDataStatic = [
-    { name: 'Furniture', value: 8500, color: 'hsl(var(--chart-1))' },
-    { name: 'Electronics', value: 7200, color: 'hsl(var(--chart-2))' },
-    { name: 'Groceries', value: 5800, color: 'hsl(var(--chart-3))' },
-    { name: 'Apparel', value: 3500, color: 'hsl(var(--chart-4))' },
-];
+interface CategoryPieChartItem {
+  name: string;
+  value: number;
+  fill: string;
+}
 
 const profitChartConfig = {
   profit: { label: "Gross Profit (ZMW)", color: "hsl(var(--chart-1))" },
   cogs: { label: "COGS (ZMW)", color: "hsl(var(--chart-2))" },
+  // Colors for pie chart categories - can be extended
+  cat1: { color: "hsl(var(--chart-1))" },
+  cat2: { color: "hsl(var(--chart-2))" },
+  cat3: { color: "hsl(var(--chart-3))" },
+  cat4: { color: "hsl(var(--chart-4))" },
+  cat5: { color: "hsl(var(--chart-5))" },
+  catOther: { color: "hsl(var(--muted))" },
 };
 
 interface StatCardProps {
@@ -65,7 +72,7 @@ interface StatCardProps {
   value: string;
   icon: React.ElementType;
   description?: string;
-  trend?: string; // For display only, actual trend calculation not implemented here
+  trend?: string; 
   trendType?: "positive" | "negative" | "neutral";
   isLoading?: boolean;
 }
@@ -122,6 +129,9 @@ export default function ProfitReportPage() {
   const [summaryStats, setSummaryStats] = React.useState<ProfitSummaryStats | null>(null);
   const [monthlyProfitChartData, setMonthlyProfitChartData] = React.useState<ProfitChartDataItem[]>([]);
   const [topProducts, setTopProducts] = React.useState<ProductProfitData[]>([]);
+  const [profitByCategoryData, setProfitByCategoryData] = React.useState<CategoryProfitData[]>([]);
+  const [isLoadingProfitByCategory, setIsLoadingProfitByCategory] = React.useState(true);
+
 
   const [isLoading, setIsLoading] = React.useState(true);
   const [errorMessages, setErrorMessages] = React.useState<string[]>([]);
@@ -133,20 +143,21 @@ export default function ProfitReportPage() {
   React.useEffect(() => {
     const fetchReportData = async () => {
       setIsLoading(true);
+      setIsLoadingProfitByCategory(true);
       setErrorMessages([]);
       let currentErrorMessages: string[] = [];
 
       if (!storeIdFromUrl) {
         currentErrorMessages.push("No store selected. Please select a store to view reports.");
-        setIsLoading(false);
-        setSummaryStats(null); setMonthlyProfitChartData([]); setTopProducts([]); setSelectedStore(null);
+        setIsLoading(false); setIsLoadingProfitByCategory(false);
+        setSummaryStats(null); setMonthlyProfitChartData([]); setTopProducts([]); setProfitByCategoryData([]); setSelectedStore(null);
         setErrorMessages(currentErrorMessages);
         return;
       }
       if (!authUser) {
         currentErrorMessages.push("Authentication issue. Please ensure you are logged in.");
-        setIsLoading(false);
-        setSummaryStats(null); setMonthlyProfitChartData([]); setTopProducts([]); setSelectedStore(null);
+        setIsLoading(false); setIsLoadingProfitByCategory(false);
+        setSummaryStats(null); setMonthlyProfitChartData([]); setTopProducts([]); setProfitByCategoryData([]); setSelectedStore(null);
         setErrorMessages(currentErrorMessages);
         return;
       }
@@ -155,15 +166,17 @@ export default function ProfitReportPage() {
       const summaryStatsPromise = getProfitSummaryStats(storeIdFromUrl);
       const monthlyProfitPromise = getMonthlyProfitOverview(storeIdFromUrl, 6); // Last 6 months
       const topProductsPromise = getTopProductsByProfit(storeIdFromUrl, 5, 30); // Top 5, last 30 days
+      const profitByCategoryPromise = getProfitByCategory(storeIdFromUrl, null); // All time for now
 
       const results = await Promise.allSettled([
         storePromise,
         summaryStatsPromise,
         monthlyProfitPromise,
-        topProductsPromise
+        topProductsPromise,
+        profitByCategoryPromise
       ]);
 
-      const [storeResult, summaryResult, monthlyResult, topProductsResult] = results;
+      const [storeResult, summaryResult, monthlyResult, topProductsResult, categoryProfitResult] = results;
 
       if (storeResult.status === 'fulfilled') {
         const { data, error } = storeResult.value;
@@ -212,6 +225,21 @@ export default function ProfitReportPage() {
         setTopProducts([]);
       }
 
+      if (categoryProfitResult.status === 'fulfilled') {
+        const { data, error } = categoryProfitResult.value;
+        if (error) {
+            currentErrorMessages.push(`Profit by Category: ${error.message || 'Failed to fetch.'}`);
+            setProfitByCategoryData([]);
+        } else {
+            setProfitByCategoryData(data || []);
+        }
+      } else {
+        currentErrorMessages.push(`Profit by Category: ${(categoryProfitResult.reason as Error).message || 'Failed to fetch.'}`);
+        setProfitByCategoryData([]);
+      }
+      setIsLoadingProfitByCategory(false);
+
+
       if (currentErrorMessages.length > 0) {
         setErrorMessages(currentErrorMessages);
         currentErrorMessages.forEach(msg => toast({ variant: "destructive", title: "Data Fetch Error", description: msg, duration: 7000 }));
@@ -233,6 +261,21 @@ export default function ProfitReportPage() {
   const netProfitDisplayValue = isLoading ? "Loading..." : `ZMW ${Number(grossProfitYTD).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   const netProfitDescription = `YTD Gross Profit (Revenue - COGS)${storeContextMessage}. True Net Profit requires more expense data.`;
 
+  const dynamicProfitByCategoryData: CategoryPieChartItem[] = React.useMemo(() => {
+    const categoryColors = [
+        profitChartConfig.cat1.color,
+        profitChartConfig.cat2.color,
+        profitChartConfig.cat3.color,
+        profitChartConfig.cat4.color,
+        profitChartConfig.cat5.color,
+    ];
+    return profitByCategoryData.map((item, index) => ({
+        name: item.category,
+        value: item.total_profit,
+        fill: categoryColors[index % categoryColors.length] || `hsl(${Math.random() * 360}, 70%, 50%)` // Fallback random color
+    }));
+  }, [profitByCategoryData]);
+
 
   if (errorMessages.length > 0 && !isLoading) {
     return (
@@ -242,7 +285,7 @@ export default function ProfitReportPage() {
         <div className="text-muted-foreground mb-6 max-w-md space-y-1">
             {errorMessages.map((msg, index) => <p key={index}>{msg}</p>)}
         </div>
-        <p className="text-xs text-muted-foreground mb-6 max-w-md">This might be due to missing or misconfigured RPC functions (e.g., `get_profit_summary_stats`, `get_monthly_profit_overview`, `get_top_products_by_profit`). Please ensure they are created correctly in your Supabase SQL Editor and permissions are granted.</p>
+        <p className="text-xs text-muted-foreground mb-6 max-w-md">This might be due to missing or misconfigured RPC functions. Please ensure they are created correctly in your Supabase SQL Editor and permissions are granted.</p>
         <Button variant="outline" onClick={() => router.push(`/dashboard${queryParams}`)}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
         </Button>
@@ -326,7 +369,6 @@ export default function ProfitReportPage() {
                   />
                   <ChartLegend content={<ChartLegendContent />} />
                   <Bar dataKey="profit" fill="var(--color-profit)" radius={4} name="Gross Profit" />
-                  {/* Consider adding COGS bar if desired: <Bar dataKey="cogs" fill="var(--color-cogs)" radius={4} name="COGS" /> */}
                 </BarChart>
               </ResponsiveContainer>
             </ChartContainer>
@@ -338,50 +380,57 @@ export default function ProfitReportPage() {
         
         <Card className="lg:col-span-2">
             <CardHeader>
-                <CardTitle>Profit by Category (Static)</CardTitle>
-                <CardDescription>Distribution of profit across product categories{storeContextMessage}. (This chart uses static placeholder data).</CardDescription>
+                <CardTitle>Profit by Category</CardTitle>
+                <CardDescription>Distribution of profit across product categories{storeContextMessage}.</CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center items-center h-[300px]">
-                 <ChartContainer config={{}} className="h-full w-full max-h-[250px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                        <ChartTooltip
-                            cursor={false}
-                            content={<ChartTooltipContent hideLabel formatter={(value, name, props) => (
-                                <div className="flex flex-col">
-                                    <span className="font-medium">{props.payload?.name}</span>
-                                    <span>ZMW {Number(value).toLocaleString()} ({(props.payload?.percent * 100).toFixed(1)}%)</span>
-                                </div>
-                            )} />}
-                        />
-                        <Pie
-                            data={profitByCategoryDataStatic}
-                            dataKey="value"
-                            nameKey="name"
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={80}
-                            labelLine={false}
-                            label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name }) => {
-                                const RADIAN = Math.PI / 180;
-                                const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                                let x = cx + (radius + 15) * Math.cos(-midAngle * RADIAN);
-                                let y = cy + (radius + 15) * Math.sin(-midAngle * RADIAN);
-                                return (
-                                <text x={x} y={y} fill="hsl(var(--foreground))" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" className="text-xs">
-                                    {`${name} (${(percent * 100).toFixed(0)}%)`}
-                                </text>
-                                );
-                            }}
-                        >
-                            {profitByCategoryDataStatic.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                        </Pie>
-                        <ChartLegend content={<ChartLegendContent nameKey="name" />} />
-                        </PieChart>
-                    </ResponsiveContainer>
-                </ChartContainer>
+                {isLoadingProfitByCategory ? (
+                    <Skeleton className="h-[250px] w-full" />
+                ) : dynamicProfitByCategoryData.length > 0 ? (
+                    <ChartContainer config={{}} className="h-full w-full max-h-[250px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                            <ChartTooltip
+                                cursor={false}
+                                content={<ChartTooltipContent hideLabel formatter={(value, name, props) => (
+                                    <div className="flex flex-col">
+                                        <span className="font-medium">{props.payload?.name}</span>
+                                        <span>ZMW {Number(value).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})} ({(props.payload?.percent * 100).toFixed(1)}%)</span>
+                                    </div>
+                                )} />}
+                            />
+                            <Pie
+                                data={dynamicProfitByCategoryData}
+                                dataKey="value"
+                                nameKey="name"
+                                cx="50%"
+                                cy="50%"
+                                outerRadius={80}
+                                labelLine={false}
+                                label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name }) => {
+                                    const RADIAN = Math.PI / 180;
+                                    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                                    let x = cx + (radius + 15) * Math.cos(-midAngle * RADIAN);
+                                    let y = cy + (radius + 15) * Math.sin(-midAngle * RADIAN);
+                                    if (percent < 0.05) return null; // Hide label for small slices
+                                    return (
+                                    <text x={x} y={y} fill="hsl(var(--foreground))" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" className="text-xs">
+                                        {`${name} (${(percent * 100).toFixed(0)}%)`}
+                                    </text>
+                                    );
+                                }}
+                            >
+                                {dynamicProfitByCategoryData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                                ))}
+                            </Pie>
+                            <ChartLegend content={<ChartLegendContent nameKey="name" />} />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </ChartContainer>
+                ) : (
+                    <p className="text-sm text-muted-foreground text-center">No profit data by category available{storeContextMessage}.</p>
+                )}
             </CardContent>
         </Card>
       </div>

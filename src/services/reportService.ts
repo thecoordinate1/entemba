@@ -56,6 +56,11 @@ export interface ProductProfitData { // Used for both top products and all produ
   units_sold: number;
 }
 
+export interface CategoryProfitData {
+    category: string;
+    total_profit: number;
+}
+
 
 // --- Service Functions (Revenue) ---
 
@@ -235,4 +240,26 @@ export async function getAllProductsProfitForStore(
   }
   console.log('[reportService.getAllProductsProfitForStore] Data from RPC:', data);
   return { data: data as ProductProfitData[] | null, error: null };
+}
+
+export async function getProfitByCategory(
+    storeId: string,
+    daysPeriod: number | null = null // Default to all-time if not specified
+): Promise<{ data: CategoryProfitData[] | null; error: Error | null}> {
+    console.log(`[reportService.getProfitByCategory] Fetching for store ${storeId}, period: ${daysPeriod === null ? 'all time' : daysPeriod + ' days'}.`);
+    if (!storeId) {
+        return { data: null, error: new Error("Store ID is required for profit by category.") };
+    }
+
+    const { data, error } = await supabase.rpc('get_profit_by_category', {
+        p_store_id: storeId,
+        p_days_period: daysPeriod,
+    });
+
+    if (error) {
+        console.error('[reportService.getProfitByCategory] Error calling RPC:', JSON.stringify(error, null, 2));
+        return { data: null, error: new Error(error.message || 'Failed to fetch profit by category from RPC.') };
+    }
+    console.log('[reportService.getProfitByCategory] Data from RPC:', data);
+    return { data: data as CategoryProfitData[] | null, error: null };
 }

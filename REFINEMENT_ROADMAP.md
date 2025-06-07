@@ -18,7 +18,7 @@ This document outlines the steps to refine the E-Ntemba application, implement n
     - [x] Review and refactor data fetching logic in `useEffect` and service calls.
     - [x] Verify filtering and mapping of Supabase data to UI types.
     - [x] Ensure loading/error states handled gracefully.
-- [x] **Stock Quantity Logic (Inventory Management)**
+- [ ] **Stock Quantity Logic (Inventory Management)**
     - [x] **Backend Option Discussion:**
         - [x] Decide between Database Trigger or RPC for stock updates. (Decision: Database Trigger)
     - [x] **Backend Implementation (based on decision):**
@@ -33,8 +33,8 @@ This document outlines the steps to refine the E-Ntemba application, implement n
 - [x] **RLS Policy Implementation & Testing**
     - [x] Define and apply RLS policies for `stores`, `products`, `orders`, `order_items`, `product_images`, `social_links`, `vendors`, `customers`.
     - [x] Test data access thoroughly for different vendor accounts.
-- [ ] **Order Data Segregation (Cross-Store Items in Single Order)**
-    - [x] Issue confirmed resolved at customer frontend (orders are split per store). Vendor dashboard relies on this.
+- [x] **Order Data Segregation (Cross-Store Items in Single Order)**
+    - [x] Issue confirmed resolved at customer frontend (orders are split per store). Vendor dashboard relies on this. RLS policies ensure vendors only see their respective store orders.
 
 ## Phase 2: Profit Reporting
 
@@ -43,19 +43,22 @@ This document outlines the steps to refine the E-Ntemba application, implement n
         - [x] Define & Implement `get_profit_summary_stats(p_store_id UUID)` (Gross Profit, Net Profit, Profit Margin, COGS - requires `products.order_price` or similar for cost).
         - [x] Define & Implement `get_monthly_profit_overview(p_store_id UUID, p_number_of_months INTEGER)`.
         - [x] Define & Implement `get_top_products_by_profit(p_store_id UUID, p_limit INTEGER, p_days_period INTEGER)`.
+        - [x] Define & Implement `get_profit_by_category(p_store_id UUID, p_days_period INTEGER)` (for dynamic pie chart).
         - [x] Grant permissions for new RPCs.
-    - [ ] **Frontend (`reportService.ts` or new `profitService.ts` & Page Component):**
-        - [ ] Create/update service functions.
-        - [ ] Refactor `/reports/profit/page.tsx` to use dynamic data.
-        - [ ] Implement loading and error states.
-    - [ ] **Note:** "Profit by Category" pie chart might need a specific RPC or client-side aggregation. Will initially remain static or simplified.
+    - [x] **Frontend (`reportService.ts` & Page Component):**
+        - [x] Create/update service functions.
+        - [x] Refactor `/reports/profit/page.tsx` to use dynamic data for stats, monthly trend, top products.
+        - [x] Implement loading and error states.
+        - [x] **Dynamic "Profit by Category" Pie Chart:**
+            - [x] Backend RPC `get_profit_by_category` implemented.
+            - [x] Frontend service and UI updated to use dynamic data.
 - [ ] **Dynamic "All Products Profit" Sub-Page (`/reports/profit/products/page.tsx`)**
     - [x] **Backend (Supabase RPC):**
         - [x] Define & Implement `get_all_products_profit_for_store(p_store_id UUID, p_days_period INTEGER DEFAULT NULL)`.
         - [x] Grant permissions for new RPC.
-    - [ ] **Frontend (Service & UI Update):**
-        - [ ] Update `reportService.ts` (or new `profitService.ts`).
-        - [ ] Refactor `/reports/profit/products/page.tsx` to use dynamic data.
+    - [x] **Frontend (Service & UI Update):**
+        - [x] Update `reportService.ts` (or new `profitService.ts`).
+        - [x] Refactor `/reports/profit/products/page.tsx` to use dynamic data.
 
 ## Phase 3: UI/UX Refinements & Performance
 
