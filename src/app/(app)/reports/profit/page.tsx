@@ -58,12 +58,12 @@ interface CategoryPieChartItem {
 const profitChartConfig = {
   profit: { label: "Gross Profit (ZMW)", color: "hsl(var(--chart-1))" },
   cogs: { label: "COGS (ZMW)", color: "hsl(var(--chart-2))" },
-  cat1: { color: "hsl(var(--chart-1))" },
-  cat2: { color: "hsl(var(--chart-2))" },
-  cat3: { color: "hsl(var(--chart-3))" },
-  cat4: { color: "hsl(var(--chart-4))" },
-  cat5: { color: "hsl(var(--chart-5))" },
-  catOther: { color: "hsl(var(--muted))" },
+  cat1: { label: "Electronics", color: "hsl(var(--chart-1))" },
+  cat2: { label: "Apparel", color: "hsl(var(--chart-2))" },
+  cat3: { label: "Home Goods", color: "hsl(var(--chart-3))" },
+  cat4: { label: "Books", color: "hsl(var(--chart-4))" },
+  cat5: { label: "Groceries", color: "hsl(var(--chart-5))" },
+  catOther: { label: "Other", color: "hsl(var(--muted))" },
 };
 
 interface StatCardProps {
@@ -129,10 +129,9 @@ export default function ProfitReportPage() {
   const [monthlyProfitChartData, setMonthlyProfitChartData] = React.useState<ProfitChartDataItem[]>([]);
   const [topProducts, setTopProducts] = React.useState<ProductProfitData[]>([]);
   const [profitByCategoryData, setProfitByCategoryData] = React.useState<CategoryProfitData[]>([]);
-  const [isLoadingProfitByCategory, setIsLoadingProfitByCategory] = React.useState(true);
-
-
-  const [isLoading, setIsLoading] = React.useState(true);
+  
+  const [isLoadingPage, setIsLoadingPage] = React.useState(true);
+  const [isLoadingProfitByCategory, setIsLoadingProfitByCategory] = React.useState(true); // Keep separate for pie chart skeleton
   const [errorMessages, setErrorMessages] = React.useState<string[]>([]);
 
   React.useEffect(() => {
@@ -141,30 +140,34 @@ export default function ProfitReportPage() {
 
   React.useEffect(() => {
     const fetchReportData = async () => {
-      setIsLoading(true);
+      setIsLoadingPage(true);
       setIsLoadingProfitByCategory(true);
       setErrorMessages([]);
+      setSummaryStats(null); // Reset on new fetch
+      setMonthlyProfitChartData([]);
+      setTopProducts([]);
+      setProfitByCategoryData([]);
+      setSelectedStore(null);
+
       let currentErrorMessages: string[] = [];
 
       if (!storeIdFromUrl) {
         currentErrorMessages.push("No store selected. Please select a store to view reports.");
-        setIsLoading(false); setIsLoadingProfitByCategory(false);
-        setSummaryStats(null); setMonthlyProfitChartData([]); setTopProducts([]); setProfitByCategoryData([]); setSelectedStore(null);
+        setIsLoadingPage(false); setIsLoadingProfitByCategory(false);
         setErrorMessages(currentErrorMessages);
         return;
       }
       if (!authUser) {
         currentErrorMessages.push("Authentication issue. Please ensure you are logged in.");
-        setIsLoading(false); setIsLoadingProfitByCategory(false);
-        setSummaryStats(null); setMonthlyProfitChartData([]); setTopProducts([]); setProfitByCategoryData([]); setSelectedStore(null);
+        setIsLoadingPage(false); setIsLoadingProfitByCategory(false);
         setErrorMessages(currentErrorMessages);
         return;
       }
       
       const storePromise = getStoreById(storeIdFromUrl, authUser.id);
       const summaryStatsPromise = getProfitSummaryStats(storeIdFromUrl);
-      const monthlyProfitPromise = getMonthlyProfitOverview(storeIdFromUrl, 6); // Last 6 months
-      const topProductsPromise = getTopProductsByProfit(storeIdFromUrl, 5, 30); // Top 5, last 30 days
+      const monthlyProfitPromise = getMonthlyProfitOverview(storeIdFromUrl, 6);
+      const topProductsPromise = getTopProductsByProfit(storeIdFromUrl, 5, 30);
       const profitByCategoryPromise = getProfitByCategory(storeIdFromUrl, null); 
 
       const results = await Promise.allSettled([
@@ -183,13 +186,16 @@ export default function ProfitReportPage() {
         setSelectedStore(data);
       } else {
         currentErrorMessages.push(`Store Details: ${(storeResult.reason as Error).message || 'Failed to fetch.'}`);
-        setSelectedStore(null);
       }
 
       if (summaryResult.status === 'fulfilled') {
         const { data, error } = summaryResult.value;
-        if (error) currentErrorMessages.push(`Summary Stats: ${error.message || 'Failed to fetch.'}`);
-        setSummaryStats(data);
+        if (error) {
+            currentErrorMessages.push(`Summary Stats: ${error.message || 'Failed to fetch.'}`);
+            setSummaryStats(null);
+        } else {
+            setSummaryStats(data); // data can be null if RPC returns {data:null}
+        }
       } else {
         currentErrorMessages.push(`Summary Stats: ${(summaryResult.reason as Error).message || 'Failed to fetch.'}`);
         setSummaryStats(null);
@@ -207,12 +213,9 @@ export default function ProfitReportPage() {
               cogs: item.total_cogs || 0,
             };
           }).reverse());
-        } else {
-          setMonthlyProfitChartData([]);
         }
       } else {
         currentErrorMessages.push(`Monthly Profit Overview: ${(monthlyResult.reason as Error).message || 'Failed to fetch.'}`);
-        setMonthlyProfitChartData([]);
       }
       
       if (topProductsResult.status === 'fulfilled') {
@@ -228,13 +231,11 @@ export default function ProfitReportPage() {
         const { data, error } = categoryProfitResult.value;
         if (error) {
             currentErrorMessages.push(`Profit by Category: ${error.message || 'Failed to fetch.'}`);
-            setProfitByCategoryData([]);
         } else {
             setProfitByCategoryData(data || []);
         }
       } else {
         currentErrorMessages.push(`Profit by Category: ${(categoryProfitResult.reason as Error).message || 'Failed to fetch.'}`);
-        setProfitByCategoryData([]);
       }
       setIsLoadingProfitByCategory(false);
 
@@ -243,7 +244,7 @@ export default function ProfitReportPage() {
         setErrorMessages(currentErrorMessages);
         currentErrorMessages.forEach(msg => toast({ variant: "destructive", title: "Data Fetch Error", description: msg, duration: 7000 }));
       }
-      setIsLoading(false);
+      setIsLoadingPage(false);
     };
 
     fetchReportData();
@@ -252,34 +253,29 @@ export default function ProfitReportPage() {
   const storeContextMessage = selectedStore ? ` for ${selectedStore.name}` : storeIdFromUrl ? " for selected store" : "";
   const queryParams = storeIdFromUrl ? `?storeId=${storeIdFromUrl}` : "";
 
+  // Calculate derived values for stat cards, ensuring defaults if summaryStats is null
   const ytdGrossProfit = summaryStats?.ytd_gross_profit ?? 0;
   const ytdCogs = summaryStats?.ytd_cogs ?? 0;
   const ytdRevenueForMargin = summaryStats?.ytd_revenue_for_margin_calc ?? 0;
-  const ytdProfitMargin = ytdRevenueForMargin > 0 ? (ytdGrossProfit / ytdRevenueForMargin) * 100 : 0;
   
-  const netProfitEstYTD = ytdGrossProfit; // Using Gross Profit as Net Profit estimate
-
-  const netProfitDisplayValue = isLoading ? "Loading..." : `ZMW ${Number(netProfitEstYTD).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-  const netProfitDescription = `YTD Gross Profit (Est. Net Profit)${storeContextMessage}. True Net Profit calculation requires other operational expenses.`;
+  const ytdProfitMargin = ytdRevenueForMargin > 0 ? (ytdGrossProfit / ytdRevenueForMargin) * 100 : 0;
+  const netProfitEstYTD = ytdGrossProfit;
 
 
   const dynamicProfitByCategoryData: CategoryPieChartItem[] = React.useMemo(() => {
-    const categoryColors = [
-        profitChartConfig.cat1.color,
-        profitChartConfig.cat2.color,
-        profitChartConfig.cat3.color,
-        profitChartConfig.cat4.color,
-        profitChartConfig.cat5.color,
+    const definedColors = [
+        profitChartConfig.cat1.color, profitChartConfig.cat2.color, profitChartConfig.cat3.color,
+        profitChartConfig.cat4.color, profitChartConfig.cat5.color,
     ];
     return profitByCategoryData.map((item, index) => ({
         name: item.category,
         value: item.total_profit,
-        fill: categoryColors[index % categoryColors.length] || `hsl(${Math.floor(Math.random() * 360)}, 70%, 50%)` // Fallback random color
+        fill: definedColors[index % definedColors.length] || `hsl(${ (index * 60 + 30) % 360 }, 70%, 60%)` // Fallback dynamic color
     }));
   }, [profitByCategoryData]);
 
 
-  if (errorMessages.length > 0 && !isLoading) {
+  if (errorMessages.length > 0 && !isLoadingPage) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-4">
         <AlertCircle className="w-16 h-16 text-destructive mb-4" />
@@ -295,10 +291,22 @@ export default function ProfitReportPage() {
     );
   }
 
+  const displayValue = (value: number, isCurrency = true) => {
+    if (isCurrency) {
+      return `ZMW ${Number(value).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    }
+    return `${Number(value).toFixed(1)}%`;
+  };
+  
+  const cardValue = (dataAvailable: boolean, value: number, isCurrency = true) => {
+    return isLoadingPage ? "Loading..." : (dataAvailable ? displayValue(value, isCurrency) : "N/A");
+  };
+
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Profit Report{isLoading && !selectedStore ? <Skeleton className="h-8 w-40 inline-block ml-2" /> : storeContextMessage}</h1>
+        <h1 className="text-3xl font-bold">Profit Report{isLoadingPage && !selectedStore ? <Skeleton className="h-8 w-40 inline-block ml-2" /> : storeContextMessage}</h1>
         <Button variant="outline" onClick={() => router.back()}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
@@ -307,31 +315,31 @@ export default function ProfitReportPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Gross Profit (YTD)"
-          value={isLoading || summaryStats === null ? "Loading..." : `ZMW ${Number(ytdGrossProfit).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
+          value={cardValue(summaryStats !== null, ytdGrossProfit)}
           icon={DollarSign}
           description={`Total revenue minus COGS${storeContextMessage}.`}
-          isLoading={isLoading}
+          isLoading={isLoadingPage}
         />
         <StatCard
           title="COGS (YTD)"
-          value={isLoading || summaryStats === null ? "Loading..." : `ZMW ${Number(ytdCogs).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
+          value={cardValue(summaryStats !== null, ytdCogs)}
           icon={Receipt}
           description={`Direct costs of producing goods${storeContextMessage}.`}
-          isLoading={isLoading}
+          isLoading={isLoadingPage}
         />
         <StatCard
           title="Gross Profit Margin (YTD)"
-          value={isLoading || summaryStats === null ? "Loading..." : `${ytdProfitMargin.toFixed(1)}%`}
+          value={cardValue(summaryStats !== null, ytdProfitMargin, false)}
           icon={Percent}
           description={`Gross profit as % of revenue${storeContextMessage}.`}
-          isLoading={isLoading}
+          isLoading={isLoadingPage}
         />
          <StatCard
           title="Net Profit (Est. YTD)"
-          value={netProfitDisplayValue}
+          value={cardValue(summaryStats !== null, netProfitEstYTD)}
           icon={Landmark} 
-          description={netProfitDescription}
-          isLoading={isLoading}
+          description={`YTD Gross Profit (Est. Net Profit)${storeContextMessage}. True Net Profit calculation requires other operational expenses.`}
+          isLoading={isLoadingPage}
         />
       </div>
 
@@ -342,7 +350,7 @@ export default function ProfitReportPage() {
             <CardDescription>Track your gross profit month over month{storeContextMessage}.</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
-           {isLoading ? (
+           {isLoadingPage ? (
               <Skeleton className="h-[300px] w-full" />
            ) : monthlyProfitChartData.length > 0 ? (
             <ChartContainer config={profitChartConfig} className="h-[300px] w-full">
@@ -386,10 +394,10 @@ export default function ProfitReportPage() {
                 <CardDescription>Distribution of profit across product categories{storeContextMessage}.</CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center items-center h-[300px]">
-                {isLoadingProfitByCategory ? (
+                {isLoadingProfitByCategory ? ( // Use specific loader for pie chart
                     <Skeleton className="h-[250px] w-full" />
                 ) : dynamicProfitByCategoryData.length > 0 ? (
-                    <ChartContainer config={{}} className="h-full w-full max-h-[250px]">
+                    <ChartContainer config={profitChartConfig} className="h-full w-full max-h-[250px]">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                             <ChartTooltip
@@ -443,7 +451,7 @@ export default function ProfitReportPage() {
           <CardDescription>Detailed breakdown of profit by products (last 30 days){storeContextMessage}.</CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isLoadingPage ? (
             <div className="space-y-3">
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
