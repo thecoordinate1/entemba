@@ -36,11 +36,11 @@ import {
   getProfitSummaryStats,
   getMonthlyProfitOverview,
   getTopProductsByProfit,
-  getProfitByCategory, // New import
+  getProfitByCategory,
   type ProfitSummaryStats,
   type MonthlyProfitData,
   type ProductProfitData,
-  type CategoryProfitData, // New import
+  type CategoryProfitData,
 } from "@/services/reportService";
 
 interface ProfitChartDataItem {
@@ -58,7 +58,6 @@ interface CategoryPieChartItem {
 const profitChartConfig = {
   profit: { label: "Gross Profit (ZMW)", color: "hsl(var(--chart-1))" },
   cogs: { label: "COGS (ZMW)", color: "hsl(var(--chart-2))" },
-  // Colors for pie chart categories - can be extended
   cat1: { color: "hsl(var(--chart-1))" },
   cat2: { color: "hsl(var(--chart-2))" },
   cat3: { color: "hsl(var(--chart-3))" },
@@ -166,7 +165,7 @@ export default function ProfitReportPage() {
       const summaryStatsPromise = getProfitSummaryStats(storeIdFromUrl);
       const monthlyProfitPromise = getMonthlyProfitOverview(storeIdFromUrl, 6); // Last 6 months
       const topProductsPromise = getTopProductsByProfit(storeIdFromUrl, 5, 30); // Top 5, last 30 days
-      const profitByCategoryPromise = getProfitByCategory(storeIdFromUrl, null); // All time for now
+      const profitByCategoryPromise = getProfitByCategory(storeIdFromUrl, null); 
 
       const results = await Promise.allSettled([
         storePromise,
@@ -253,13 +252,16 @@ export default function ProfitReportPage() {
   const storeContextMessage = selectedStore ? ` for ${selectedStore.name}` : storeIdFromUrl ? " for selected store" : "";
   const queryParams = storeIdFromUrl ? `?storeId=${storeIdFromUrl}` : "";
 
-  const grossProfitYTD = summaryStats?.ytd_gross_profit ?? 0;
-  const cogsYTD = summaryStats?.ytd_cogs ?? 0;
-  const revenueYTDForMargin = summaryStats?.ytd_revenue_for_margin_calc ?? 0;
-  const profitMarginYTD = revenueYTDForMargin > 0 ? (grossProfitYTD / revenueYTDForMargin) * 100 : 0;
+  const ytdGrossProfit = summaryStats?.ytd_gross_profit ?? 0;
+  const ytdCogs = summaryStats?.ytd_cogs ?? 0;
+  const ytdRevenueForMargin = summaryStats?.ytd_revenue_for_margin_calc ?? 0;
+  const ytdProfitMargin = ytdRevenueForMargin > 0 ? (ytdGrossProfit / ytdRevenueForMargin) * 100 : 0;
+  
+  const netProfitEstYTD = ytdGrossProfit; // Using Gross Profit as Net Profit estimate
 
-  const netProfitDisplayValue = isLoading ? "Loading..." : `ZMW ${Number(grossProfitYTD).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-  const netProfitDescription = `YTD Gross Profit (Revenue - COGS)${storeContextMessage}. True Net Profit requires more expense data.`;
+  const netProfitDisplayValue = isLoading ? "Loading..." : `ZMW ${Number(netProfitEstYTD).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+  const netProfitDescription = `YTD Gross Profit (Est. Net Profit)${storeContextMessage}. True Net Profit calculation requires other operational expenses.`;
+
 
   const dynamicProfitByCategoryData: CategoryPieChartItem[] = React.useMemo(() => {
     const categoryColors = [
@@ -272,7 +274,7 @@ export default function ProfitReportPage() {
     return profitByCategoryData.map((item, index) => ({
         name: item.category,
         value: item.total_profit,
-        fill: categoryColors[index % categoryColors.length] || `hsl(${Math.random() * 360}, 70%, 50%)` // Fallback random color
+        fill: categoryColors[index % categoryColors.length] || `hsl(${Math.floor(Math.random() * 360)}, 70%, 50%)` // Fallback random color
     }));
   }, [profitByCategoryData]);
 
@@ -305,21 +307,21 @@ export default function ProfitReportPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Gross Profit (YTD)"
-          value={isLoading ? "Loading..." : `ZMW ${Number(grossProfitYTD).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
+          value={isLoading || summaryStats === null ? "Loading..." : `ZMW ${Number(ytdGrossProfit).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
           icon={DollarSign}
           description={`Total revenue minus COGS${storeContextMessage}.`}
           isLoading={isLoading}
         />
         <StatCard
           title="COGS (YTD)"
-          value={isLoading ? "Loading..." : `ZMW ${Number(cogsYTD).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
+          value={isLoading || summaryStats === null ? "Loading..." : `ZMW ${Number(ytdCogs).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
           icon={Receipt}
           description={`Direct costs of producing goods${storeContextMessage}.`}
           isLoading={isLoading}
         />
         <StatCard
           title="Gross Profit Margin (YTD)"
-          value={isLoading ? "Loading..." : `${profitMarginYTD.toFixed(1)}%`}
+          value={isLoading || summaryStats === null ? "Loading..." : `${ytdProfitMargin.toFixed(1)}%`}
           icon={Percent}
           description={`Gross profit as % of revenue${storeContextMessage}.`}
           isLoading={isLoading}
@@ -337,7 +339,7 @@ export default function ProfitReportPage() {
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Monthly Gross Profit Trend</CardTitle>
-            <CardDescription>Track your gross profit and COGS month over month{storeContextMessage}.</CardDescription>
+            <CardDescription>Track your gross profit month over month{storeContextMessage}.</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
            {isLoading ? (
@@ -412,7 +414,7 @@ export default function ProfitReportPage() {
                                     const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
                                     let x = cx + (radius + 15) * Math.cos(-midAngle * RADIAN);
                                     let y = cy + (radius + 15) * Math.sin(-midAngle * RADIAN);
-                                    if (percent < 0.05) return null; // Hide label for small slices
+                                    if (percent < 0.05) return null; 
                                     return (
                                     <text x={x} y={y} fill="hsl(var(--foreground))" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" className="text-xs">
                                         {`${name} (${(percent * 100).toFixed(0)}%)`}
@@ -505,3 +507,4 @@ export default function ProfitReportPage() {
     </div>
   );
 }
+
