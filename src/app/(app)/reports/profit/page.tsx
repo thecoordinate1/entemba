@@ -131,7 +131,8 @@ export default function ProfitReportPage() {
   const [profitByCategoryData, setProfitByCategoryData] = React.useState<CategoryProfitData[]>([]);
   
   const [isLoadingPage, setIsLoadingPage] = React.useState(true);
-  const [isLoadingProfitByCategory, setIsLoadingProfitByCategory] = React.useState(true); // Keep separate for pie chart skeleton
+  const [isLoadingProfitByCategory, setIsLoadingProfitByCategory] = React.useState(true);
+  const [isLoadingMonthlyChart, setIsLoadingMonthlyChart] = React.useState(true);
   const [errorMessages, setErrorMessages] = React.useState<string[]>([]);
 
   React.useEffect(() => {
@@ -142,8 +143,9 @@ export default function ProfitReportPage() {
     const fetchReportData = async () => {
       setIsLoadingPage(true);
       setIsLoadingProfitByCategory(true);
+      setIsLoadingMonthlyChart(true);
       setErrorMessages([]);
-      setSummaryStats(null); // Reset on new fetch
+      setSummaryStats(null); 
       setMonthlyProfitChartData([]);
       setTopProducts([]);
       setProfitByCategoryData([]);
@@ -153,13 +155,13 @@ export default function ProfitReportPage() {
 
       if (!storeIdFromUrl) {
         currentErrorMessages.push("No store selected. Please select a store to view reports.");
-        setIsLoadingPage(false); setIsLoadingProfitByCategory(false);
+        setIsLoadingPage(false); setIsLoadingProfitByCategory(false); setIsLoadingMonthlyChart(false);
         setErrorMessages(currentErrorMessages);
         return;
       }
       if (!authUser) {
         currentErrorMessages.push("Authentication issue. Please ensure you are logged in.");
-        setIsLoadingPage(false); setIsLoadingProfitByCategory(false);
+        setIsLoadingPage(false); setIsLoadingProfitByCategory(false); setIsLoadingMonthlyChart(false);
         setErrorMessages(currentErrorMessages);
         return;
       }
@@ -194,7 +196,7 @@ export default function ProfitReportPage() {
             currentErrorMessages.push(`Summary Stats: ${error.message || 'Failed to fetch.'}`);
             setSummaryStats(null);
         } else {
-            setSummaryStats(data); // data can be null if RPC returns {data:null}
+            setSummaryStats(data); 
         }
       } else {
         currentErrorMessages.push(`Summary Stats: ${(summaryResult.reason as Error).message || 'Failed to fetch.'}`);
@@ -203,7 +205,9 @@ export default function ProfitReportPage() {
 
       if (monthlyResult.status === 'fulfilled') {
         const { data, error } = monthlyResult.value;
-        if (error) currentErrorMessages.push(`Monthly Profit Overview: ${error.message || 'Failed to fetch.'}`);
+        if (error) {
+            currentErrorMessages.push(`Monthly Profit Overview: ${error.message || 'Failed to fetch.'}`);
+        }
         if (data) {
           setMonthlyProfitChartData(data.map(item => {
             const parsedDate = parseISO(item.period_start_date);
@@ -217,6 +221,7 @@ export default function ProfitReportPage() {
       } else {
         currentErrorMessages.push(`Monthly Profit Overview: ${(monthlyResult.reason as Error).message || 'Failed to fetch.'}`);
       }
+      setIsLoadingMonthlyChart(false);
       
       if (topProductsResult.status === 'fulfilled') {
         const { data, error } = topProductsResult.value;
@@ -253,7 +258,6 @@ export default function ProfitReportPage() {
   const storeContextMessage = selectedStore ? ` for ${selectedStore.name}` : storeIdFromUrl ? " for selected store" : "";
   const queryParams = storeIdFromUrl ? `?storeId=${storeIdFromUrl}` : "";
 
-  // Calculate derived values for stat cards, ensuring defaults if summaryStats is null
   const ytdGrossProfit = summaryStats?.ytd_gross_profit ?? 0;
   const ytdCogs = summaryStats?.ytd_cogs ?? 0;
   const ytdRevenueForMargin = summaryStats?.ytd_revenue_for_margin_calc ?? 0;
@@ -270,7 +274,7 @@ export default function ProfitReportPage() {
     return profitByCategoryData.map((item, index) => ({
         name: item.category,
         value: item.total_profit,
-        fill: definedColors[index % definedColors.length] || `hsl(${ (index * 60 + 30) % 360 }, 70%, 60%)` // Fallback dynamic color
+        fill: definedColors[index % definedColors.length] || `hsl(${ (index * 60 + 30) % 360 }, 70%, 60%)` 
     }));
   }, [profitByCategoryData]);
 
@@ -350,12 +354,12 @@ export default function ProfitReportPage() {
             <CardDescription>Track your gross profit month over month{storeContextMessage}.</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
-           {isLoadingPage ? (
+           {isLoadingMonthlyChart ? (
               <Skeleton className="h-[300px] w-full" />
            ) : monthlyProfitChartData.length > 0 ? (
             <ChartContainer config={profitChartConfig} className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={monthlyProfitChartData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+                <BarChart data={monthlyProfitChartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis
                     dataKey="month"
@@ -366,19 +370,31 @@ export default function ProfitReportPage() {
                     fontSize={12}
                   />
                   <YAxis
-                    stroke="hsl(var(--muted-foreground))"
+                    yAxisId="left"
+                    stroke="hsl(var(--chart-1))"
                     fontSize={12}
                     tickLine={false}
                     axisLine={false}
                     tickMargin={10}
                     tickFormatter={(value) => `ZMW ${Number(value / 1000).toFixed(0)}k`}
                   />
+                   <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      stroke="hsl(var(--chart-2))"
+                      fontSize={12}
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={10}
+                      tickFormatter={(value) => `ZMW ${Number(value / 1000).toFixed(0)}k`}
+                    />
                   <ChartTooltip
                     cursor={false}
-                    content={<ChartTooltipContent indicator="dashed" formatter={(value) => `ZMW ${Number(value).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}`} />}
+                    content={<ChartTooltipContent indicator="dashed" formatter={(value, name) => name === "profit" ? `Gross Profit: ZMW ${Number(value).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}` : `COGS: ZMW ${Number(value).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}` } />}
                   />
                   <ChartLegend content={<ChartLegendContent />} />
-                  <Bar dataKey="profit" fill="var(--color-profit)" radius={4} name="Gross Profit" />
+                  <Bar yAxisId="left" dataKey="profit" fill="var(--color-profit)" radius={4} name="Gross Profit" />
+                  <Bar yAxisId="right" dataKey="cogs" fill="var(--color-cogs)" radius={4} name="COGS" />
                 </BarChart>
               </ResponsiveContainer>
             </ChartContainer>
@@ -394,7 +410,7 @@ export default function ProfitReportPage() {
                 <CardDescription>Distribution of profit across product categories{storeContextMessage}.</CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center items-center h-[300px]">
-                {isLoadingProfitByCategory ? ( // Use specific loader for pie chart
+                {isLoadingProfitByCategory ? ( 
                     <Skeleton className="h-[250px] w-full" />
                 ) : dynamicProfitByCategoryData.length > 0 ? (
                     <ChartContainer config={profitChartConfig} className="h-full w-full max-h-[250px]">

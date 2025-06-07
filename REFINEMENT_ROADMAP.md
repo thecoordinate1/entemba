@@ -38,7 +38,7 @@ This document outlines the steps to refine the E-Ntemba application, implement n
 
 ## Phase 2: Profit Reporting
 
-- [ ] **Dynamic Profit Report (`/reports/profit/page.tsx`)**
+- [x] **Dynamic Profit Report (`/reports/profit/page.tsx`)**
     - [x] **Backend (Supabase RPCs):**
         - [x] Define & Implement `get_profit_summary_stats(p_store_id UUID)` (Gross Profit, Net Profit, Profit Margin, COGS - requires `products.order_price` or similar for cost).
         - [x] Define & Implement `get_monthly_profit_overview(p_store_id UUID, p_number_of_months INTEGER)`.
@@ -50,9 +50,12 @@ This document outlines the steps to refine the E-Ntemba application, implement n
         - [x] Refactor `/reports/profit/page.tsx` to use dynamic data for stats, monthly trend, top products.
         - [x] Implement loading and error states.
         - [x] **Dynamic "Profit by Category" Pie Chart:**
-            - [x] Backend RPC `get_profit_by_category` implemented.
+            - [x] Backend RPC `get_profit_by_category` implemented and tested.
             - [x] Frontend service and UI updated to use dynamic data.
-- [ ] **Dynamic "All Products Profit" Sub-Page (`/reports/profit/products/page.tsx`)**
+        - [x] **Dynamic "Monthly Gross Profit Trend" Chart:**
+            - [x] Backend RPC `get_monthly_profit_overview` confirmed.
+            - [x] Frontend service and UI updated to use dynamic data for the bar chart.
+- [x] **Dynamic "All Products Profit" Sub-Page (`/reports/profit/products/page.tsx`)**
     - [x] **Backend (Supabase RPC):**
         - [x] Define & Implement `get_all_products_profit_for_store(p_store_id UUID, p_days_period INTEGER DEFAULT NULL)`.
         - [x] Grant permissions for new RPC.
