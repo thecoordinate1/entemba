@@ -15,7 +15,7 @@ import {
   Activity,
   LineChart,
   FileText,
-  AlertCircle 
+  AlertCircle
 } from "lucide-react";
 import {
   ChartContainer,
@@ -39,11 +39,12 @@ import { getStoreOrderStats, getStoreTotalProductsSold, getMonthlySalesOverviewF
 import { getStoreTopSellingProductsRPC, type TopSellingProductFromRPC } from "@/services/productService";
 import { getRecentGlobalCustomersCount } from "@/services/customerService";
 import { getStoreById, type StoreFromSupabase } from "@/services/storeService";
+import { getProfitSummaryStats, type ProfitSummaryStats } from "@/services/reportService"; // Import profit stats
 
 
 const chartConfig = {
   sales: {
-    label: "Sales (ZMW)", 
+    label: "Sales (ZMW)",
     color: "hsl(var(--chart-1))",
   },
   orders: {
@@ -53,7 +54,7 @@ const chartConfig = {
 };
 
 interface SalesChartDataItem {
-  month: string; 
+  month: string;
   sales: number;
   orders: number;
 }
@@ -76,7 +77,7 @@ interface DashboardTopProduct {
   category: string;
   image: string | null;
   dataAiHint: string | null;
-  unitsSold: number; 
+  unitsSold: number;
 }
 
 
@@ -109,7 +110,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, change, c
             "text-xs flex items-center",
             changeType === "positive" && "text-emerald-500",
             changeType === "negative" && "text-red-500",
-            !changeType && "text-muted-foreground" 
+            !changeType && "text-muted-foreground"
           )}>
             {changeType === "positive" && <TrendingUp className="mr-1 h-4 w-4" />}
             {changeType === "negative" && <TrendingDown className="mr-1 h-4 w-4" />}
@@ -136,7 +137,7 @@ const mapRpcTopProductToDashboardUI = (rpcProduct: TopSellingProductFromRPC): Da
     category: rpcProduct.product_category,
     image: rpcProduct.primary_image_url,
     dataAiHint: rpcProduct.primary_image_data_ai_hint,
-    unitsSold: rpcProduct.total_quantity_sold || 0, 
+    unitsSold: rpcProduct.total_quantity_sold || 0,
   };
 };
 
@@ -148,15 +149,16 @@ export default function DashboardPage() {
 
   const [authUser, setAuthUser] = React.useState<AuthUser | null>(null);
   const [selectedStore, setSelectedStore] = React.useState<StoreFromSupabase | null>(null);
-  
+
   const [totalRevenue, setTotalRevenue] = React.useState<number | null>(null);
   const [activeOrdersCount, setActiveOrdersCount] = React.useState<number | null>(null);
   const [productsSoldCount, setProductsSoldCount] = React.useState<number | null>(null);
   const [newCustomersCount, setNewCustomersCount] = React.useState<number | null>(null);
   const [topProducts, setTopProducts] = React.useState<DashboardTopProduct[]>([]);
-  
+  const [profitStats, setProfitStats] = React.useState<ProfitSummaryStats | null>(null); // State for profit stats
+
   const [salesChartData, setSalesChartData] = React.useState<SalesChartDataItem[]>([]);
-  
+
   const [isLoading, setIsLoading] = React.useState(true);
   const [errorMessages, setErrorMessages] = React.useState<string[]>([]);
 
@@ -172,7 +174,7 @@ export default function DashboardPage() {
       if (!storeId || !authUser) {
         setIsLoading(false);
         setTotalRevenue(null); setActiveOrdersCount(null); setProductsSoldCount(null); setNewCustomersCount(null);
-        setTopProducts([]); setSelectedStore(null); setSalesChartData([]);
+        setTopProducts([]); setSelectedStore(null); setSalesChartData([]); setProfitStats(null);
         if (!storeId && authUser) setErrorMessages(["Please select a store to view dashboard analytics."]);
         else if (!authUser) setErrorMessages(["Please sign in to view dashboard analytics."]);
         return;
@@ -180,7 +182,7 @@ export default function DashboardPage() {
 
       setIsLoading(true);
       setErrorMessages([]);
-      
+
       let currentErrorMessages: string[] = [];
 
       const storePromise = getStoreById(storeId, authUser.id);
@@ -189,6 +191,7 @@ export default function DashboardPage() {
       const topProductsPromise = getStoreTopSellingProductsRPC(storeId, 3, 30);
       const salesChartPromise = getMonthlySalesOverviewForStore(storeId, 6);
       const newCustomersPromise = getRecentGlobalCustomersCount(30);
+      const profitStatsPromise = getProfitSummaryStats(storeId); // Fetch profit stats
 
       const results = await Promise.allSettled([
         storePromise,
@@ -196,7 +199,8 @@ export default function DashboardPage() {
         productsSoldPromise,
         topProductsPromise,
         salesChartPromise,
-        newCustomersPromise
+        newCustomersPromise,
+        profitStatsPromise // Add promise to results
       ]);
 
       const [
@@ -205,7 +209,8 @@ export default function DashboardPage() {
         productsSoldResult,
         topProductsResult,
         salesChartResult,
-        newCustomersResult
+        newCustomersResult,
+        profitStatsResult // Get result for profit stats
       ] = results;
 
       // Process Store
@@ -255,10 +260,10 @@ export default function DashboardPage() {
         if (rpcError) currentErrorMessages.push(`Sales Overview: ${rpcError.message}`);
         if (rpcData) {
           const formattedChartData = rpcData.map(item => ({
-            month: isValid(parseISO(item.period_start_date)) ? format(parseISO(item.period_start_date), 'MMMM') : 'Unknown', 
+            month: isValid(parseISO(item.period_start_date)) ? format(parseISO(item.period_start_date), 'MMMM') : 'Unknown',
             sales: item.total_sales || 0,
             orders: item.order_count || 0,
-          })).reverse(); 
+          })).reverse();
           setSalesChartData(formattedChartData);
         } else {
           setSalesChartData([]);
@@ -267,7 +272,7 @@ export default function DashboardPage() {
         currentErrorMessages.push(`Sales Overview: ${(salesChartResult.reason as Error).message}`);
         setSalesChartData([]);
       }
-      
+
       // Process New Customers
       if (newCustomersResult.status === 'fulfilled') {
         const { data, error } = newCustomersResult.value;
@@ -276,6 +281,16 @@ export default function DashboardPage() {
       } else {
         currentErrorMessages.push(`New Customers: ${(newCustomersResult.reason as Error).message}`);
         setNewCustomersCount(null);
+      }
+
+      // Process Profit Stats
+      if (profitStatsResult.status === 'fulfilled') {
+        const { data, error } = profitStatsResult.value;
+        if (error) currentErrorMessages.push(`Profit Stats: ${error.message}`);
+        setProfitStats(data); // Can be null if RPC returns {data:null} or error
+      } else {
+        currentErrorMessages.push(`Profit Stats: ${(profitStatsResult.reason as Error).message}`);
+        setProfitStats(null);
       }
 
       if(currentErrorMessages.length > 0) {
@@ -319,11 +334,11 @@ export default function DashboardPage() {
           ctaText="View Revenue Report"
           isLoading={isLoading}
         />
-         <StatCard 
-          title="Profit (Est.)"
-          value={isLoading ? "Loading..." : (totalRevenue !== null ? `ZMW ${(totalRevenue * 0.25).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")} 
-          icon={LineChart} 
-          description={`Estimated profit${storeContextMessage}.`}
+         <StatCard
+          title="Gross Profit (YTD)"
+          value={isLoading ? "Loading..." : (profitStats?.ytd_gross_profit !== undefined ? `ZMW ${profitStats.ytd_gross_profit.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
+          icon={LineChart}
+          description={`Year-to-date gross profit${storeContextMessage}.`}
           ctaLink={`/reports/profit${queryParams}`}
           ctaText="View Profit Details"
           isLoading={isLoading}
@@ -331,7 +346,7 @@ export default function DashboardPage() {
         <StatCard
           title="Active Orders"
           value={isLoading ? "Loading..." : (activeOrdersCount !== null ? activeOrdersCount.toLocaleString() : "N/A")}
-          icon={Activity} 
+          icon={Activity}
           description={`Orders needing attention${storeContextMessage}.`}
           ctaLink={`/orders${queryParams}`}
           ctaText="Manage Orders"
@@ -353,7 +368,7 @@ export default function DashboardPage() {
           description={`Global new sign-ups (last 30d).`}
           ctaLink={`/customers${queryParams}`}
           ctaText="View Customers"
-          isLoading={isLoading && newCustomersCount === null} 
+          isLoading={isLoading && newCustomersCount === null}
         />
       </div>
 
@@ -362,8 +377,8 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle>Sales Overview</CardTitle>
             <CardDescription>
-              {isLoading 
-                ? `Loading sales trends${storeContextMessage}...` 
+              {isLoading
+                ? `Loading sales trends${storeContextMessage}...`
                 : `Monthly sales and order trends (last 6 months)${storeContextMessage}.`}
             </CardDescription>
           </CardHeader>
@@ -448,17 +463,17 @@ export default function DashboardPage() {
                 {topProducts.map((product) => (
                   <li key={product.id} className="flex items-center gap-4">
                     <Image
-                      src={product.image || "https://placehold.co/48x48.png"} 
-                      alt={product.name} 
+                      src={product.image || "https://placehold.co/48x48.png"}
+                      alt={product.name}
                       width={48}
                       height={48}
                       className="h-12 w-12 rounded-md object-cover border"
-                      data-ai-hint={product.dataAiHint || "product image"} 
+                      data-ai-hint={product.dataAiHint || "product image"}
                     />
                     <div className="flex-1">
                       <p className="text-sm font-medium leading-none">{product.name}</p>
                       <p className="text-xs text-muted-foreground">{product.category}</p>
-                      <p className="text-xs text-muted-foreground">Sold: {product.unitsSold.toLocaleString()}</p> 
+                      <p className="text-xs text-muted-foreground">Sold: {product.unitsSold.toLocaleString()}</p>
                     </div>
                     <Button variant="outline" size="sm" asChild>
                       <Link href={`/products/${product.id}${queryParams}`}>View</Link>
