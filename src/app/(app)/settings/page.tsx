@@ -312,7 +312,7 @@ export default function SettingsPage() {
   return (
     <div className="container mx-auto py-8">
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 mb-6">
+        <TabsList className="flex flex-wrap w-full gap-1 mb-6 h-auto justify-start md:gap-0 md:grid md:grid-cols-5">
           <TabsTrigger value="profile"><User className="mr-2 h-4 w-4 inline-block md:hidden lg:inline-block"/>Profile</TabsTrigger>
           <TabsTrigger value="store"><Building className="mr-2 h-4 w-4 inline-block md:hidden lg:inline-block"/>Store</TabsTrigger>
           <TabsTrigger value="appearance"><Palette className="mr-2 h-4 w-4 inline-block md:hidden lg:inline-block"/>Appearance</TabsTrigger>
@@ -602,5 +602,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
-    

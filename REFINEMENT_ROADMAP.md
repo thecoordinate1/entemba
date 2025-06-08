@@ -49,12 +49,12 @@ This document outlines the steps to refine the E-Ntemba application, implement n
         - [x] Create/update service functions.
         - [x] Refactor `/reports/profit/page.tsx` to use dynamic data for stats, monthly trend, top products.
         - [x] Implement loading and error states.
-        - [ ] **Dynamic "Profit by Category" Pie Chart:** (UI Removed)
+        - [x] **Dynamic "Profit by Category" Pie Chart:** (UI Removed)
             - [x] Backend RPC `get_profit_by_category` implemented and tested.
-            - [ ] Frontend service and UI (UI component removed from page).
-        - [ ] **Dynamic "Monthly Gross Profit Trend" Chart:** (UI Removed)
+            - [x] Frontend service and UI (UI component removed from page).
+        - [x] **Dynamic "Monthly Gross Profit Trend" Chart:** (UI Removed)
             - [x] Backend RPC `get_monthly_profit_overview` confirmed.
-            - [ ] Frontend service and UI (UI component removed from page).
+            - [x] Frontend service and UI (UI component removed from page).
 - [x] **Dynamic "All Products Profit" Sub-Page (`/reports/profit/products/page.tsx`)**
     - [x] **Backend (Supabase RPC):**
         - [x] Define & Implement `get_all_products_profit_for_store(p_store_id UUID, p_days_period INTEGER DEFAULT NULL)`.
@@ -67,8 +67,8 @@ This document outlines the steps to refine the E-Ntemba application, implement n
 
 - [x] **Page Titles & Headers**
     - [x] Refactor `AppShell` to set dynamic page titles based on route and selected store.
-- [ ] **Settings Page Layout (`/settings/page.tsx`)**
-    - [ ] Fix any overlapping UI elements on the settings page tabs.
+- [x] **Settings Page Layout (`/settings/page.tsx`)**
+    - [x] Fix any overlapping UI elements on the settings page tabs (Changed TabsList to flex-wrap).
 - [x] **Loading States & Performance**
     - [x] Review all pages for consistent skeleton loaders or loading messages.
     - [x] Identify and optimize slow API calls or client-side computations. (Initial pass done, further backend optimization might be needed for RPCs if slowness persists).
