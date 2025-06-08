@@ -22,11 +22,12 @@ This document outlines the steps to refine the E-Ntemba application, implement n
     - [x] **Backend Option Discussion:**
         - [x] Decide between Database Trigger or RPC for stock updates. (Decision: Database Trigger)
     - [x] **Backend Implementation (based on decision):**
-        - [x] Implement Supabase Trigger on `orders` table (status change to 'Shipped'/'Delivered') and its associated PL/pgSQL function.
+        - [x] Implement Supabase Trigger on `orders` table (status change to 'Shipped'/'Delivered') and its associated PL/pgSQL function `decrement_product_stock_on_order_completion`.
+        - [x] Implement Supabase Trigger on `orders` table (status change from 'Shipped'/'Delivered' to 'Cancelled') and its associated PL/pgSQL function `increment_product_stock_on_order_event`.
     - [ ] **Frontend (if RPC used):**
         - [ ] (Not applicable as Trigger is chosen)
-    - [ ] **Considerations:**
-        - [ ] Plan for handling stock for order cancellations/returns.
+    - [x] **Considerations:**
+        - [x] Plan for handling stock for order cancellations/returns. (Implemented via `increment_product_stock_on_order_event` trigger)
     - [x] **Testing:**
         - [x] Test stock decrement on order completion.
         - [ ] Test stock increment on order cancellation/return (if implemented).
