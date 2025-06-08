@@ -49,12 +49,12 @@ This document outlines the steps to refine the E-Ntemba application, implement n
         - [x] Create/update service functions.
         - [x] Refactor `/reports/profit/page.tsx` to use dynamic data for stats, monthly trend, top products.
         - [x] Implement loading and error states.
-        - [x] **Dynamic "Profit by Category" Pie Chart:**
+        - [ ] **Dynamic "Profit by Category" Pie Chart:** (UI Removed)
             - [x] Backend RPC `get_profit_by_category` implemented and tested.
-            - [x] Frontend service and UI updated to use dynamic data.
-        - [x] **Dynamic "Monthly Gross Profit Trend" Chart:**
+            - [ ] Frontend service and UI (UI component removed from page).
+        - [ ] **Dynamic "Monthly Gross Profit Trend" Chart:** (UI Removed)
             - [x] Backend RPC `get_monthly_profit_overview` confirmed.
-            - [x] Frontend service and UI updated to use dynamic data for the bar chart.
+            - [ ] Frontend service and UI (UI component removed from page).
 - [x] **Dynamic "All Products Profit" Sub-Page (`/reports/profit/products/page.tsx`)**
     - [x] **Backend (Supabase RPC):**
         - [x] Define & Implement `get_all_products_profit_for_store(p_store_id UUID, p_days_period INTEGER DEFAULT NULL)`.
