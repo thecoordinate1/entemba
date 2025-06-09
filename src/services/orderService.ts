@@ -310,7 +310,7 @@ export async function getOrdersByStoreIdAndStatus(
 
   if (!ordersData) {
     console.warn(`[orderService.getOrdersByStoreIdAndStatus] No orders data returned for store ${storeId} with status ${status}, despite no explicit Supabase error.`);
-    return { data: [], error: null };
+    return { data: [], error: null }; 
   }
 
   console.log(`[orderService.getOrdersByStoreIdAndStatus] Fetched orders count (status: ${status}):`, ordersData?.length);
@@ -399,32 +399,28 @@ export async function getStoreOrderStats(storeId: string): Promise<{ data: Store
 
 export async function getStoreTotalProductsSold(storeId: string): Promise<{ data: { totalSold: number } | null; error: Error | null }> {
   console.log(`[orderService.getStoreTotalProductsSold] Fetching total products sold for store ID: ${storeId}`);
-  if (!storeId) return { data: null, error: new Error("Store ID is required.") };
-
-  const { data: orders, error: ordersError } = await supabase
-    .from('orders')
-    .select('order_items(quantity)')
-    .eq('store_id', storeId);
-
-  if (ordersError) {
-    console.error(`[orderService.getStoreTotalProductsSold] Error fetching order items for store ${storeId}:`, ordersError.message);
-    return { data: null, error: new Error(ordersError.message) };
+  if (!storeId) {
+    console.error("[orderService.getStoreTotalProductsSold] Store ID is required.");
+    return { data: null, error: new Error("Store ID is required.") };
   }
 
-  if (!orders) {
-    return { data: { totalSold: 0 }, error: null };
-  }
-
-  let totalSold = 0;
-  orders.forEach(order => {
-    order.order_items.forEach(item => {
-      totalSold += item.quantity || 0;
-    });
+  const { data, error } = await supabase.rpc('get_total_products_sold_for_store', {
+    p_store_id: storeId,
   });
 
+  if (error) {
+    console.error(`[orderService.getStoreTotalProductsSold] Error calling RPC for store ${storeId}:`, error.message);
+    return { data: null, error: new Error(error.message) };
+  }
+
+  // RPC 'get_total_products_sold_for_store' returns an array with a single object like [{total_products_sold: X}]
+  // or null/empty array if no data.
+  const totalSold = data && data.length > 0 ? data[0].total_products_sold : 0;
+
   console.log(`[orderService.getStoreTotalProductsSold] Total products sold for store ${storeId}: ${totalSold}`);
-  return { data: { totalSold }, error: null };
+  return { data: { totalSold: totalSold }, error: null };
 }
+
 
 export async function getMonthlySalesOverviewForStore(
   storeId: string,
