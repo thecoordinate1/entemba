@@ -28,7 +28,7 @@ This document outlines the steps to refine the E-Ntemba application, implement n
         - [ ] (Not applicable as Trigger is chosen)
     - [x] **Considerations:**
         - [x] Plan for handling stock for order cancellations/returns. (Implemented via `increment_product_stock_on_order_event` trigger)
-    - [x] **Testing:**
+    - [ ] **Testing:**
         - [x] Test stock decrement on order completion.
         - [ ] Test stock increment on order cancellation/return (if implemented).
 - [x] **RLS Policy Implementation & Testing**
@@ -73,7 +73,10 @@ This document outlines the steps to refine the E-Ntemba application, implement n
 - [x] **Loading States & Performance**
     - [x] Review all pages for consistent skeleton loaders or loading messages.
     - [x] Identify and optimize slow API calls or client-side computations. (Initial pass done, further backend optimization might be needed for RPCs if slowness persists).
-    - [ ] Consider pagination for tables (Products, Orders, Customers) if not already sufficient.
+    - [ ] **Consider pagination for tables:**
+        - [x] Products Page (`/products/page.tsx`)
+        - [ ] Orders Page (`/orders/page.tsx`)
+        - [ ] Customers Page (`/customers/page.tsx`)
     - [ ] Review database indexes in Supabase for frequently queried columns.
 
 ## Phase 4: Aggregated Reporting Views

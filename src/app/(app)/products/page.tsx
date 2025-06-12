@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Table,
   TableBody,
@@ -34,7 +34,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Eye, Image as ImageIconLucide, DollarSign, UploadCloud, Tag, Weight, Ruler, Package } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Eye, Image as ImageIconLucide, DollarSign, UploadCloud, Tag, Weight, Ruler, Package, ChevronLeft, ChevronRight } from "lucide-react";
 import NextImage from "next/image"; 
 import {
   AlertDialog,
@@ -47,7 +47,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Product as ProductUIType } from "@/lib/mockData";
 import { Separator } from "@/components/ui/separator";
@@ -63,8 +63,10 @@ import {
     type ProductPayload, 
     type ProductFromSupabase,
 } from "@/services/productService";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const MAX_IMAGES = 5;
+const ITEMS_PER_PAGE = 10;
 
 interface FormImageSlot {
   id?: string; 
@@ -111,6 +113,7 @@ const mapProductFromSupabaseToUI = (product: ProductFromSupabase): ProductUIType
 
 export default function ProductsPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const storeIdFromUrl = searchParams.get("storeId");
   const [selectedStoreName, setSelectedStoreName] = React.useState<string | null>(null); 
 
@@ -143,6 +146,9 @@ export default function ProductsPage() {
   const [formDimWidth, setFormDimWidth] = React.useState<number | string | undefined>(undefined);
   const [formDimHeight, setFormDimHeight] = React.useState<number | string | undefined>(undefined);
 
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const [totalProducts, setTotalProducts] = React.useState(0);
+
 
   React.useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
@@ -158,29 +164,32 @@ export default function ProductsPage() {
         setSelectedStoreName(data?.name || "Selected Store");
       });
 
-
       if (authUser) {
         setIsLoadingProducts(true);
-        getProductsByStoreId(storeIdFromUrl)
-          .then(({ data, error }) => {
+        getProductsByStoreId(storeIdFromUrl, currentPage, ITEMS_PER_PAGE)
+          .then(({ data, count, error }) => {
             if (error) {
               toast({ variant: "destructive", title: "Error fetching products", description: error.message });
               setProducts([]);
+              setTotalProducts(0);
             } else if (data) {
               setProducts(data.map(mapProductFromSupabaseToUI));
+              setTotalProducts(count || 0);
             }
           })
           .finally(() => setIsLoadingProducts(false));
       } else {
         setProducts([]);
+        setTotalProducts(0);
         setIsLoadingProducts(false);
       }
     } else {
       setSelectedStoreName("No Store Selected");
       setProducts([]);
+      setTotalProducts(0);
       setIsLoadingProducts(false);
     }
-  }, [storeIdFromUrl, authUser, toast, supabase]);
+  }, [storeIdFromUrl, authUser, toast, supabase, currentPage]);
 
   const resetImageSlots = () => {
     formImageSlots.forEach(slot => {
@@ -249,7 +258,7 @@ export default function ProductsPage() {
     }
     
     let orderPriceNum: number | undefined | null = undefined;
-    if (formOrderPrice !== undefined && formOrderPrice !== "") {
+    if (formOrderPrice !== undefined && String(formOrderPrice).trim() !== "") {
         orderPriceNum = parseFloat(String(formOrderPrice));
         if (isNaN(orderPriceNum)) orderPriceNum = null; // Explicitly set to null if NaN
     }
@@ -307,11 +316,20 @@ export default function ProductsPage() {
       if (error || !newProductFromBackend) {
         toast({ variant: "destructive", title: "Error Adding Product", description: error?.message || "Could not add product." });
       } else {
-        const newProductUI = mapProductFromSupabaseToUI(newProductFromBackend);
-        setProducts(prev => [newProductUI, ...prev]);
-        toast({ title: "Product Added", description: `${newProductUI.name} has been successfully added.` });
+        // const newProductUI = mapProductFromSupabaseToUI(newProductFromBackend);
+        // setProducts(prev => [newProductUI, ...prev]); // This might need adjustment with pagination
+        toast({ title: "Product Added", description: `${newProductFromBackend.name} has been successfully added.` });
         setIsAddDialogOpen(false);
         resetFormFields();
+        // Refetch current page to include new product if it falls on this page
+        setCurrentPage(1); // Or refetch current page
+        setTotalProducts(prev => prev + 1); // Optimistic update
+        // Trigger refetch
+         getProductsByStoreId(storeIdFromUrl, 1, ITEMS_PER_PAGE).then(({ data, count }) => {
+            if (data) setProducts(data.map(mapProductFromSupabaseToUI));
+            if (count !== null) setTotalProducts(count);
+        });
+
       }
     } catch (e) {
       console.error("Error in handleAddProduct:", e);
@@ -343,8 +361,14 @@ export default function ProductsPage() {
     const slotsFromProduct: FormImageSlot[] = initialImageSlots();
     product.images.forEach((imgUrl, index) => {
         if (index < MAX_IMAGES) {
+            // Find original image ID from DB product_images if it's a complex object, not just URL string
+            // This simplistic way assumes product.dataAiHints might hold some identifier, or just use index.
+            const originalImageInfo = selectedProduct?.id ? 
+              (products.find(p => p.id === selectedProduct.id) as any)?.product_images?.find((pi:any) => pi.image_url === imgUrl && pi.order === index)
+              : null;
+
             slotsFromProduct[index] = {
-                id: product.dataAiHints[index]?.startsWith('imgid_') ? product.dataAiHints[index] : undefined, // Simplistic way to pass id if needed; adjust
+                id: originalImageInfo?.id, 
                 file: null,
                 previewUrl: imgUrl,
                 originalUrl: imgUrl,
@@ -378,7 +402,7 @@ export default function ProductsPage() {
             id: slot.id, 
             file: slot.file || undefined,
             hint: slot.hint,
-            existingUrl: slot.file ? undefined : slot.previewUrl || undefined, 
+            existingUrl: slot.file ? undefined : slot.originalUrl || undefined, 
             order: index, 
         }));
 
@@ -394,12 +418,17 @@ export default function ProductsPage() {
       if (error || !updatedProductFromBackend) {
         toast({ variant: "destructive", title: "Error Updating Product", description: error?.message || "Could not update product." });
       } else {
-        const updatedProductUI = mapProductFromSupabaseToUI(updatedProductFromBackend);
-        setProducts(prev => prev.map(p => p.id === updatedProductUI.id ? updatedProductUI : p));
-        toast({ title: "Product Updated", description: `${updatedProductUI.name} has been successfully updated.` });
+        // const updatedProductUI = mapProductFromSupabaseToUI(updatedProductFromBackend);
+        // setProducts(prev => prev.map(p => p.id === updatedProductUI.id ? updatedProductUI : p));
+        toast({ title: "Product Updated", description: `${updatedProductFromBackend.name} has been successfully updated.` });
         setIsEditDialogOpen(false);
         resetFormFields();
         setSelectedProduct(null);
+         // Trigger refetch of current page
+        getProductsByStoreId(storeIdFromUrl, currentPage, ITEMS_PER_PAGE).then(({ data, count }) => {
+            if (data) setProducts(data.map(mapProductFromSupabaseToUI));
+            if (count !== null) setTotalProducts(count);
+        });
       }
     } catch (e) {
         console.error("Error in handleEditProduct:", e);
@@ -425,10 +454,22 @@ export default function ProductsPage() {
       if (error) {
         toast({ variant: "destructive", title: "Error Deleting Product", description: error.message });
       } else {
-        setProducts(prev => prev.filter(p => p.id !== selectedProduct.id));
+        // setProducts(prev => prev.filter(p => p.id !== selectedProduct!.id));
         toast({ title: "Product Deleted", description: `${selectedProduct.name} has been successfully deleted.`, variant: "default" });
         setIsDeleteDialogOpen(false);
         setSelectedProduct(null);
+         // Refetch current page data, potentially moving to previous page if current becomes empty
+        setTotalProducts(prev => prev -1);
+        const newTotalPages = Math.ceil((totalProducts - 1) / ITEMS_PER_PAGE);
+        const newCurrentPage = Math.min(currentPage, newTotalPages > 0 ? newTotalPages : 1);
+        if (currentPage !== newCurrentPage) {
+            setCurrentPage(newCurrentPage);
+        } else {
+             getProductsByStoreId(storeIdFromUrl, newCurrentPage, ITEMS_PER_PAGE).then(({ data, count }) => {
+                if (data) setProducts(data.map(mapProductFromSupabaseToUI));
+                if (count !== null) setTotalProducts(count);
+            });
+        }
       }
     } catch (e) {
         console.error("Error in handleDeleteProduct:", e);
@@ -574,6 +615,16 @@ export default function ProductsPage() {
     </>
   );
 
+  const totalPages = Math.ceil(totalProducts / ITEMS_PER_PAGE);
+
+  const handlePreviousPage = () => {
+    setCurrentPage((prev) => Math.max(prev - 1, 1));
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage((prev) => Math.min(prev + 1, totalPages));
+  };
+
 
   return (
     <div className="flex flex-col gap-6">
@@ -625,7 +676,11 @@ export default function ProductsPage() {
       {authUser && storeIdFromUrl && selectedStoreName && <p className="text-sm text-muted-foreground">Showing products for store: <span className="font-semibold">{selectedStoreName}</span>. New products will be added to this store.</p>}
 
       {isLoadingProducts && authUser && storeIdFromUrl && (
-        <div className="text-center text-muted-foreground py-10">Loading products...</div>
+        <div className="space-y-2">
+          {[...Array(ITEMS_PER_PAGE)].map((_, i) => (
+            <Skeleton key={`skel-prod-row-${i}`} className="h-16 w-full" />
+          ))}
+        </div>
       )}
 
       {!isLoadingProducts && authUser && storeIdFromUrl && (
@@ -718,6 +773,38 @@ export default function ProductsPage() {
             </TableBody>
             </Table>
         </CardContent>
+         {totalPages > 1 && (
+            <CardFooter className="flex items-center justify-between border-t pt-4">
+              <span className="text-sm text-muted-foreground">
+                Page {currentPage} of {totalPages} ({totalProducts} products)
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePreviousPage}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="mr-1 h-4 w-4" />
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                  <ChevronRight className="ml-1 h-4 w-4" />
+                </Button>
+              </div>
+            </CardFooter>
+          )}
+          {totalProducts === 0 && !isLoadingProducts && (
+             <CardFooter className="flex items-center justify-center border-t pt-4">
+                <p className="text-sm text-muted-foreground">No products found.</p>
+             </CardFooter>
+          )}
         </Card>
       )}
 
@@ -765,9 +852,9 @@ export default function ProductsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {!isLoadingProducts && authUser && storeIdFromUrl && filteredProducts.length === 0 && (
+      {!isLoadingProducts && authUser && storeIdFromUrl && filteredProducts.length === 0 && products.length > 0 && (
         <div className="text-center text-muted-foreground py-10">
-          {searchTerm ? `No products found matching "${searchTerm}".` : "No products yet for this store. Click \"Add Product\" to get started."}
+          No products found matching "{searchTerm}".
         </div>
       )}
     </div>

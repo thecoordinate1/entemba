@@ -131,18 +131,26 @@ async function uploadProductImage(
 
 const COMMON_PRODUCT_SELECT = 'id, store_id, name, category, price, order_price, stock, status, description, full_description, sku, tags, weight_kg, dimensions_cm, created_at, updated_at, product_images(*)';
 
-export async function getProductsByStoreId(storeId: string): Promise<{ data: ProductFromSupabase[] | null; error: Error | null }> {
-  console.log('[productService.getProductsByStoreId] Fetching products for store_id:', storeId);
+export async function getProductsByStoreId(
+  storeId: string,
+  page: number = 1,
+  limit: number = 10
+): Promise<{ data: ProductFromSupabase[] | null; count: number | null; error: Error | null }> {
+  console.log(`[productService.getProductsByStoreId] Fetching products for store_id: ${storeId}, page: ${page}, limit: ${limit}`);
 
-  const { data: productsData, error: productsError } = await supabase
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  const { data: productsData, error: productsError, count } = await supabase
     .from('products')
-    .select(COMMON_PRODUCT_SELECT) 
+    .select(COMMON_PRODUCT_SELECT, { count: 'exact' }) 
     .eq('store_id', storeId)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .range(from, to);
 
   if (productsError) {
     console.error('[productService.getProductsByStoreId] Supabase fetch products error:', productsError);
-    return { data: null, error: new Error(productsError.message || 'Failed to fetch products.') };
+    return { data: null, count: null, error: new Error(productsError.message || 'Failed to fetch products.') };
   }
 
   if (productsData) {
@@ -153,8 +161,8 @@ export async function getProductsByStoreId(storeId: string): Promise<{ data: Pro
     });
   }
 
-  console.log('[productService.getProductsByStoreId] Fetched products count:', productsData?.length);
-  return { data: productsData as ProductFromSupabase[] | null, error: null };
+  console.log('[productService.getProductsByStoreId] Fetched products count:', productsData?.length, 'Total count:', count);
+  return { data: productsData as ProductFromSupabase[] | null, count: count, error: null };
 }
 
 
