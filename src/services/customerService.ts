@@ -55,19 +55,27 @@ const COMMON_CUSTOMER_SELECT = `
   joined_date, last_order_date, total_spent, total_orders, created_at, updated_at
 `;
 
-export async function getCustomers(): Promise<{ data: CustomerFromSupabase[] | null; error: Error | null }> {
-  console.log('[customerService.getCustomers] Fetching all customers');
-  const { data, error } = await supabase
+export async function getCustomers(
+  page: number = 1,
+  limit: number = 10
+): Promise<{ data: CustomerFromSupabase[] | null; count: number | null; error: Error | null }> {
+  console.log(`[customerService.getCustomers] Fetching customers, page: ${page}, limit: ${limit}`);
+  
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  const { data, error, count } = await supabase
     .from('customers')
-    .select(COMMON_CUSTOMER_SELECT)
-    .order('created_at', { ascending: false });
+    .select(COMMON_CUSTOMER_SELECT, { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(from, to);
 
   if (error) {
     console.error('[customerService.getCustomers] Supabase fetch error:', error);
-    return { data: null, error: new Error(error.message || 'Failed to fetch customers.') };
+    return { data: null, count: null, error: new Error(error.message || 'Failed to fetch customers.') };
   }
-  console.log('[customerService.getCustomers] Fetched customers count:', data?.length);
-  return { data, error: null };
+  console.log('[customerService.getCustomers] Fetched customers count:', data?.length, 'Total count:', count);
+  return { data, count, error: null };
 }
 
 export async function getCustomerById(customerId: string): Promise<{ data: CustomerFromSupabase | null; error: Error | null }> {
@@ -218,3 +226,4 @@ export async function getRecentGlobalCustomersCount(days: number = 30): Promise<
   console.log(`[customerService.getRecentGlobalCustomersCount] Count: ${count ?? 0}`);
   return { data: { count: count ?? 0 }, error: null };
 }
+

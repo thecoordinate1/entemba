@@ -24,8 +24,8 @@ This document outlines the steps to refine the E-Ntemba application, implement n
     - [x] **Backend Implementation (based on decision):**
         - [x] Implement Supabase Trigger on `orders` table (status change to 'Shipped'/'Delivered') and its associated PL/pgSQL function `decrement_product_stock_on_order_completion`.
         - [x] Implement Supabase Trigger on `orders` table (status change from 'Shipped'/'Delivered' to 'Cancelled') and its associated PL/pgSQL function `increment_product_stock_on_order_event`.
-    - [ ] **Frontend (if RPC used):**
-        - [ ] (Not applicable as Trigger is chosen)
+    - [x] **Frontend (if RPC used):**
+        - [x] (Not applicable as Trigger is chosen)
     - [x] **Considerations:**
         - [x] Plan for handling stock for order cancellations/returns. (Implemented via `increment_product_stock_on_order_event` trigger)
     - [x] **Testing:**
@@ -76,10 +76,10 @@ This document outlines the steps to refine the E-Ntemba application, implement n
 - [x] **Loading States & Performance**
     - [x] Review all pages for consistent skeleton loaders or loading messages.
     - [x] Identify and optimize slow API calls or client-side computations. (Initial pass done, further backend optimization might be needed for RPCs if slowness persists).
-    - [ ] **Consider pagination for tables:**
+    - [x] **Consider pagination for tables:**
         - [x] Products Page (`/products/page.tsx`)
         - [x] Orders Page (`/orders/page.tsx`)
-        - [ ] Customers Page (`/customers/page.tsx`)
+        - [x] Customers Page (`/customers/page.tsx`)
     - [ ] Review database indexes in Supabase for frequently queried columns.
 
 ## Phase 4: Aggregated Reporting Views
@@ -166,3 +166,4 @@ This document outlines the steps to refine the E-Ntemba application, implement n
 
 ---
 *This roadmap will be updated as tasks are completed.*
+

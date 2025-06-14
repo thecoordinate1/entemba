@@ -29,10 +29,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"; // Removed DialogTrigger
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Edit, Trash2, Search, Eye, User, Users, ShieldCheck, ShieldX } from "lucide-react";
+import { MoreHorizontal, Edit, Trash2, Search, Eye, User, Users, ShieldCheck, ShieldX, ChevronLeft, ChevronRight } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   AlertDialog,
@@ -45,10 +45,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent } from "@/components/ui/card"; // Removed CardHeader, CardTitle
+import { Card, CardContent, CardFooter } from "@/components/ui/card"; 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Customer as CustomerUIType, CustomerStatus } from "@/lib/mockData";
-import { customerStatusColors } from "@/lib/mockData"; // Removed initialStores
+import { customerStatusColors } from "@/lib/mockData";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -62,6 +62,8 @@ import {
   type CustomerFromSupabase,
   type CustomerPayload,
 } from "@/services/customerService";
+
+const ITEMS_PER_PAGE = 10;
 
 // Form data type for Edit dialog
 interface CustomerFormData {
@@ -122,7 +124,7 @@ const mapCustomerFromSupabaseToUI = (customer: CustomerFromSupabase): CustomerUI
 
 export default function CustomersPage() {
   const searchParams = useSearchParams();
-  const storeId = searchParams.get("storeId"); // Keep for context message, though customers are global
+  const storeId = searchParams.get("storeId"); 
 
   const [customers, setCustomers] = React.useState<CustomerUIType[]>([]);
   const [isLoadingCustomers, setIsLoadingCustomers] = React.useState(true);
@@ -138,6 +140,9 @@ export default function CustomersPage() {
   const supabase = createClient();
   const [authUser, setAuthUser] = React.useState<AuthUser | null>(null);
 
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const [totalCustomers, setTotalCustomers] = React.useState(0);
+
   React.useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setAuthUser(user));
   }, [supabase]);
@@ -147,21 +152,24 @@ export default function CustomersPage() {
       if (!authUser) {
         setIsLoadingCustomers(false);
         setCustomers([]);
+        setTotalCustomers(0);
         return;
       }
       setIsLoadingCustomers(true);
-      const { data, error } = await getCustomers();
+      const { data, count, error } = await getCustomers(currentPage, ITEMS_PER_PAGE);
       if (error) {
         toast({ variant: "destructive", title: "Error Fetching Customers", description: error.message });
         setCustomers([]);
+        setTotalCustomers(0);
       } else if (data) {
         setCustomers(data.map(mapCustomerFromSupabaseToUI));
+        setTotalCustomers(count || 0);
       }
       setIsLoadingCustomers(false);
     };
 
     fetchCustomersData();
-  }, [authUser, toast]);
+  }, [authUser, currentPage, toast]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -218,10 +226,21 @@ export default function CustomersPage() {
     if (error) {
       toast({ variant: "destructive", title: "Error Deleting Customer", description: error.message });
     } else {
-      setCustomers(customers.filter(c => c.id !== selectedCustomer.id));
-      setIsDeleteDialogOpen(false);
       toast({ title: "Customer Deleted", description: `${selectedCustomer.name} has been successfully deleted.`, variant: "destructive" });
+      setIsDeleteDialogOpen(false);
       setSelectedCustomer(null);
+      // Refetch customers for the current page or adjust pagination
+      setTotalCustomers(prev => prev - 1);
+      const newTotalPages = Math.ceil((totalCustomers - 1) / ITEMS_PER_PAGE);
+      const newCurrentPage = Math.min(currentPage, newTotalPages > 0 ? newTotalPages : 1);
+      if (currentPage !== newCurrentPage) {
+          setCurrentPage(newCurrentPage);
+      } else {
+          // If still on the same page, refetch to update list
+          const { data, count } = await getCustomers(newCurrentPage, ITEMS_PER_PAGE);
+          if (data) setCustomers(data.map(mapCustomerFromSupabaseToUI));
+          if (count !== null) setTotalCustomers(count);
+      }
     }
   };
 
@@ -324,6 +343,16 @@ export default function CustomersPage() {
     </>
   );
 
+  const totalPages = Math.ceil(totalCustomers / ITEMS_PER_PAGE);
+
+  const handlePreviousPage = () => {
+    setCurrentPage((prev) => Math.max(prev - 1, 1));
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage((prev) => Math.min(prev + 1, totalPages));
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -340,7 +369,6 @@ export default function CustomersPage() {
               disabled={!authUser}
             />
           </div>
-          {/* "Add Customer" button and dialog removed */}
         </div>
       </div>
       {storeId && <p className="text-sm text-muted-foreground">Displaying all customers. Store-specific customer views and metrics may be filtered in the future if needed.</p>}
@@ -348,10 +376,10 @@ export default function CustomersPage() {
 
 
       {isLoadingCustomers && authUser && (
-         <div className="space-y-4">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
+         <div className="space-y-2">
+          {[...Array(ITEMS_PER_PAGE / 2)].map((_, i) => (
+            <Skeleton key={`skel-cust-row-${i}`} className="h-16 w-full" />
+          ))}
         </div>
       )}
 
@@ -425,6 +453,40 @@ export default function CustomersPage() {
               </TableBody>
             </Table>
           </CardContent>
+          {totalPages > 1 && (
+            <CardFooter className="flex items-center justify-between border-t pt-4">
+              <span className="text-sm text-muted-foreground">
+                Page {currentPage} of {totalPages} ({totalCustomers} customers)
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePreviousPage}
+                  disabled={currentPage === 1 || isLoadingCustomers}
+                >
+                  <ChevronLeft className="mr-1 h-4 w-4" />
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages || isLoadingCustomers}
+                >
+                  Next
+                  <ChevronRight className="ml-1 h-4 w-4" />
+                </Button>
+              </div>
+            </CardFooter>
+          )}
+          {totalCustomers === 0 && !isLoadingCustomers && (
+             <CardFooter className="flex items-center justify-center border-t pt-4">
+                <p className="text-sm text-muted-foreground">
+                    {searchTerm ? `No customers found matching "${searchTerm}".` : "No customers yet. New customers will be added when you create an order for them."}
+                </p>
+             </CardFooter>
+          )}
         </Card>
       )}
 
@@ -473,16 +535,12 @@ export default function CustomersPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {!isLoadingCustomers && authUser && filteredCustomers.length === 0 && searchTerm && (
+      {!isLoadingCustomers && authUser && filteredCustomers.length === 0 && customers.length > 0 && searchTerm && (
         <div className="text-center text-muted-foreground py-10">
           No customers found matching "{searchTerm}".
-        </div>
-      )}
-      {!isLoadingCustomers && authUser && filteredCustomers.length === 0 && !searchTerm && customers.length === 0 && (
-        <div className="text-center text-muted-foreground py-10 col-span-full">
-          No customers yet. New customers will be added when you create an order for them.
         </div>
       )}
     </div>
   );
 }
+
