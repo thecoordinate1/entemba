@@ -80,7 +80,7 @@ This document outlines the steps to refine the E-Ntemba application, implement n
         - [x] Products Page (`/products/page.tsx`)
         - [x] Orders Page (`/orders/page.tsx`)
         - [x] Customers Page (`/customers/page.tsx`)
-    - [ ] Review database indexes in Supabase for frequently queried columns.
+    - [ ] **Review database indexes in Supabase for frequently queried columns.** (Guidance Provided / User to Implement)
 
 ## Phase 4: Aggregated Reporting Views
 
