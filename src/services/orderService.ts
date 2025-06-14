@@ -81,14 +81,22 @@ const commonOrderSelect = `
   )
 `;
 
-export async function getOrdersByStoreId(storeId: string): Promise<{ data: OrderFromSupabase[] | null; error: Error | null }> {
-  console.log('[orderService.getOrdersByStoreId] Fetching orders for store_id:', storeId);
+export async function getOrdersByStoreId(
+  storeId: string,
+  page: number = 1,
+  limit: number = 10
+): Promise<{ data: OrderFromSupabase[] | null; count: number | null; error: Error | null }> {
+  console.log(`[orderService.getOrdersByStoreId] Fetching orders for store_id: ${storeId}, page: ${page}, limit: ${limit}`);
 
-  const { data: ordersData, error: ordersError } = await supabase
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  const { data: ordersData, error: ordersError, count } = await supabase
     .from('orders')
-    .select(commonOrderSelect)
+    .select(commonOrderSelect, { count: 'exact' })
     .eq('store_id', storeId)
-    .order('order_date', { ascending: false });
+    .order('order_date', { ascending: false })
+    .range(from, to);
 
   if (ordersError) {
     let message = ordersError.message || 'Failed to fetch orders.';
@@ -98,16 +106,16 @@ export async function getOrdersByStoreId(storeId: string): Promise<{ data: Order
     console.error('[orderService.getOrdersByStoreId] Supabase fetch orders error:', message, 'Original Supabase Error:', JSON.stringify(ordersError, null, 2));
     const errorToReturn = new Error(message);
     (errorToReturn as any).details = ordersError;
-    return { data: null, error: errorToReturn };
+    return { data: null, count: null, error: errorToReturn };
   }
 
   if (!ordersData) {
     console.warn(`[orderService.getOrdersByStoreId] No orders data returned for store ${storeId}, despite no explicit Supabase error. This could be due to RLS or no orders existing for this store.`);
-    return { data: [], error: null };
+    return { data: [], count: 0, error: null };
   }
 
-  console.log('[orderService.getOrdersByStoreId] Fetched orders count:', ordersData?.length);
-  return { data: ordersData as OrderFromSupabase[] | null, error: null };
+  console.log('[orderService.getOrdersByStoreId] Fetched orders count:', ordersData?.length, "Total count:", count);
+  return { data: ordersData as OrderFromSupabase[] | null, count: count, error: null };
 }
 
 
@@ -286,16 +294,22 @@ export async function updateOrderStatus(
 
 export async function getOrdersByStoreIdAndStatus(
   storeId: string,
-  status: OrderStatus
-): Promise<{ data: OrderFromSupabase[] | null; error: Error | null }> {
-  console.log(`[orderService.getOrdersByStoreIdAndStatus] Fetching orders for store_id: ${storeId} with status: ${status}`);
+  status: OrderStatus,
+  page: number = 1,
+  limit: number = 10
+): Promise<{ data: OrderFromSupabase[] | null; count: number | null; error: Error | null }> {
+  console.log(`[orderService.getOrdersByStoreIdAndStatus] Fetching orders for store_id: ${storeId}, status: ${status}, page: ${page}, limit: ${limit}`);
 
-  const { data: ordersData, error: ordersError } = await supabase
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  const { data: ordersData, error: ordersError, count } = await supabase
     .from('orders')
-    .select(commonOrderSelect)
+    .select(commonOrderSelect, { count: 'exact' })
     .eq('store_id', storeId)
     .eq('status', status)
-    .order('order_date', { ascending: false });
+    .order('order_date', { ascending: false })
+    .range(from, to);
 
   if (ordersError) {
     let message = ordersError.message || `Failed to fetch orders with status ${status}.`;
@@ -305,16 +319,16 @@ export async function getOrdersByStoreIdAndStatus(
     console.error(`[orderService.getOrdersByStoreIdAndStatus] Supabase fetch error (status: ${status}):`, message, 'Original Supabase Error:', JSON.stringify(ordersError, null, 2));
     const errorToReturn = new Error(message);
     (errorToReturn as any).details = ordersError;
-    return { data: null, error: errorToReturn };
+    return { data: null, count: null, error: errorToReturn };
   }
 
   if (!ordersData) {
     console.warn(`[orderService.getOrdersByStoreIdAndStatus] No orders data returned for store ${storeId} with status ${status}, despite no explicit Supabase error.`);
-    return { data: [], error: null }; 
+    return { data: [], count: 0, error: null }; 
   }
 
-  console.log(`[orderService.getOrdersByStoreIdAndStatus] Fetched orders count (status: ${status}):`, ordersData?.length);
-  return { data: ordersData as OrderFromSupabase[] | null, error: null };
+  console.log(`[orderService.getOrdersByStoreIdAndStatus] Fetched orders count (status: ${status}):`, ordersData?.length, "Total count:", count);
+  return { data: ordersData as OrderFromSupabase[] | null, count: count, error: null };
 }
 
 export async function getOrdersByCustomerAndStore(
@@ -409,12 +423,16 @@ export async function getStoreTotalProductsSold(storeId: string): Promise<{ data
   });
 
   if (error) {
-    console.error(`[orderService.getStoreTotalProductsSold] Error calling RPC for store ${storeId}:`, error.message);
-    return { data: null, error: new Error(error.message) };
+    let detailedErrorMessage = error.message || 'Failed to fetch total products sold from RPC.';
+    if (error.message.includes("function get_total_products_sold_for_store") && error.message.includes("does not exist")) {
+        detailedErrorMessage = `RPC Error: ${error.message}. Ensure the 'get_total_products_sold_for_store(UUID)' function is correctly defined in your Supabase SQL Editor and that the 'authenticated' role has EXECUTE permission on it.`;
+    } else if (error.message.includes("permission denied for function")) {
+         detailedErrorMessage = `RPC Error: ${error.message}. The 'authenticated' role (or the role your user is using) lacks EXECUTE permission on the 'get_total_products_sold_for_store' function. Please grant permission using: GRANT EXECUTE ON FUNCTION get_total_products_sold_for_store(UUID) TO authenticated;`;
+    }
+    console.error(`[orderService.getStoreTotalProductsSold] Error calling RPC for store ${storeId}:`, detailedErrorMessage, 'Original Supabase Error:', JSON.stringify(error, null, 2));
+    return { data: null, error: new Error(detailedErrorMessage) };
   }
-
-  // RPC 'get_total_products_sold_for_store' returns an array with a single object like [{total_products_sold: X}]
-  // or null/empty array if no data.
+  
   const totalSold = data && data.length > 0 ? data[0].total_products_sold : 0;
 
   console.log(`[orderService.getStoreTotalProductsSold] Total products sold for store ${storeId}: ${totalSold}`);

@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -33,7 +33,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { DollarSign, Eye, Filter, MoreHorizontal, PlusCircle, Printer, Search, ShoppingCart, Trash2, Truck, MapPin } from "lucide-react";
+import { DollarSign, Eye, Filter, MoreHorizontal, PlusCircle, Printer, Search, ShoppingCart, Trash2, Truck, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import * as React from "react";
@@ -42,7 +42,10 @@ import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import { getOrdersByStoreId, createOrder, updateOrderStatus, type OrderPayload, type OrderItemPayload, type OrderFromSupabase, getOrdersByStoreIdAndStatus } from "@/services/orderService";
 import { getProductsByStoreId as fetchStoreProducts, type ProductFromSupabase } from "@/services/productService";
-import { getCustomerByEmail, createCustomer as createNewCustomer, type CustomerPayload as NewCustomerPayload, type CustomerFromSupabase as CustomerFromSupabaseType } from "@/services/customerService";
+import { getCustomerByEmail, createCustomer as createNewCustomer, type CustomerPayload as NewCustomerPayload } from "@/services/customerService";
+import { Skeleton } from "@/components/ui/skeleton";
+
+const ITEMS_PER_PAGE = 10;
 
 interface NewOrderItemEntry {
   productId: string;
@@ -93,7 +96,6 @@ const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
   };
 };
 
-// Helper to map backend product to UI product type for the dropdown
 const mapProductFromSupabaseToProductUIType = (product: ProductFromSupabase): ProductUIType => {
   return {
     id: product.id,
@@ -144,6 +146,9 @@ export default function OrdersPage() {
   const supabase = createClient();
   const [authUser, setAuthUser] = React.useState<User | null>(null);
 
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const [totalOrders, setTotalOrders] = React.useState(0);
+
   React.useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       setAuthUser(session?.user ?? null);
@@ -160,28 +165,30 @@ export default function OrdersPage() {
 
       if (authUser) {
         setIsLoadingOrders(true);
-        setIsLoadingStoreProducts(true);
+        setIsLoadingStoreProducts(true); // Keep this for Add Order dialog
 
         let fetchPromise;
         if (statusFilter === "All") {
-          fetchPromise = getOrdersByStoreId(storeIdFromUrl);
+          fetchPromise = getOrdersByStoreId(storeIdFromUrl, currentPage, ITEMS_PER_PAGE);
         } else {
-          fetchPromise = getOrdersByStoreIdAndStatus(storeIdFromUrl, statusFilter);
+          fetchPromise = getOrdersByStoreIdAndStatus(storeIdFromUrl, statusFilter, currentPage, ITEMS_PER_PAGE);
         }
 
         fetchPromise
-          .then(({ data, error }) => {
+          .then(({ data, count, error }) => {
             if (error) {
               toast({ variant: "destructive", title: "Error fetching orders", description: error.message });
               setOrders([]);
+              setTotalOrders(0);
             } else if (data) {
               setOrders(data.map(mapOrderFromSupabaseToUI));
+              setTotalOrders(count || 0);
             }
           })
           .finally(() => setIsLoadingOrders(false));
 
-        // Fetch products for the store
-        fetchStoreProducts(storeIdFromUrl)
+        // Fetch products for the store (no pagination needed for this dropdown)
+        fetchStoreProducts(storeIdFromUrl, 1, 1000) // Fetch a large number for dropdown
           .then(({ data: productsData, error: productsError }) => {
             if (productsError) {
               toast({ variant: "destructive", title: "Error fetching store products", description: productsError.message });
@@ -194,6 +201,7 @@ export default function OrdersPage() {
 
       } else {
         setOrders([]);
+        setTotalOrders(0);
         setIsLoadingOrders(false);
         setStoreProducts([]);
         setIsLoadingStoreProducts(false);
@@ -201,11 +209,12 @@ export default function OrdersPage() {
     } else {
       setSelectedStoreName("No Store Selected");
       setOrders([]);
+      setTotalOrders(0);
       setIsLoadingOrders(false);
       setStoreProducts([]);
       setIsLoadingStoreProducts(false);
     }
-  }, [storeIdFromUrl, authUser, statusFilter, toast, supabase]);
+  }, [storeIdFromUrl, authUser, statusFilter, currentPage, toast, supabase]);
 
 
   const handleUpdateStatus = async (orderId: string, newStatus: OrderStatus, trackingNumber?: string) => {
@@ -228,7 +237,7 @@ export default function OrdersPage() {
                           order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           order.customerEmail.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSearch;
-  }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }); // Sorting by date is handled by the service now.
 
 
   const resetAddOrderForm = () => {
@@ -308,7 +317,6 @@ export default function OrdersPage() {
     let customerIdForOrder: string | null = null;
 
     try {
-      // Check if customer exists
       const { data: existingCustomer, error: getCustomerError } = await getCustomerByEmail(newOrderData.customerEmail);
       if (getCustomerError) {
         throw new Error(`Failed to check for existing customer: ${getCustomerError.message}`);
@@ -316,22 +324,17 @@ export default function OrdersPage() {
 
       if (existingCustomer) {
         customerIdForOrder = existingCustomer.id;
-        console.log(`[OrdersPage] Using existing customer ID: ${customerIdForOrder}`);
       } else {
-        // Create new customer
-        console.log(`[OrdersPage] Customer not found, creating new one for email: ${newOrderData.customerEmail}`);
         const newCustomerPayload: NewCustomerPayload = {
           name: newOrderData.customerName,
           email: newOrderData.customerEmail,
-          status: 'Active', // Default status
-          // Add other default fields if necessary, or leave them as null/undefined
+          status: 'Active',
         };
         const { data: newlyCreatedCustomer, error: createCustomerError } = await createNewCustomer(newCustomerPayload);
         if (createCustomerError || !newlyCreatedCustomer) {
           throw new Error(`Failed to create new customer: ${createCustomerError?.message || 'Unknown error'}`);
         }
         customerIdForOrder = newlyCreatedCustomer.id;
-        console.log(`[OrdersPage] New customer created with ID: ${customerIdForOrder}`);
       }
     } catch (error: any) {
       toast({ variant: "destructive", title: "Customer Management Error", description: error.message });
@@ -342,7 +345,7 @@ export default function OrdersPage() {
 
     const orderPayload: OrderPayload = {
       store_id: storeIdFromUrl,
-      customer_id: customerIdForOrder, // Link to customer
+      customer_id: customerIdForOrder,
       customer_name: newOrderData.customerName,
       customer_email: newOrderData.customerEmail,
       total_amount: calculateNewOrderTotal,
@@ -370,13 +373,31 @@ export default function OrdersPage() {
     if (error || !newOrderFromBackend) {
       toast({ variant: "destructive", title: "Error Creating Order", description: error?.message || "Could not create order." });
     } else {
-      const newOrderUI = mapOrderFromSupabaseToUI(newOrderFromBackend);
-      setOrders(prev => [newOrderUI, ...prev]);
-      toast({ title: "Order Created", description: `Order ${newOrderUI.id} has been successfully created for ${selectedStoreName || 'the current store'}.` });
+      toast({ title: "Order Created", description: `Order ${newOrderFromBackend.id} has been successfully created for ${selectedStoreName || 'the current store'}.` });
       setIsAddOrderDialogOpen(false);
       resetAddOrderForm();
+      // Refetch current page to include new order if it falls on this page (and sort is by date desc)
+      if (currentPage === 1) { // Only auto-refresh if on the first page for new items
+        const { data, count } = statusFilter === "All"
+          ? await getOrdersByStoreId(storeIdFromUrl, 1, ITEMS_PER_PAGE)
+          : await getOrdersByStoreIdAndStatus(storeIdFromUrl, statusFilter, 1, ITEMS_PER_PAGE);
+        if (data) setOrders(data.map(mapOrderFromSupabaseToUI));
+        if (count !== null) setTotalOrders(count);
+      } else {
+        setCurrentPage(1); // Go to first page to see new order
+      }
     }
     setIsSubmitting(false);
+  };
+
+  const totalPages = Math.ceil(totalOrders / ITEMS_PER_PAGE);
+
+  const handlePreviousPage = () => {
+    setCurrentPage((prev) => Math.max(prev - 1, 1));
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage((prev) => Math.min(prev + 1, totalPages));
   };
 
 
@@ -407,7 +428,7 @@ export default function OrdersPage() {
               <DropdownMenuSeparator />
               <DropdownMenuCheckboxItem
                 checked={statusFilter === "All"}
-                onCheckedChange={() => setStatusFilter("All")}
+                onCheckedChange={() => { setStatusFilter("All"); setCurrentPage(1); }}
               >
                 All
               </DropdownMenuCheckboxItem>
@@ -415,7 +436,7 @@ export default function OrdersPage() {
                 <DropdownMenuCheckboxItem
                   key={status}
                   checked={statusFilter === status}
-                  onCheckedChange={() => setStatusFilter(status)}
+                  onCheckedChange={() => { setStatusFilter(status); setCurrentPage(1);}}
                 >
                   {status}
                 </DropdownMenuCheckboxItem>
@@ -591,7 +612,11 @@ export default function OrdersPage() {
       {authUser && storeIdFromUrl && selectedStoreName && <p className="text-sm text-muted-foreground">Showing orders for store: <span className="font-semibold">{selectedStoreName}</span>. New orders will be added to this store.</p>}
 
       {isLoadingOrders && authUser && storeIdFromUrl && (
-        <div className="text-center text-muted-foreground py-10">Loading orders...</div>
+         <div className="space-y-2">
+          {[...Array(ITEMS_PER_PAGE / 2)].map((_, i) => ( // Show fewer skeletons
+            <Skeleton key={`skel-order-row-${i}`} className="h-16 w-full" />
+          ))}
+        </div>
       )}
 
       {!isLoadingOrders && authUser && storeIdFromUrl && (
@@ -615,7 +640,7 @@ export default function OrdersPage() {
                   const Icon = orderStatusIcons[order.status];
                   return (
                     <TableRow key={order.id}>
-                      <TableCell className="font-medium">{order.id}</TableCell>
+                      <TableCell className="font-medium">{order.id.substring(0,8)}...</TableCell>
                       <TableCell>
                         <div>{order.customerName}</div>
                         <div className="text-xs text-muted-foreground hidden sm:block">{order.customerEmail}</div>
@@ -664,12 +689,41 @@ export default function OrdersPage() {
               </TableBody>
             </Table>
           </CardContent>
+           {totalPages > 1 && (
+            <CardFooter className="flex items-center justify-between border-t pt-4">
+              <span className="text-sm text-muted-foreground">
+                Page {currentPage} of {totalPages} ({totalOrders} orders)
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePreviousPage}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="mr-1 h-4 w-4" />
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                  <ChevronRight className="ml-1 h-4 w-4" />
+                </Button>
+              </div>
+            </CardFooter>
+          )}
+          {totalOrders === 0 && !isLoadingOrders && (
+             <CardFooter className="flex items-center justify-center border-t pt-4">
+                <p className="text-sm text-muted-foreground">
+                    {searchTerm ? `No orders found matching "${searchTerm}".` : "No orders yet for this store and filter."}
+                </p>
+             </CardFooter>
+          )}
         </Card>
-      )}
-       {!isLoadingOrders && authUser && storeIdFromUrl && filteredOrders.length === 0 && (
-        <div className="text-center text-muted-foreground py-10">
-          {searchTerm ? `No orders found matching "${searchTerm}".` : "No orders yet for this store."}
-        </div>
       )}
     </div>
   );

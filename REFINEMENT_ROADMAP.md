@@ -18,7 +18,7 @@ This document outlines the steps to refine the E-Ntemba application, implement n
     - [x] Review and refactor data fetching logic in `useEffect` and service calls.
     - [x] Verify filtering and mapping of Supabase data to UI types.
     - [x] Ensure loading/error states handled gracefully.
-- [ ] **Stock Quantity Logic (Inventory Management)**
+- [x] **Stock Quantity Logic (Inventory Management)**
     - [x] **Backend Option Discussion:**
         - [x] Decide between Database Trigger or RPC for stock updates. (Decision: Database Trigger)
     - [x] **Backend Implementation (based on decision):**
@@ -28,14 +28,17 @@ This document outlines the steps to refine the E-Ntemba application, implement n
         - [ ] (Not applicable as Trigger is chosen)
     - [x] **Considerations:**
         - [x] Plan for handling stock for order cancellations/returns. (Implemented via `increment_product_stock_on_order_event` trigger)
-    - [ ] **Testing:**
+    - [x] **Testing:**
         - [x] Test stock decrement on order completion.
-        - [ ] Test stock increment on order cancellation/return (if implemented).
+        - [x] Test stock increment on order cancellation/return.
 - [x] **RLS Policy Implementation & Testing**
     - [x] Define and apply RLS policies for `stores`, `products`, `orders`, `order_items`, `product_images`, `social_links`, `vendors`, `customers`.
     - [x] Test data access thoroughly for different vendor accounts.
 - [x] **Order Data Segregation (Cross-Store Items in Single Order)**
     - [x] Issue confirmed resolved at customer frontend (orders are split per store). Vendor dashboard relies on this. RLS policies ensure vendors only see their respective store orders.
+- [x] **Dashboard "Products Sold" Card Accuracy**
+    - [x] Create/Update RPC `get_total_products_sold_for_store(p_store_id UUID)` to count items from 'Shipped' or 'Delivered' orders only.
+    - [x] Update `orderService.ts` to use this RPC for `getStoreTotalProductsSold`.
 
 ## Phase 2: Profit Reporting
 
@@ -48,13 +51,13 @@ This document outlines the steps to refine the E-Ntemba application, implement n
         - [x] Grant permissions for new RPCs.
     - [x] **Frontend (`reportService.ts` & Page Component):**
         - [x] Create/update service functions.
-        - [x] Refactor `/reports/profit/page.tsx` to use dynamic data for stats, monthly trend, top products.
+        - [x] Refactor `/reports/profit/page.tsx` to use dynamic data for stats, top products.
         - [x] Implement loading and error states.
         - [x] **Dynamic "Profit by Category" Pie Chart:** (UI Removed)
             - [x] Backend RPC `get_profit_by_category` implemented and tested.
             - [x] Frontend service and UI (UI component removed from page).
         - [x] **Dynamic "Monthly Gross Profit Trend" Chart:** (UI Removed)
-            - [x] Backend RPC `get_monthly_profit_overview` confirmed.
+            - [x] Backend RPC `get_monthly_profit_overview` confirmed and tested.
             - [x] Frontend service and UI (UI component removed from page).
 - [x] **Dynamic "All Products Profit" Sub-Page (`/reports/profit/products/page.tsx`)**
     - [x] **Backend (Supabase RPC):**
@@ -75,7 +78,7 @@ This document outlines the steps to refine the E-Ntemba application, implement n
     - [x] Identify and optimize slow API calls or client-side computations. (Initial pass done, further backend optimization might be needed for RPCs if slowness persists).
     - [ ] **Consider pagination for tables:**
         - [x] Products Page (`/products/page.tsx`)
-        - [ ] Orders Page (`/orders/page.tsx`)
+        - [x] Orders Page (`/orders/page.tsx`)
         - [ ] Customers Page (`/customers/page.tsx`)
     - [ ] Review database indexes in Supabase for frequently queried columns.
 
