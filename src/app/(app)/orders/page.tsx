@@ -26,6 +26,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -41,7 +51,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import { getOrdersByStoreId, createOrder, updateOrderStatus, type OrderPayload, type OrderItemPayload, type OrderFromSupabase, getOrdersByStoreIdAndStatus } from "@/services/orderService";
-import { getProductsByStoreId as fetchStoreProducts, type ProductFromSupabase } from "@/services/productService";
+import { getProductsByStoreId as fetchStoreProducts, getProductsByIds, type ProductFromSupabase } from "@/services/productService";
 import { getCustomerByEmail, createCustomer as createNewCustomer, type CustomerPayload as NewCustomerPayload } from "@/services/customerService";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -149,6 +159,11 @@ export default function OrdersPage() {
   const [currentPage, setCurrentPage] = React.useState(1);
   const [totalOrders, setTotalOrders] = React.useState(0);
 
+  const [orderToProcess, setOrderToProcess] = React.useState<OrderUIType | null>(null);
+  const [isProcessingOrder, setIsProcessingOrder] = React.useState(false);
+  const [isDeliveryDialogOpen, setIsDeliveryDialogOpen] = React.useState(false);
+  const [isOutOfStockDialogOpen, setIsOutOfStockDialogOpen] = React.useState(false);
+
   React.useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       setAuthUser(session?.user ?? null);
@@ -215,6 +230,49 @@ export default function OrdersPage() {
       setIsLoadingStoreProducts(false);
     }
   }, [storeIdFromUrl, authUser, statusFilter, currentPage, toast, supabase]);
+
+  React.useEffect(() => {
+    const checkStockAndProceed = async () => {
+        if (!orderToProcess || !storeIdFromUrl) return;
+
+        setIsProcessingOrder(true);
+        const productIds = orderToProcess.detailedItems.map(item => item.productId);
+        const { data: productsInOrder, error } = await getProductsByIds(productIds);
+
+        if (error) {
+            toast({ variant: "destructive", title: "Error Checking Stock", description: error.message });
+            setIsProcessingOrder(false);
+            setOrderToProcess(null);
+            return;
+        }
+
+        if (!productsInOrder) {
+            toast({ variant: "destructive", title: "Error", description: "Could not retrieve product data for this order." });
+            setIsProcessingOrder(false);
+            setOrderToProcess(null);
+            return;
+        }
+
+        const isEverythingInStock = orderToProcess.detailedItems.every(item => {
+            const product = productsInOrder.find(p => p.id === item.productId);
+            // If product is not found in our fetch, it's an issue (e.g. deleted), treat as out of stock.
+            if (!product) return false; 
+            return product.stock >= item.quantity;
+        });
+
+        if (isEverythingInStock) {
+            setIsDeliveryDialogOpen(true);
+        } else {
+            setIsOutOfStockDialogOpen(true);
+        }
+        setIsProcessingOrder(false);
+        // Do not reset orderToProcess here, it's needed by the dialogs that are about to open
+    };
+
+    if (orderToProcess) {
+        checkStockAndProceed();
+    }
+  }, [orderToProcess, storeIdFromUrl, toast]);
 
 
   const handleUpdateStatus = async (orderId: string, newStatus: OrderStatus, trackingNumber?: string) => {
@@ -668,11 +726,23 @@ export default function OrdersPage() {
                                 <Eye className="mr-2 h-4 w-4" /> View Order Details
                               </Link>
                             </DropdownMenuItem>
+                            {order.status === 'Pending' && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    onClick={() => setOrderToProcess(order)} 
+                                    disabled={isProcessingOrder && orderToProcess?.id === order.id}
+                                  >
+                                    {isProcessingOrder && orderToProcess?.id === order.id ? "Checking..." : "Process Order"}
+                                  </DropdownMenuItem>
+                                </>
+                            )}
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => toast({title: "Label Printed", description: `Shipping label for ${order.id} sent to printer.`})}>
                               <Printer className="mr-2 h-4 w-4" /> Print Shipping Label
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuLabel>Update Status</DropdownMenuLabel>
+                            <DropdownMenuLabel>Update Status Manually</DropdownMenuLabel>
                             {(Object.keys(orderStatusIcons) as OrderStatus[]).map(status => (
                               order.status !== status && (
                                 <DropdownMenuItem key={status} onClick={() => handleUpdateStatus(order.id, status)}>
@@ -725,7 +795,42 @@ export default function OrdersPage() {
           )}
         </Card>
       )}
+
+      <AlertDialog open={isDeliveryDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) { setIsDeliveryDialogOpen(false); setOrderToProcess(null); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Order: {orderToProcess?.id.substring(0,8)}...</AlertDialogTitle>
+            <AlertDialogDescription>
+              All items are in stock. Select a delivery method to move this order to "Processing".
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={() => { handleUpdateStatus(orderToProcess!.id, 'Processing'); setIsDeliveryDialogOpen(false); setOrderToProcess(null); toast({title: "Order Confirmed (Self-Delivery)"}) }}>
+              Self-Delivery
+            </Button>
+            <Button onClick={() => { handleUpdateStatus(orderToProcess!.id, 'Processing'); setIsDeliveryDialogOpen(false); setOrderToProcess(null); toast({title: "Order Confirmed (Courier Requested)"}) }}>
+              Request Courier
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isOutOfStockDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) { setIsOutOfStockDialogOpen(false); setOrderToProcess(null); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Items Out of Stock</AlertDialogTitle>
+            <AlertDialogDescription>
+              One or more items in order {orderToProcess?.id.substring(0,8)}... are out of stock. Please review the order to make adjustments.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setIsOutOfStockDialogOpen(false); setOrderToProcess(null); }}>Close</AlertDialogCancel>
+            <AlertDialogAction asChild>
+                <Link href={`/orders/${orderToProcess?.id}?${searchParams.toString()}`}>View Order Details</Link>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
-

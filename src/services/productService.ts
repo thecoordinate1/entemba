@@ -449,6 +449,26 @@ export async function getProductById(productId: string): Promise<{ data: Product
   return { data: productData as ProductFromSupabase | null, error: null };
 }
 
+export async function getProductsByIds(productIds: string[]): Promise<{ data: { id: string, name: string, stock: number }[] | null, error: Error | null }> {
+    console.log(`[productService.getProductsByIds] Fetching products for IDs:`, productIds);
+    if (!productIds || productIds.length === 0) {
+      return { data: [], error: null };
+    }
+  
+    const { data, error } = await supabase
+      .from('products')
+      .select('id, name, stock')
+      .in('id', productIds);
+  
+    if (error) {
+      console.error('[productService.getProductsByIds] Supabase fetch error:', error);
+      return { data: null, error: new Error(error.message || 'Failed to fetch products by IDs.') };
+    }
+  
+    console.log('[productService.getProductsByIds] Fetched products:', data);
+    return { data, error: null };
+  }
+
 // --- Dashboard Specific Functions ---
 export async function getStoreProductsSimple(
   storeId: string,
@@ -512,4 +532,3 @@ export async function getStoreTopSellingProductsRPC(
   console.log('[productService.getStoreTopSellingProductsRPC] Data from RPC:', data);
   return { data: data as TopSellingProductFromRPC[] | null, error: null };
 }
-
