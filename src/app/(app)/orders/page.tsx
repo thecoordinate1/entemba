@@ -275,10 +275,18 @@ export default function OrdersPage() {
   }, [orderToProcess, storeIdFromUrl, toast]);
 
 
-  const handleUpdateStatus = async (orderId: string, newStatus: OrderStatus, options?: { deliveryType?: 'self_delivery' | 'courier' | null }) => {
+  const handleUpdateStatus = async (
+    orderId: string,
+    newStatus: OrderStatus,
+    options?: {
+      deliveryType?: 'self_delivery' | 'courier' | null;
+      trackingNumber?: string | null;
+    },
+    showToast: boolean = true
+  ) => {
     if (!storeIdFromUrl) {
-        toast({ variant: "destructive", title: "Store Not Selected", description: "Cannot update order status without a selected store." });
-        return;
+      toast({ variant: "destructive", title: "Store Not Selected", description: "Cannot update order status without a selected store." });
+      return;
     }
     const { data: updatedOrderData, error } = await updateOrderStatus(orderId, storeIdFromUrl, newStatus, options);
     if (error) {
@@ -286,7 +294,29 @@ export default function OrdersPage() {
     } else if (updatedOrderData) {
       const updatedOrderUI = mapOrderFromSupabaseToUI(updatedOrderData);
       setOrders(prevOrders => prevOrders.map(o => o.id === orderId ? updatedOrderUI : o));
-      toast({ title: "Order Status Updated", description: `Order ${orderId.substring(0,8)}... status changed to ${newStatus}.` });
+      if (showToast) {
+        toast({ title: "Order Status Updated", description: `Order ${orderId.substring(0, 8)}... status changed to ${newStatus}.` });
+      }
+    }
+  };
+
+  const handleConfirmDelivery = (deliveryType: 'self_delivery' | 'courier') => {
+    if (!orderToProcess || !storeIdFromUrl) return;
+
+    // Generate 6-digit alphanumeric tracking number
+    const trackingNumber = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    handleUpdateStatus(orderToProcess.id, 'Processing', { deliveryType, trackingNumber }, false);
+
+    // Close dialog and reset state
+    setIsDeliveryDialogOpen(false);
+    setOrderToProcess(null);
+
+    // Show appropriate toast
+    if (deliveryType === 'courier') {
+      toast({ title: "Courier Requested", description: `Order confirmed with Tracking #: ${trackingNumber}` });
+    } else {
+      toast({ title: "Order Confirmed (Self-Delivery)", description: `Tracking #: ${trackingNumber}` });
     }
   };
 
@@ -805,10 +835,10 @@ export default function OrdersPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <Button variant="outline" onClick={() => { handleUpdateStatus(orderToProcess!.id, 'Processing', { deliveryType: 'self_delivery' }); setIsDeliveryDialogOpen(false); setOrderToProcess(null); toast({title: "Order Confirmed (Self-Delivery)"}) }}>
+            <Button variant="outline" onClick={() => handleConfirmDelivery('self_delivery')}>
               Self-Delivery
             </Button>
-            <Button onClick={() => { handleUpdateStatus(orderToProcess!.id, 'Processing', { deliveryType: 'courier' }); setIsDeliveryDialogOpen(false); setOrderToProcess(null); toast({title: "Courier Requested", description: "The order is now available to your delivery app."}) }}>
+            <Button onClick={() => handleConfirmDelivery('courier')}>
               Request Courier
             </Button>
           </AlertDialogFooter>
