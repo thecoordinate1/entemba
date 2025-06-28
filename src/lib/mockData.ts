@@ -50,6 +50,7 @@ export interface Order {
   trackingNumber?: string;
   shippingLatitude?: number;
   shippingLongitude?: number;
+  deliveryType?: 'self_delivery' | 'courier' | null;
 }
 
 export interface SocialLink {

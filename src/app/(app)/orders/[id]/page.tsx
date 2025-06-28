@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Table, TableBody, TableCell, TableRow, TableHead, TableHeader } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, Printer, MapPin, User, CalendarDays, CreditCard, Truck as ShippingTruckIcon, DollarSign, AlertCircle, LocateFixed } from "lucide-react";
+import { ArrowLeft, Edit, Printer, MapPin, User, CalendarDays, CreditCard, Truck as ShippingTruckIcon, DollarSign, AlertCircle, LocateFixed, Bike, Package } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
@@ -52,6 +52,7 @@ const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
     trackingNumber: order.tracking_number || undefined,
     shippingLatitude: order.shipping_latitude || undefined,
     shippingLongitude: order.shipping_longitude || undefined,
+    deliveryType: order.delivery_type || undefined,
   };
 };
 
@@ -181,6 +182,7 @@ export default function OrderDetailPage() {
   }
 
   const CurrentStatusIcon = orderStatusIcons[order.status];
+  const DeliveryIcon = order.deliveryType === 'courier' ? Bike : order.deliveryType === 'self_delivery' ? Package : ShippingTruckIcon;
 
   return (
     <div className="flex flex-col gap-6">
@@ -218,7 +220,7 @@ export default function OrderDetailPage() {
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
             <div>
-              <CardTitle className="text-2xl">Order {order.id}</CardTitle>
+              <CardTitle className="text-2xl">Order #{order.id.substring(0,8)}...</CardTitle>
               <CardDescription className="flex items-center gap-2 mt-1">
                 <CalendarDays className="h-4 w-4 text-muted-foreground" /> 
                 {new Date(order.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
@@ -255,10 +257,11 @@ export default function OrderDetailPage() {
             </div>
           </div>
           
-          {order.shippingMethod && (
+          {(order.shippingMethod || order.deliveryType) && (
             <div className="mb-6 space-y-1">
-                <h4 className="font-semibold flex items-center"><ShippingTruckIcon className="mr-2 h-5 w-5 text-primary" /> Shipping</h4>
-                <p className="text-sm">Method: {order.shippingMethod}</p>
+                <h4 className="font-semibold flex items-center"><DeliveryIcon className="mr-2 h-5 w-5 text-primary" /> Shipping & Delivery</h4>
+                {order.shippingMethod && <p className="text-sm">Method: {order.shippingMethod}</p>}
+                {order.deliveryType && <p className="text-sm">Type: <span className="capitalize">{order.deliveryType.replace('_', ' ')}</span></p>}
                 {order.trackingNumber && <p className="text-sm">Tracking: <a href="#" className="text-primary hover:underline">{order.trackingNumber}</a></p>}
             </div>
           )}
@@ -343,4 +346,3 @@ export default function OrderDetailPage() {
     </div>
   );
 }
-

@@ -43,7 +43,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { DollarSign, Eye, Filter, MoreHorizontal, PlusCircle, Printer, Search, ShoppingCart, Trash2, Truck, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
+import { DollarSign, Eye, Filter, MoreHorizontal, PlusCircle, Printer, Search, ShoppingCart, Trash2, Truck, MapPin, ChevronLeft, ChevronRight, Check, AlertTriangle } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import * as React from "react";
@@ -77,6 +77,7 @@ const defaultNewOrderData = {
   shippingLatitude: "",
   shippingLongitude: "",
   status: "Pending" as OrderStatus,
+  delivery_type: null,
 };
 
 const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
@@ -103,6 +104,7 @@ const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
     trackingNumber: order.tracking_number || undefined,
     shippingLatitude: order.shipping_latitude || undefined,
     shippingLongitude: order.shipping_longitude || undefined,
+    deliveryType: order.delivery_type || undefined,
   };
 };
 
@@ -255,7 +257,6 @@ export default function OrdersPage() {
 
         const isEverythingInStock = orderToProcess.detailedItems.every(item => {
             const product = productsInOrder.find(p => p.id === item.productId);
-            // If product is not found in our fetch, it's an issue (e.g. deleted), treat as out of stock.
             if (!product) return false; 
             return product.stock >= item.quantity;
         });
@@ -266,7 +267,6 @@ export default function OrdersPage() {
             setIsOutOfStockDialogOpen(true);
         }
         setIsProcessingOrder(false);
-        // Do not reset orderToProcess here, it's needed by the dialogs that are about to open
     };
 
     if (orderToProcess) {
@@ -275,18 +275,18 @@ export default function OrdersPage() {
   }, [orderToProcess, storeIdFromUrl, toast]);
 
 
-  const handleUpdateStatus = async (orderId: string, newStatus: OrderStatus, trackingNumber?: string) => {
+  const handleUpdateStatus = async (orderId: string, newStatus: OrderStatus, options?: { deliveryType?: 'self_delivery' | 'courier' | null }) => {
     if (!storeIdFromUrl) {
         toast({ variant: "destructive", title: "Store Not Selected", description: "Cannot update order status without a selected store." });
         return;
     }
-    const { data: updatedOrderData, error } = await updateOrderStatus(orderId, storeIdFromUrl, newStatus, trackingNumber);
+    const { data: updatedOrderData, error } = await updateOrderStatus(orderId, storeIdFromUrl, newStatus, options);
     if (error) {
       toast({ variant: "destructive", title: "Error Updating Status", description: error.message });
     } else if (updatedOrderData) {
       const updatedOrderUI = mapOrderFromSupabaseToUI(updatedOrderData);
       setOrders(prevOrders => prevOrders.map(o => o.id === orderId ? updatedOrderUI : o));
-      toast({ title: "Order Status Updated", description: `Order ${orderId} status changed to ${newStatus}.` });
+      toast({ title: "Order Status Updated", description: `Order ${orderId.substring(0,8)}... status changed to ${newStatus}.` });
     }
   };
 
@@ -295,7 +295,7 @@ export default function OrdersPage() {
                           order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           order.customerEmail.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSearch;
-  }); // Sorting by date is handled by the service now.
+  });
 
 
   const resetAddOrderForm = () => {
@@ -415,6 +415,7 @@ export default function OrdersPage() {
       tracking_number: newOrderData.trackingNumber || null,
       shipping_latitude: newOrderData.shippingLatitude ? parseFloat(newOrderData.shippingLatitude) : null,
       shipping_longitude: newOrderData.shippingLongitude ? parseFloat(newOrderData.shippingLongitude) : null,
+      delivery_type: null,
     };
 
     const itemsPayload: OrderItemPayload[] = newOrderItems.map(item => ({
@@ -434,15 +435,14 @@ export default function OrdersPage() {
       toast({ title: "Order Created", description: `Order ${newOrderFromBackend.id} has been successfully created for ${selectedStoreName || 'the current store'}.` });
       setIsAddOrderDialogOpen(false);
       resetAddOrderForm();
-      // Refetch current page to include new order if it falls on this page (and sort is by date desc)
-      if (currentPage === 1) { // Only auto-refresh if on the first page for new items
+      if (currentPage === 1) { 
         const { data, count } = statusFilter === "All"
           ? await getOrdersByStoreId(storeIdFromUrl, 1, ITEMS_PER_PAGE)
           : await getOrdersByStoreIdAndStatus(storeIdFromUrl, statusFilter, 1, ITEMS_PER_PAGE);
         if (data) setOrders(data.map(mapOrderFromSupabaseToUI));
         if (count !== null) setTotalOrders(count);
       } else {
-        setCurrentPage(1); // Go to first page to see new order
+        setCurrentPage(1);
       }
     }
     setIsSubmitting(false);
@@ -799,16 +799,16 @@ export default function OrdersPage() {
       <AlertDialog open={isDeliveryDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) { setIsDeliveryDialogOpen(false); setOrderToProcess(null); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Order: {orderToProcess?.id.substring(0,8)}...</AlertDialogTitle>
+            <AlertDialogTitle className="flex items-center gap-2"><Check className="h-6 w-6 text-green-500" />Order Confirmed: #{orderToProcess?.id.substring(0,8)}...</AlertDialogTitle>
             <AlertDialogDescription>
-              All items are in stock. Select a delivery method to move this order to "Processing".
+              All items are in stock. Please select a delivery method to move this order to "Processing".
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <Button variant="outline" onClick={() => { handleUpdateStatus(orderToProcess!.id, 'Processing'); setIsDeliveryDialogOpen(false); setOrderToProcess(null); toast({title: "Order Confirmed (Self-Delivery)"}) }}>
+            <Button variant="outline" onClick={() => { handleUpdateStatus(orderToProcess!.id, 'Processing', { deliveryType: 'self_delivery' }); setIsDeliveryDialogOpen(false); setOrderToProcess(null); toast({title: "Order Confirmed (Self-Delivery)"}) }}>
               Self-Delivery
             </Button>
-            <Button onClick={() => { handleUpdateStatus(orderToProcess!.id, 'Processing'); setIsDeliveryDialogOpen(false); setOrderToProcess(null); toast({title: "Order Confirmed (Courier Requested)"}) }}>
+            <Button onClick={() => { handleUpdateStatus(orderToProcess!.id, 'Processing', { deliveryType: 'courier' }); setIsDeliveryDialogOpen(false); setOrderToProcess(null); toast({title: "Courier Requested", description: "The order is now available to your delivery app."}) }}>
               Request Courier
             </Button>
           </AlertDialogFooter>
@@ -818,9 +818,9 @@ export default function OrdersPage() {
       <AlertDialog open={isOutOfStockDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) { setIsOutOfStockDialogOpen(false); setOrderToProcess(null); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Items Out of Stock</AlertDialogTitle>
+            <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="h-6 w-6 text-yellow-500"/>Items Out of Stock</AlertDialogTitle>
             <AlertDialogDescription>
-              One or more items in order {orderToProcess?.id.substring(0,8)}... are out of stock. Please review the order to make adjustments.
+              One or more items in order #{orderToProcess?.id.substring(0,8)}... are out of stock. Please review the order to make adjustments before confirming.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

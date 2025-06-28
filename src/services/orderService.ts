@@ -1,4 +1,3 @@
-
 // src/services/orderService.ts
 import { createClient } from '@/lib/supabase/client';
 import type { OrderStatus } from '@/lib/mockData';
@@ -28,6 +27,7 @@ export interface OrderPayload {
   tracking_number?: string | null;
   shipping_latitude?: number | null;
   shipping_longitude?: number | null;
+  delivery_type?: 'self_delivery' | 'courier' | null;
 }
 
 export interface OrderItemFromSupabase {
@@ -58,6 +58,7 @@ export interface OrderFromSupabase {
   tracking_number: string | null;
   shipping_latitude: number | null;
   shipping_longitude: number | null;
+  delivery_type: 'self_delivery' | 'courier' | null;
   created_at: string;
   updated_at: string;
   order_items: OrderItemFromSupabase[];
@@ -74,7 +75,7 @@ export interface MonthlySalesDataFromRPC {
 const commonOrderSelect = `
   id, store_id, customer_id, customer_name, customer_email, order_date, total_amount, status,
   shipping_address, billing_address, shipping_method, payment_method, tracking_number,
-  shipping_latitude, shipping_longitude, created_at, updated_at,
+  shipping_latitude, shipping_longitude, delivery_type, created_at, updated_at,
   order_items (
     id, order_id, product_id, product_name_snapshot, quantity, price_per_unit_snapshot,
     product_image_url_snapshot, data_ai_hint_snapshot, created_at
@@ -141,6 +142,7 @@ export async function createOrder(
       tracking_number: orderData.tracking_number,
       shipping_latitude: orderData.shipping_latitude,
       shipping_longitude: orderData.shipping_longitude,
+      delivery_type: orderData.delivery_type,
     })
     .select(commonOrderSelect.replace('order_items (', 'order_items!left (')) 
     .single();
@@ -248,17 +250,23 @@ export async function updateOrderStatus(
   orderId: string,
   storeId: string,
   status: OrderStatus,
-  trackingNumber?: string | null
+  options?: {
+    trackingNumber?: string | null;
+    deliveryType?: 'self_delivery' | 'courier' | null;
+  }
 ): Promise<{ data: OrderFromSupabase | null; error: Error | null }> {
-  console.log(`[orderService.updateOrderStatus] Updating status for order ID: ${orderId} to ${status} for store ID: ${storeId}. Tracking: ${trackingNumber}`);
+  console.log(`[orderService.updateOrderStatus] Updating status for order ID: ${orderId} to ${status} for store ID: ${storeId}. Options:`, options);
 
-  const updatePayload: { status: OrderStatus, updated_at: string, tracking_number?: string | null } = {
+  const updatePayload: { status: OrderStatus; updated_at: string; tracking_number?: string | null; delivery_type?: 'self_delivery' | 'courier' | null } = {
     status: status,
     updated_at: new Date().toISOString(),
   };
 
-  if (trackingNumber !== undefined) { 
-    updatePayload.tracking_number = trackingNumber;
+  if (options?.trackingNumber !== undefined) {
+    updatePayload.tracking_number = options.trackingNumber;
+  }
+  if (options?.deliveryType !== undefined) {
+    updatePayload.delivery_type = options.deliveryType;
   }
 
   const { data: updatedOrder, error: updateError } = await supabase
@@ -433,7 +441,7 @@ export async function getStoreTotalProductsSold(storeId: string): Promise<{ data
     return { data: null, error: new Error(detailedErrorMessage) };
   }
   
-  const totalSold = data && data.length > 0 ? data[0].total_products_sold : 0;
+  const totalSold = data ?? 0;
 
   console.log(`[orderService.getStoreTotalProductsSold] Total products sold for store ${storeId}: ${totalSold}`);
   return { data: { totalSold: totalSold }, error: null };
@@ -465,4 +473,3 @@ export async function getMonthlySalesOverviewForStore(
   console.log('[orderService.getMonthlySalesOverviewForStore] Data from RPC:', data);
   return { data: data as MonthlySalesDataFromRPC[] | null, error: null };
 }
-
