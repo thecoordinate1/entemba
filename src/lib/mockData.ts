@@ -51,6 +51,9 @@ export interface Order {
   shippingLatitude?: number;
   shippingLongitude?: number;
   deliveryType?: 'self_delivery' | 'courier' | null;
+  pickupAddress?: string;
+  pickupLatitude?: number;
+  pickupLongitude?: number;
 }
 
 export interface SocialLink {

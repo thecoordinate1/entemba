@@ -28,6 +28,9 @@ export interface OrderPayload {
   shipping_latitude?: number | null;
   shipping_longitude?: number | null;
   delivery_type?: 'self_delivery' | 'courier' | null;
+  pickup_address?: string | null;
+  pickup_latitude?: number | null;
+  pickup_longitude?: number | null;
 }
 
 export interface OrderItemFromSupabase {
@@ -59,6 +62,9 @@ export interface OrderFromSupabase {
   shipping_latitude: number | null;
   shipping_longitude: number | null;
   delivery_type: 'self_delivery' | 'courier' | null;
+  pickup_address: string | null;
+  pickup_latitude: number | null;
+  pickup_longitude: number | null;
   created_at: string;
   updated_at: string;
   order_items: OrderItemFromSupabase[];
@@ -75,7 +81,8 @@ export interface MonthlySalesDataFromRPC {
 const commonOrderSelect = `
   id, store_id, customer_id, customer_name, customer_email, order_date, total_amount, status,
   shipping_address, billing_address, shipping_method, payment_method, tracking_number,
-  shipping_latitude, shipping_longitude, delivery_type, created_at, updated_at,
+  shipping_latitude, shipping_longitude, delivery_type, pickup_address, pickup_latitude, pickup_longitude,
+  created_at, updated_at,
   order_items (
     id, order_id, product_id, product_name_snapshot, quantity, price_per_unit_snapshot,
     product_image_url_snapshot, data_ai_hint_snapshot, created_at
@@ -143,6 +150,9 @@ export async function createOrder(
       shipping_latitude: orderData.shipping_latitude,
       shipping_longitude: orderData.shipping_longitude,
       delivery_type: orderData.delivery_type,
+      pickup_address: orderData.pickup_address,
+      pickup_latitude: orderData.pickup_latitude,
+      pickup_longitude: orderData.pickup_longitude,
     })
     .select(commonOrderSelect.replace('order_items (', 'order_items!left (')) 
     .single();
@@ -253,21 +263,23 @@ export async function updateOrderStatus(
   options?: {
     trackingNumber?: string | null;
     deliveryType?: 'self_delivery' | 'courier' | null;
+    pickup_address?: string | null;
+    pickup_latitude?: number | null;
+    pickup_longitude?: number | null;
   }
 ): Promise<{ data: OrderFromSupabase | null; error: Error | null }> {
   console.log(`[orderService.updateOrderStatus] Updating status for order ID: ${orderId} to ${status} for store ID: ${storeId}. Options:`, options);
 
-  const updatePayload: { status: OrderStatus; updated_at: string; tracking_number?: string | null; delivery_type?: 'self_delivery' | 'courier' | null } = {
+  const updatePayload: { [key: string]: any } = {
     status: status,
     updated_at: new Date().toISOString(),
   };
 
-  if (options?.trackingNumber !== undefined) {
-    updatePayload.tracking_number = options.trackingNumber;
-  }
-  if (options?.deliveryType !== undefined) {
-    updatePayload.delivery_type = options.deliveryType;
-  }
+  if (options?.trackingNumber !== undefined) updatePayload.tracking_number = options.trackingNumber;
+  if (options?.deliveryType !== undefined) updatePayload.delivery_type = options.deliveryType;
+  if (options?.pickup_address !== undefined) updatePayload.pickup_address = options.pickup_address;
+  if (options?.pickup_latitude !== undefined) updatePayload.pickup_latitude = options.pickup_latitude;
+  if (options?.pickup_longitude !== undefined) updatePayload.pickup_longitude = options.pickup_longitude;
 
   const { data: updatedOrder, error: updateError } = await supabase
     .from('orders')

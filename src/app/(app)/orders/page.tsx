@@ -43,7 +43,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { DollarSign, Eye, Filter, MoreHorizontal, PlusCircle, Printer, Search, ShoppingCart, Trash2, Truck, MapPin, ChevronLeft, ChevronRight, Check, AlertTriangle } from "lucide-react";
+import { DollarSign, Eye, Filter, MoreHorizontal, PlusCircle, Printer, Search, ShoppingCart, Trash2, Truck, MapPin, ChevronLeft, ChevronRight, Check, AlertTriangle, PackageSearch, Copy, LocateFixed, Link as LinkIcon, Building } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import * as React from "react";
@@ -52,6 +52,7 @@ import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import { getOrdersByStoreId, createOrder, updateOrderStatus, type OrderPayload, type OrderItemPayload, type OrderFromSupabase, getOrdersByStoreIdAndStatus } from "@/services/orderService";
 import { getProductsByStoreId as fetchStoreProducts, getProductsByIds, type ProductFromSupabase } from "@/services/productService";
+import { getStoreById, type StoreFromSupabase } from "@/services/storeService";
 import { getCustomerByEmail, createCustomer as createNewCustomer, type CustomerPayload as NewCustomerPayload } from "@/services/customerService";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -105,6 +106,9 @@ const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
     shippingLatitude: order.shipping_latitude || undefined,
     shippingLongitude: order.shipping_longitude || undefined,
     deliveryType: order.delivery_type || undefined,
+    pickupAddress: order.pickup_address || undefined,
+    pickupLatitude: order.pickup_latitude || undefined,
+    pickupLongitude: order.pickup_longitude || undefined,
   };
 };
 
@@ -137,7 +141,7 @@ const mapProductFromSupabaseToProductUIType = (product: ProductFromSupabase): Pr
 export default function OrdersPage() {
   const searchParams = useSearchParams();
   const storeIdFromUrl = searchParams.get("storeId");
-  const [selectedStoreName, setSelectedStoreName] = React.useState<string | null>(null);
+  const [selectedStore, setSelectedStore] = React.useState<StoreFromSupabase | null>(null);
 
   const [orders, setOrders] = React.useState<OrderUIType[]>([]);
   const [isLoadingOrders, setIsLoadingOrders] = React.useState(true);
@@ -163,8 +167,12 @@ export default function OrdersPage() {
 
   const [orderToProcess, setOrderToProcess] = React.useState<OrderUIType | null>(null);
   const [isProcessingOrder, setIsProcessingOrder] = React.useState(false);
+  const [isPickupLocationDialogOpen, setIsPickupLocationDialogOpen] = React.useState(false);
   const [isDeliveryDialogOpen, setIsDeliveryDialogOpen] = React.useState(false);
   const [isOutOfStockDialogOpen, setIsOutOfStockDialogOpen] = React.useState(false);
+  const [pickupLocationInfo, setPickupLocationInfo] = React.useState<{ address: string; coords: { lat: number, lng: number } | null }>({ address: "", coords: null });
+  const [isFetchingLocation, setIsFetchingLocation] = React.useState(false);
+
 
   React.useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
@@ -176,13 +184,18 @@ export default function OrdersPage() {
 
   React.useEffect(() => {
     if (storeIdFromUrl) {
-      supabase.from('stores').select('name').eq('id', storeIdFromUrl).single().then(({data}) => {
-        setSelectedStoreName(data?.name || "Selected Store");
-      });
-
       if (authUser) {
         setIsLoadingOrders(true);
-        setIsLoadingStoreProducts(true); // Keep this for Add Order dialog
+        setIsLoadingStoreProducts(true);
+
+        getStoreById(storeIdFromUrl, authUser.id).then(({ data: storeData, error: storeError}) => {
+            if(storeError) {
+                toast({ variant: "destructive", title: "Error fetching store details", description: storeError.message });
+                setSelectedStore(null);
+            } else {
+                setSelectedStore(storeData);
+            }
+        });
 
         let fetchPromise;
         if (statusFilter === "All") {
@@ -224,7 +237,7 @@ export default function OrdersPage() {
         setIsLoadingStoreProducts(false);
       }
     } else {
-      setSelectedStoreName("No Store Selected");
+      setSelectedStore(null);
       setOrders([]);
       setTotalOrders(0);
       setIsLoadingOrders(false);
@@ -261,18 +274,19 @@ export default function OrdersPage() {
             return product.stock >= item.quantity;
         });
 
+        setIsProcessingOrder(false);
         if (isEverythingInStock) {
-            setIsDeliveryDialogOpen(true);
+            setPickupLocationInfo({ address: selectedStore?.location || "", coords: null });
+            setIsPickupLocationDialogOpen(true);
         } else {
             setIsOutOfStockDialogOpen(true);
         }
-        setIsProcessingOrder(false);
     };
 
     if (orderToProcess) {
         checkStockAndProceed();
     }
-  }, [orderToProcess, storeIdFromUrl, toast]);
+  }, [orderToProcess, storeIdFromUrl, toast, selectedStore?.location]);
 
 
   const handleUpdateStatus = async (
@@ -281,6 +295,9 @@ export default function OrdersPage() {
     options?: {
       deliveryType?: 'self_delivery' | 'courier' | null;
       trackingNumber?: string | null;
+      pickup_address?: string | null;
+      pickup_latitude?: number | null;
+      pickup_longitude?: number | null;
     },
     showToast: boolean = true
   ) => {
@@ -303,21 +320,45 @@ export default function OrdersPage() {
   const handleConfirmDelivery = (deliveryType: 'self_delivery' | 'courier') => {
     if (!orderToProcess || !storeIdFromUrl) return;
 
-    // Generate 6-digit alphanumeric tracking number
     const trackingNumber = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-    handleUpdateStatus(orderToProcess.id, 'Processing', { deliveryType, trackingNumber }, false);
+    handleUpdateStatus(orderToProcess.id, 'Processing', { 
+        deliveryType, 
+        trackingNumber,
+        pickup_address: pickupLocationInfo.address,
+        pickup_latitude: pickupLocationInfo.coords?.lat,
+        pickup_longitude: pickupLocationInfo.coords?.lng
+    }, false);
 
-    // Close dialog and reset state
     setIsDeliveryDialogOpen(false);
     setOrderToProcess(null);
+    setPickupLocationInfo({ address: "", coords: null });
 
-    // Show appropriate toast
     if (deliveryType === 'courier') {
       toast({ title: "Courier Requested", description: `Order confirmed with Tracking #: ${trackingNumber}` });
     } else {
       toast({ title: "Order Confirmed (Self-Delivery)", description: `Tracking #: ${trackingNumber}` });
     }
+  };
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast({ variant: "destructive", title: "Geolocation Not Supported", description: "Your browser does not support geolocation." });
+      return;
+    }
+    setIsFetchingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setPickupLocationInfo({ address: "Current GPS Location", coords: { lat: latitude, lng: longitude } });
+        setIsFetchingLocation(false);
+        toast({ title: "Location Captured", description: `Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}` });
+      },
+      (error) => {
+        toast({ variant: "destructive", title: "Geolocation Failed", description: error.message });
+        setIsFetchingLocation(false);
+      }
+    );
   };
 
   const filteredOrders = orders.filter(order => {
@@ -462,7 +503,7 @@ export default function OrdersPage() {
     if (error || !newOrderFromBackend) {
       toast({ variant: "destructive", title: "Error Creating Order", description: error?.message || "Could not create order." });
     } else {
-      toast({ title: "Order Created", description: `Order ${newOrderFromBackend.id} has been successfully created for ${selectedStoreName || 'the current store'}.` });
+      toast({ title: "Order Created", description: `Order ${newOrderFromBackend.id} has been successfully created for ${selectedStore?.name || 'the current store'}.` });
       setIsAddOrderDialogOpen(false);
       resetAddOrderForm();
       if (currentPage === 1) { 
@@ -540,7 +581,7 @@ export default function OrdersPage() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-3xl">
             <DialogHeader className="p-6 pb-4">
-              <DialogTitle>Create New Order {selectedStoreName ? `for ${selectedStoreName}`: ''}</DialogTitle>
+              <DialogTitle>Create New Order {selectedStore ? `for ${selectedStore.name}`: ''}</DialogTitle>
               <DialogDescription>
                 Fill in the details to manually create a new order.
               </DialogDescription>
@@ -697,7 +738,7 @@ export default function OrdersPage() {
 
       {!authUser && <p className="text-center text-muted-foreground py-4">Please sign in to manage orders.</p>}
       {authUser && !storeIdFromUrl && <p className="text-center text-muted-foreground py-4">Please select a store to view orders.</p>}
-      {authUser && storeIdFromUrl && selectedStoreName && <p className="text-sm text-muted-foreground">Showing orders for store: <span className="font-semibold">{selectedStoreName}</span>. New orders will be added to this store.</p>}
+      {authUser && storeIdFromUrl && selectedStore && <p className="text-sm text-muted-foreground">Showing orders for store: <span className="font-semibold">{selectedStore.name}</span>. New orders will be added to this store.</p>}
 
       {isLoadingOrders && authUser && storeIdFromUrl && (
          <div className="space-y-2">
@@ -825,6 +866,74 @@ export default function OrdersPage() {
           )}
         </Card>
       )}
+
+        {/* Pickup Location Dialog */}
+        <AlertDialog open={isPickupLocationDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) { setIsPickupLocationDialogOpen(false); setOrderToProcess(null); } }}>
+            <AlertDialogContent className="sm:max-w-md">
+                <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2"><PackageSearch className="h-6 w-6 text-primary" /> Set Pickup Location</AlertDialogTitle>
+                    <AlertDialogDescription>Confirm the pickup location before proceeding to delivery options.</AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="pickupAddress">Pickup Address</Label>
+                        <Input id="pickupAddress" value={pickupLocationInfo.address} onChange={(e) => setPickupLocationInfo(prev => ({...prev, address: e.target.value}))} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="savedLocation">Use Saved Location</Label>
+                         <Select onValueChange={(value) => setPickupLocationInfo({ address: value, coords: null })} defaultValue={selectedStore?.location || ""}>
+                            <SelectTrigger id="savedLocation">
+                                <SelectValue placeholder="Select a saved location..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {selectedStore?.location && <SelectItem value={selectedStore.location}><Building className="inline-block mr-2 h-4 w-4" />{selectedStore.location}</SelectItem>}
+                                <SelectItem value="new" disabled>Add new location (TBD)</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <Separator />
+                    <Button variant="outline" className="w-full" onClick={handleUseCurrentLocation} disabled={isFetchingLocation}>
+                        <LocateFixed className="mr-2 h-4 w-4"/> {isFetchingLocation ? "Fetching..." : "Use Current GPS Location"}
+                    </Button>
+                    <div className="space-y-2">
+                        <Label htmlFor="pickupCoords">Coordinates (Lat, Lng)</Label>
+                        <Input id="pickupCoords" value={pickupLocationInfo.coords ? `${pickupLocationInfo.coords.lat}, ${pickupLocationInfo.coords.lng}` : ""} 
+                            onChange={(e) => {
+                                const [lat, lng] = e.target.value.split(',').map(s => parseFloat(s.trim()));
+                                if (!isNaN(lat) && !isNaN(lng)) {
+                                    setPickupLocationInfo(prev => ({...prev, coords: {lat, lng}}));
+                                } else {
+                                     setPickupLocationInfo(prev => ({...prev, coords: null}));
+                                }
+                            }}
+                            placeholder="e.g., -15.4167, 28.2833"
+                         />
+                    </div>
+                    {pickupLocationInfo.coords && (
+                        <div className="space-y-2 rounded-md border p-3">
+                            <p className="text-sm font-medium">Map Links</p>
+                             <p className="text-xs text-muted-foreground">Click to open, or copy coordinates and paste into your map app.</p>
+                            <div className="flex items-center gap-2">
+                                <a href={`https://www.google.com/maps/search/?api=1&query=${pickupLocationInfo.coords.lat},${pickupLocationInfo.coords.lng}`} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3"/>Google Maps</a>
+                                <span>|</span>
+                                <a href={`http://maps.apple.com/?q=${pickupLocationInfo.coords.lat},${pickupLocationInfo.coords.lng}`} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3"/>Apple Maps</a>
+                                <Button size="icon" variant="ghost" className="h-6 w-6 ml-auto" onClick={() => {
+                                    navigator.clipboard.writeText(`${pickupLocationInfo.coords?.lat}, ${pickupLocationInfo.coords?.lng}`);
+                                    toast({title: "Copied to clipboard"});
+                                }}>
+                                    <Copy className="h-4 w-4"/>
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+                <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => { setIsPickupLocationDialogOpen(false); setOrderToProcess(null); }}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => { setIsPickupLocationDialogOpen(false); setIsDeliveryDialogOpen(true); }}>Confirm & Proceed</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
 
       <AlertDialog open={isDeliveryDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) { setIsDeliveryDialogOpen(false); setOrderToProcess(null); } }}>
         <AlertDialogContent>

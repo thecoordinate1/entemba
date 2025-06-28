@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Table, TableBody, TableCell, TableRow, TableHead, TableHeader } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, Printer, MapPin, User, CalendarDays, CreditCard, Truck as ShippingTruckIcon, DollarSign, AlertCircle, LocateFixed, Bike, Package } from "lucide-react";
+import { ArrowLeft, Edit, Printer, MapPin, User, CalendarDays, CreditCard, Truck as ShippingTruckIcon, DollarSign, AlertCircle, LocateFixed, Bike, Package, PackageSearch, Link as LinkIcon, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
@@ -53,6 +53,9 @@ const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
     shippingLatitude: order.shipping_latitude || undefined,
     shippingLongitude: order.shipping_longitude || undefined,
     deliveryType: order.delivery_type || undefined,
+    pickupAddress: order.pickup_address || undefined,
+    pickupLatitude: order.pickup_latitude || undefined,
+    pickupLongitude: order.pickup_longitude || undefined,
   };
 };
 
@@ -234,7 +237,7 @@ export default function OrderDetailPage() {
         </CardHeader>
         <CardContent>
           <Separator className="my-4" />
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
             <div className="space-y-1">
               <h4 className="font-semibold flex items-center"><User className="mr-2 h-5 w-5 text-primary" /> Customer</h4>
               <p>{order.customerName}</p>
@@ -250,21 +253,44 @@ export default function OrderDetailPage() {
                 </p>
               )}
             </div>
-            <div className="space-y-1">
+             <div className="space-y-1">
               <h4 className="font-semibold flex items-center"><CreditCard className="mr-2 h-5 w-5 text-primary" /> Payment</h4>
               <p className="text-sm">{order.paymentMethod || "Not specified"}</p>
               <p className="text-sm font-semibold flex items-center"><DollarSign className="mr-1 h-4 w-4 text-primary" /> Total: ZMW {order.total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
             </div>
           </div>
+
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+            {order.pickupAddress && (
+              <div className="space-y-1">
+                <h4 className="font-semibold flex items-center"><PackageSearch className="mr-2 h-5 w-5 text-primary" /> Pickup Location</h4>
+                <p className="text-sm whitespace-pre-line">{order.pickupAddress}</p>
+                {order.pickupLatitude && order.pickupLongitude && (
+                    <div className="flex items-center gap-2 pt-1">
+                        <a href={`https://www.google.com/maps/search/?api=1&query=${order.pickupLatitude},${order.pickupLongitude}`} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3"/>Google Maps</a>
+                        <span className="text-xs text-muted-foreground">|</span>
+                        <a href={`http://maps.apple.com/?q=${order.pickupLatitude},${order.pickupLongitude}`} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3"/>Apple Maps</a>
+                        <Button size="icon" variant="ghost" className="h-5 w-5 ml-auto" onClick={() => {
+                            navigator.clipboard.writeText(`${order.pickupLatitude}, ${order.pickupLongitude}`);
+                            toast({title: "Copied coordinates to clipboard"});
+                        }}>
+                            <Copy className="h-3 w-3"/>
+                        </Button>
+                    </div>
+                )}
+              </div>
+            )}
+            
+            {(order.shippingMethod || order.deliveryType) && (
+              <div className="space-y-1">
+                  <h4 className="font-semibold flex items-center"><DeliveryIcon className="mr-2 h-5 w-5 text-primary" /> Shipping & Delivery</h4>
+                  {order.shippingMethod && <p className="text-sm">Method: {order.shippingMethod}</p>}
+                  {order.deliveryType && <p className="text-sm">Type: <span className="capitalize">{order.deliveryType.replace('_', ' ')}</span></p>}
+                  {order.trackingNumber && <p className="text-sm">Tracking #: <span className="font-mono text-primary">{order.trackingNumber}</span></p>}
+              </div>
+            )}
+          </div>
           
-          {(order.shippingMethod || order.deliveryType) && (
-            <div className="mb-6 space-y-1">
-                <h4 className="font-semibold flex items-center"><DeliveryIcon className="mr-2 h-5 w-5 text-primary" /> Shipping & Delivery</h4>
-                {order.shippingMethod && <p className="text-sm">Method: {order.shippingMethod}</p>}
-                {order.deliveryType && <p className="text-sm">Type: <span className="capitalize">{order.deliveryType.replace('_', ' ')}</span></p>}
-                {order.trackingNumber && <p className="text-sm">Tracking: <a href="#" className="text-primary hover:underline">{order.trackingNumber}</a></p>}
-            </div>
-          )}
 
           <Separator className="my-4" />
           <h3 className="text-xl font-semibold mb-3">Order Items ({order.itemsCount})</h3>
