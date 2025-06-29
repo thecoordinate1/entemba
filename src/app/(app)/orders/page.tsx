@@ -172,6 +172,7 @@ export default function OrdersPage() {
   const [isOutOfStockDialogOpen, setIsOutOfStockDialogOpen] = React.useState(false);
   const [pickupLocationInfo, setPickupLocationInfo] = React.useState<{ address: string; coords: { lat: number, lng: number } | null }>({ address: "", coords: null });
   const [isFetchingLocation, setIsFetchingLocation] = React.useState(false);
+  const [isConfirmingDelivery, setIsConfirmingDelivery] = React.useState(false);
 
 
   React.useEffect(() => {
@@ -300,44 +301,54 @@ export default function OrdersPage() {
       pickup_longitude?: number | null;
     },
     showToast: boolean = true
-  ) => {
+  ): Promise<boolean> => {
     if (!storeIdFromUrl) {
       toast({ variant: "destructive", title: "Store Not Selected", description: "Cannot update order status without a selected store." });
-      return;
+      return false;
     }
     const { data: updatedOrderData, error } = await updateOrderStatus(orderId, storeIdFromUrl, newStatus, options);
     if (error) {
       toast({ variant: "destructive", title: "Error Updating Status", description: error.message });
+      return false;
     } else if (updatedOrderData) {
       const updatedOrderUI = mapOrderFromSupabaseToUI(updatedOrderData);
       setOrders(prevOrders => prevOrders.map(o => o.id === orderId ? updatedOrderUI : o));
       if (showToast) {
         toast({ title: "Order Status Updated", description: `Order ${orderId.substring(0, 8)}... status changed to ${newStatus}.` });
       }
+      return true;
     }
+    return false;
   };
 
-  const handleConfirmDelivery = (deliveryType: 'self_delivery' | 'courier') => {
+  const handleConfirmDelivery = async (deliveryType: 'self_delivery' | 'courier') => {
     if (!orderToProcess || !storeIdFromUrl) return;
+    
+    setIsConfirmingDelivery(true);
+    try {
+        const trackingNumber = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-    const trackingNumber = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const success = await handleUpdateStatus(orderToProcess.id, 'Confirmed', { 
+            deliveryType, 
+            trackingNumber,
+            pickup_address: pickupLocationInfo.address,
+            pickup_latitude: pickupLocationInfo.coords?.lat,
+            pickup_longitude: pickupLocationInfo.coords?.lng
+        }, false);
 
-    handleUpdateStatus(orderToProcess.id, 'Confirmed', { 
-        deliveryType, 
-        trackingNumber,
-        pickup_address: pickupLocationInfo.address,
-        pickup_latitude: pickupLocationInfo.coords?.lat,
-        pickup_longitude: pickupLocationInfo.coords?.lng
-    }, false);
+        if (success) {
+            setIsDeliveryDialogOpen(false);
+            setOrderToProcess(null);
+            setPickupLocationInfo({ address: "", coords: null });
 
-    setIsDeliveryDialogOpen(false);
-    setOrderToProcess(null);
-    setPickupLocationInfo({ address: "", coords: null });
-
-    if (deliveryType === 'courier') {
-      toast({ title: "Courier Requested", description: `Order confirmed with Tracking #: ${trackingNumber}` });
-    } else {
-      toast({ title: "Order Confirmed (Self-Delivery)", description: `Tracking #: ${trackingNumber}` });
+            if (deliveryType === 'courier') {
+              toast({ title: "Courier Requested", description: `Order confirmed with Tracking #: ${trackingNumber}` });
+            } else {
+              toast({ title: "Order Confirmed (Self-Delivery)", description: `Tracking #: ${trackingNumber}` });
+            }
+        }
+    } finally {
+        setIsConfirmingDelivery(false);
     }
   };
 
@@ -945,10 +956,14 @@ export default function OrdersPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction asChild>
-                <Button variant="outline" onClick={() => handleConfirmDelivery('self_delivery')}>Self-Delivery</Button>
+                <Button variant="outline" onClick={() => handleConfirmDelivery('self_delivery')} disabled={isConfirmingDelivery}>
+                    {isConfirmingDelivery ? "Confirming..." : "Self-Delivery"}
+                </Button>
             </AlertDialogAction>
             <AlertDialogAction asChild>
-                <Button onClick={() => handleConfirmDelivery('courier')}>Request Courier</Button>
+                <Button onClick={() => handleConfirmDelivery('courier')} disabled={isConfirmingDelivery}>
+                    {isConfirmingDelivery ? "Confirming..." : "Request Courier"}
+                </Button>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
