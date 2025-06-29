@@ -940,34 +940,30 @@ export default function OrdersPage() {
                 </div>
                 <AlertDialogFooter>
                     <AlertDialogCancel onClick={() => { setIsPickupLocationDialogOpen(false); setOrderToProcess(null); }}>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => { setIsPickupLocationDialogOpen(false); setIsDeliveryDialogOpen(true); }}>Confirm & Proceed</AlertDialogAction>
+                    <AlertDialogAction onClick={() => { setIsPickupLocationDialogOpen(false); setIsDeliveryDialogOpen(true); }}>Confirm &amp; Proceed</AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
 
 
-      <AlertDialog open={isDeliveryDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) { setIsDeliveryDialogOpen(false); setOrderToProcess(null); } }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2"><Check className="h-6 w-6 text-green-500" />Order Confirmed: #{orderToProcess?.id.substring(0,8)}...</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Dialog open={isDeliveryDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) { setIsDeliveryDialogOpen(false); setOrderToProcess(null); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Check className="h-6 w-6 text-green-500" />Order Confirmed: #{orderToProcess?.id.substring(0,8)}...</DialogTitle>
+            <DialogDescription>
               All items are in stock. Please select a delivery method to move this order to "Confirmed".
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction asChild>
-                <Button variant="outline" onClick={() => handleConfirmDelivery('self_delivery')} disabled={isConfirmingDelivery}>
-                    {isConfirmingDelivery ? "Confirming..." : "Self-Delivery"}
-                </Button>
-            </AlertDialogAction>
-            <AlertDialogAction asChild>
-                <Button onClick={() => handleConfirmDelivery('courier')} disabled={isConfirmingDelivery}>
-                    {isConfirmingDelivery ? "Confirming..." : "Request Courier"}
-                </Button>
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => handleConfirmDelivery('self_delivery')} disabled={isConfirmingDelivery}>
+                {isConfirmingDelivery ? "Confirming..." : "Self-Delivery"}
+            </Button>
+            <Button onClick={() => handleConfirmDelivery('courier')} disabled={isConfirmingDelivery}>
+                {isConfirmingDelivery ? "Confirming..." : "Request Courier"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={isOutOfStockDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) { setIsOutOfStockDialogOpen(false); setOrderToProcess(null); } }}>
         <AlertDialogContent>
@@ -988,3 +984,5 @@ export default function OrdersPage() {
     </div>
   );
 }
+
+    
