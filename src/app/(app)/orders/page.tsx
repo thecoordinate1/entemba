@@ -944,12 +944,12 @@ export default function OrdersPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <Button variant="outline" onClick={() => handleConfirmDelivery('self_delivery')}>
-              Self-Delivery
-            </Button>
-            <Button onClick={() => handleConfirmDelivery('courier')}>
-              Request Courier
-            </Button>
+            <AlertDialogAction asChild>
+                <Button variant="outline" onClick={() => handleConfirmDelivery('self_delivery')}>Self-Delivery</Button>
+            </AlertDialogAction>
+            <AlertDialogAction asChild>
+                <Button onClick={() => handleConfirmDelivery('courier')}>Request Courier</Button>
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
