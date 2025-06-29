@@ -322,7 +322,7 @@ export default function OrdersPage() {
 
     const trackingNumber = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-    handleUpdateStatus(orderToProcess.id, 'Processing', { 
+    handleUpdateStatus(orderToProcess.id, 'Confirmed', { 
         deliveryType, 
         trackingNumber,
         pickup_address: pickupLocationInfo.address,
@@ -940,7 +940,7 @@ export default function OrdersPage() {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2"><Check className="h-6 w-6 text-green-500" />Order Confirmed: #{orderToProcess?.id.substring(0,8)}...</AlertDialogTitle>
             <AlertDialogDescription>
-              All items are in stock. Please select a delivery method to move this order to "Processing".
+              All items are in stock. Please select a delivery method to move this order to "Confirmed".
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

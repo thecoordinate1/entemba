@@ -1,3 +1,4 @@
+
 // src/services/orderService.ts
 import { createClient } from '@/lib/supabase/client';
 import type { OrderStatus } from '@/lib/mockData';
@@ -418,10 +419,11 @@ export async function getStoreOrderStats(storeId: string): Promise<{ data: Store
   let activeOrdersCount = 0;
 
   orders.forEach(order => {
-    if (order.status === 'Delivered' || order.status === 'Shipped') {
+    if (order.status === 'Delivered' || (order.status as any) === 'Shipped') { // Keep 'Shipped' for historical data
       totalRevenue += order.total_amount || 0;
     }
-    if (order.status === 'Pending' || order.status === 'Processing') {
+    // Updated active order statuses
+    if (['Pending', 'Confirmed', 'Driver Picking Up', 'Delivering'].includes(order.status)) {
       activeOrdersCount++;
     }
   });

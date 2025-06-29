@@ -1,6 +1,6 @@
 
 import type { LucideIcon } from "lucide-react";
-import { PackageCheck, Truck, CheckCircle, XCircle, RefreshCw } from "lucide-react";
+import { PackageCheck, Truck, CheckCircle, XCircle, RefreshCw, PersonStanding } from "lucide-react";
 
 export interface Product {
   id: string;
@@ -23,7 +23,7 @@ export interface Product {
   reviewCount?: number;
 }
 
-export type OrderStatus = "Pending" | "Processing" | "Shipped" | "Delivered" | "Cancelled";
+export type OrderStatus = "Pending" | "Confirmed" | "Driver Picking Up" | "Delivering" | "Delivered" | "Cancelled";
 
 export interface OrderItem {
   productId: string;
@@ -110,16 +110,18 @@ export const initialOrders: Order[] = [
 
 export const orderStatusColors: Record<OrderStatus, string> = {
   Pending: "bg-yellow-500/20 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-400 border-yellow-500/30",
-  Processing: "bg-blue-500/20 text-blue-700 dark:bg-blue-500/30 dark:text-blue-400 border-blue-500/30",
-  Shipped: "bg-purple-500/20 text-purple-700 dark:bg-purple-500/30 dark:text-purple-400 border-purple-500/30",
+  Confirmed: "bg-blue-500/20 text-blue-700 dark:bg-blue-500/30 dark:text-blue-400 border-blue-500/30",
+  "Driver Picking Up": "bg-cyan-500/20 text-cyan-700 dark:bg-cyan-500/30 dark:text-cyan-400 border-cyan-500/30",
+  Delivering: "bg-purple-500/20 text-purple-700 dark:bg-purple-500/30 dark:text-purple-400 border-purple-500/30",
   Delivered: "bg-emerald-500/20 text-emerald-700 dark:bg-emerald-500/30 dark:text-emerald-400 border-emerald-500/30",
   Cancelled: "bg-red-500/20 text-red-700 dark:bg-red-500/30 dark:text-red-400 border-red-500/30",
 };
 
 export const orderStatusIcons: Record<OrderStatus, LucideIcon> = {
   Pending: RefreshCw,
-  Processing: PackageCheck,
-  Shipped: Truck,
+  Confirmed: PackageCheck,
+  "Driver Picking Up": PersonStanding,
+  Delivering: Truck,
   Delivered: CheckCircle,
   Cancelled: XCircle,
 };
