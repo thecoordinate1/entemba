@@ -2,7 +2,7 @@
 "use client";
 
 import type { Order as OrderUIType, OrderStatus, Product as ProductUIType } from "@/lib/mockData"; // Using mockData types for UI consistency
-import { orderStatusColors, orderStatusIcons } from "@/lib/mockData";
+import { orderStatusIcons, orderStatusColors } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -879,7 +879,7 @@ export default function OrdersPage() {
       )}
 
         {/* Pickup Location Dialog */}
-        <AlertDialog open={isPickupLocationDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) { setIsPickupLocationDialogOpen(false); setOrderToProcess(null); } }}>
+        <AlertDialog open={isPickupLocationDialogOpen} onOpenChange={setIsPickupLocationDialogOpen}>
             <AlertDialogContent className="sm:max-w-md">
                 <AlertDialogHeader>
                     <AlertDialogTitle className="flex items-center gap-2"><PackageSearch className="h-6 w-6 text-primary" /> Set Pickup Location</AlertDialogTitle>
@@ -939,7 +939,7 @@ export default function OrdersPage() {
                     )}
                 </div>
                 <AlertDialogFooter>
-                    <AlertDialogCancel onClick={() => { setIsPickupLocationDialogOpen(false); setOrderToProcess(null); }}>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel onClick={() => setOrderToProcess(null)}>Cancel</AlertDialogCancel>
                     <AlertDialogAction onClick={() => { setIsPickupLocationDialogOpen(false); setIsDeliveryDialogOpen(true); }}>Confirm &amp; Proceed</AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
@@ -984,5 +984,3 @@ export default function OrdersPage() {
     </div>
   );
 }
-
-    
