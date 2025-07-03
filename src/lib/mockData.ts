@@ -54,6 +54,7 @@ export interface Order {
   pickupAddress?: string;
   pickupLatitude?: number;
   pickupLongitude?: number;
+  customerSpecification?: string;
 }
 
 export interface SocialLink {

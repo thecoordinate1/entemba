@@ -70,6 +70,7 @@ interface NewOrderItemEntry {
 const defaultNewOrderData = {
   customerName: "",
   customerEmail: "",
+  customerSpecification: "",
   shippingAddress: "",
   billingAddress: "",
   shippingMethod: "",
@@ -109,6 +110,7 @@ const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
     pickupAddress: order.pickup_address || undefined,
     pickupLatitude: order.pickup_latitude || undefined,
     pickupLongitude: order.pickup_longitude || undefined,
+    customerSpecification: order.customer_specification || undefined,
   };
 };
 
@@ -287,10 +289,10 @@ export default function OrdersPage() {
         }
     };
 
-    if (orderToProcess && !isPickupLocationDialogOpen && !isDeliveryDialogOpen) {
+    if (orderToProcess && !isPickupLocationDialogOpen && !isDeliveryDialogOpen && !isOutOfStockDialogOpen) {
         checkStockAndProceed();
     }
-  }, [orderToProcess, storeIdFromUrl, toast, selectedStore, isPickupLocationDialogOpen, isDeliveryDialogOpen]);
+  }, [orderToProcess, storeIdFromUrl, toast, selectedStore, isPickupLocationDialogOpen, isDeliveryDialogOpen, isOutOfStockDialogOpen]);
 
 
   const handleUpdateStatus = async (
@@ -500,6 +502,7 @@ export default function OrdersPage() {
       shipping_latitude: newOrderData.shippingLatitude ? parseFloat(newOrderData.shippingLatitude) : null,
       shipping_longitude: newOrderData.shippingLongitude ? parseFloat(newOrderData.shippingLongitude) : null,
       delivery_type: null,
+      customer_specification: newOrderData.customerSpecification || null,
     };
 
     const itemsPayload: OrderItemPayload[] = newOrderItems.map(item => ({
@@ -612,6 +615,13 @@ export default function OrdersPage() {
                         <Label htmlFor="customerEmail">Customer Email</Label>
                         <Input id="customerEmail" name="customerEmail" type="email" value={newOrderData.customerEmail} onChange={handleNewOrderInputChange} required />
                       </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="pt-6 grid gap-2">
+                      <Label htmlFor="customerSpecification">Customer Specification (Optional)</Label>
+                      <Textarea id="customerSpecification" name="customerSpecification" value={newOrderData.customerSpecification} onChange={handleNewOrderInputChange} placeholder="e.g., Please gift wrap the items." rows={3}/>
                     </CardContent>
                   </Card>
 
@@ -880,79 +890,78 @@ export default function OrdersPage() {
         </Card>
       )}
 
-        {/* Pickup Location Dialog */}
-        <AlertDialog open={isPickupLocationDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) { setOrderToProcess(null); } setIsPickupLocationDialogOpen(isOpen); }}>
-            <AlertDialogContent className="sm:max-w-md">
-                <AlertDialogHeader>
-                    <AlertDialogTitle className="flex items-center gap-2"><PackageSearch className="h-6 w-6 text-primary" /> Set Pickup Location</AlertDialogTitle>
-                    <AlertDialogDescription>Confirm the pickup location before proceeding to delivery options.</AlertDialogDescription>
-                </AlertDialogHeader>
-                <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="pickupAddress">Pickup Address</Label>
-                        <Input id="pickupAddress" value={pickupLocationInfo.address} onChange={(e) => setPickupLocationInfo(prev => ({...prev, address: e.target.value}))} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="savedLocation">Use Saved Location</Label>
-                         <Select onValueChange={(value) => {
-                            if (value === selectedStore?.location) {
-                                const coords = selectedStore.pickup_latitude && selectedStore.pickup_longitude
-                                    ? { lat: selectedStore.pickup_latitude, lng: selectedStore.pickup_longitude }
-                                    : null;
-                                setPickupLocationInfo({ address: value, coords });
-                            }
-                         }} defaultValue={selectedStore?.location || ""}>
-                            <SelectTrigger id="savedLocation">
-                                <SelectValue placeholder="Select a saved location..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {selectedStore?.location && <SelectItem value={selectedStore.location}><Building className="inline-block mr-2 h-4 w-4" />{selectedStore.location}</SelectItem>}
-                                <SelectItem value="new" disabled>Add new location (TBD)</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <Separator />
-                    <Button variant="outline" className="w-full" onClick={handleUseCurrentLocation} disabled={isFetchingLocation}>
-                        <LocateFixed className="mr-2 h-4 w-4"/> {isFetchingLocation ? "Fetching..." : "Use Current GPS Location"}
-                    </Button>
-                    <div className="space-y-2">
-                        <Label htmlFor="pickupCoords">Coordinates (Lat, Lng)</Label>
-                        <Input id="pickupCoords" value={pickupLocationInfo.coords ? `${pickupLocationInfo.coords.lat}, ${pickupLocationInfo.coords.lng}` : ""} 
-                            onChange={(e) => {
-                                const [lat, lng] = e.target.value.split(',').map(s => parseFloat(s.trim()));
-                                if (!isNaN(lat) && !isNaN(lng)) {
-                                    setPickupLocationInfo(prev => ({...prev, coords: {lat, lng}}));
-                                } else {
-                                     setPickupLocationInfo(prev => ({...prev, coords: null}));
-                                }
-                            }}
-                            placeholder="e.g., -15.4167, 28.2833"
-                         />
-                    </div>
-                    {pickupLocationInfo.coords && (
-                        <div className="space-y-2 rounded-md border p-3">
-                            <p className="text-sm font-medium">Map Links</p>
-                             <p className="text-xs text-muted-foreground">Click to open, or copy coordinates and paste into your map app.</p>
-                            <div className="flex items-center gap-2">
-                                <a href={`https://www.google.com/maps/search/?api=1&query=${pickupLocationInfo.coords.lat},${pickupLocationInfo.coords.lng}`} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3"/>Google Maps</a>
-                                <span>|</span>
-                                <a href={`http://maps.apple.com/?q=${pickupLocationInfo.coords.lat},${pickupLocationInfo.coords.lng}`} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3"/>Apple Maps</a>
-                                <Button size="icon" variant="ghost" className="h-6 w-6 ml-auto" onClick={() => {
-                                    navigator.clipboard.writeText(`${pickupLocationInfo.coords?.lat}, ${pickupLocationInfo.coords?.lng}`);
-                                    toast({title: "Copied to clipboard"});
-                                }}>
-                                    <Copy className="h-4 w-4"/>
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => { setIsPickupLocationDialogOpen(false); setIsDeliveryDialogOpen(true); }}>Confirm &amp; Proceed</AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
+      <AlertDialog open={isPickupLocationDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) { setOrderToProcess(null); } setIsPickupLocationDialogOpen(isOpen); }}>
+          <AlertDialogContent className="sm:max-w-md">
+              <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2"><PackageSearch className="h-6 w-6 text-primary" /> Set Pickup Location</AlertDialogTitle>
+                  <AlertDialogDescription>Confirm the pickup location before proceeding to delivery options.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                      <Label htmlFor="pickupAddress">Pickup Address</Label>
+                      <Input id="pickupAddress" value={pickupLocationInfo.address} onChange={(e) => setPickupLocationInfo(prev => ({...prev, address: e.target.value}))} />
+                  </div>
+                  <div className="space-y-2">
+                      <Label htmlFor="savedLocation">Use Saved Location</Label>
+                        <Select onValueChange={(value) => {
+                          if (value === selectedStore?.location) {
+                              const coords = selectedStore.pickup_latitude && selectedStore.pickup_longitude
+                                  ? { lat: selectedStore.pickup_latitude, lng: selectedStore.pickup_longitude }
+                                  : null;
+                              setPickupLocationInfo({ address: value, coords });
+                          }
+                        }} defaultValue={selectedStore?.location || ""}>
+                          <SelectTrigger id="savedLocation">
+                              <SelectValue placeholder="Select a saved location..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                              {selectedStore?.location && <SelectItem value={selectedStore.location}><Building className="inline-block mr-2 h-4 w-4" />{selectedStore.location}</SelectItem>}
+                              <SelectItem value="new" disabled>Add new location (TBD)</SelectItem>
+                          </SelectContent>
+                      </Select>
+                  </div>
+                  <Separator />
+                  <Button variant="outline" className="w-full" onClick={handleUseCurrentLocation} disabled={isFetchingLocation}>
+                      <LocateFixed className="mr-2 h-4 w-4"/> {isFetchingLocation ? "Fetching..." : "Use Current GPS Location"}
+                  </Button>
+                  <div className="space-y-2">
+                      <Label htmlFor="pickupCoords">Coordinates (Lat, Lng)</Label>
+                      <Input id="pickupCoords" value={pickupLocationInfo.coords ? `${pickupLocationInfo.coords.lat}, ${pickupLocationInfo.coords.lng}` : ""} 
+                          onChange={(e) => {
+                              const [lat, lng] = e.target.value.split(',').map(s => parseFloat(s.trim()));
+                              if (!isNaN(lat) && !isNaN(lng)) {
+                                  setPickupLocationInfo(prev => ({...prev, coords: {lat, lng}}));
+                              } else {
+                                    setPickupLocationInfo(prev => ({...prev, coords: null}));
+                              }
+                          }}
+                          placeholder="e.g., -15.4167, 28.2833"
+                        />
+                  </div>
+                  {pickupLocationInfo.coords && (
+                      <div className="space-y-2 rounded-md border p-3">
+                          <p className="text-sm font-medium">Map Links</p>
+                            <p className="text-xs text-muted-foreground">Click to open, or copy coordinates and paste into your map app.</p>
+                          <div className="flex items-center gap-2">
+                              <a href={`https://www.google.com/maps/search/?api=1&query=${pickupLocationInfo.coords.lat},${pickupLocationInfo.coords.lng}`} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3"/>Google Maps</a>
+                              <span>|</span>
+                              <a href={`http://maps.apple.com/?q=${pickupLocationInfo.coords.lat},${pickupLocationInfo.coords.lng}`} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3"/>Apple Maps</a>
+                              <Button size="icon" variant="ghost" className="h-6 w-6 ml-auto" onClick={() => {
+                                  navigator.clipboard.writeText(`${pickupLocationInfo.coords?.lat}, ${pickupLocationInfo.coords?.lng}`);
+                                  toast({title: "Copied to clipboard"});
+                              }}>
+                                  <Copy className="h-4 w-4"/>
+                              </Button>
+                          </div>
+                      </div>
+                  )}
+              </div>
+              <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => { setIsPickupLocationDialogOpen(false); setIsDeliveryDialogOpen(true); }}>Confirm &amp; Proceed</AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+      </AlertDialog>
 
 
       <Dialog open={isDeliveryDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) { setOrderToProcess(null); } setIsDeliveryDialogOpen(isOpen); }}>
@@ -974,7 +983,7 @@ export default function OrdersPage() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={isOutOfStockDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) { setIsOutOfStockDialogOpen(false); setOrderToProcess(null); } }}>
+      <AlertDialog open={isOutOfStockDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) { setOrderToProcess(null); setIsOutOfStockDialogOpen(false); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="h-6 w-6 text-yellow-500"/>Items Out of Stock</AlertDialogTitle>
@@ -983,7 +992,7 @@ export default function OrdersPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => { setIsOutOfStockDialogOpen(false); setOrderToProcess(null); }}>Close</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => { setOrderToProcess(null); setIsOutOfStockDialogOpen(false); }}>Close</AlertDialogCancel>
             <AlertDialogAction asChild>
                 <Link href={`/orders/${orderToProcess?.id}?${searchParams.toString()}`}>View Order Details</Link>
             </AlertDialogAction>

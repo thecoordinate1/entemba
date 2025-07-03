@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Table, TableBody, TableCell, TableRow, TableHead, TableHeader } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, Printer, MapPin, User, CalendarDays, CreditCard, Truck as ShippingTruckIcon, DollarSign, AlertCircle, LocateFixed, Bike, Package, PackageSearch, Link as LinkIcon, Copy } from "lucide-react";
+import { ArrowLeft, Edit, Printer, MapPin, User, CalendarDays, CreditCard, Truck as ShippingTruckIcon, DollarSign, AlertCircle, LocateFixed, Bike, Package, PackageSearch, Link as LinkIcon, Copy, ClipboardList } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
@@ -56,6 +56,7 @@ const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
     pickupAddress: order.pickup_address || undefined,
     pickupLatitude: order.pickup_latitude || undefined,
     pickupLongitude: order.pickup_longitude || undefined,
+    customerSpecification: order.customer_specification || undefined,
   };
 };
 
@@ -357,6 +358,19 @@ export default function OrderDetailPage() {
           Order ID: {order.id}
         </CardFooter>
       </Card>
+      
+      {order.customerSpecification && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><ClipboardList className="h-6 w-6 text-primary"/> Customer Specification</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground whitespace-pre-wrap">
+              {order.customerSpecification}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

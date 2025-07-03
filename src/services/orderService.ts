@@ -32,6 +32,7 @@ export interface OrderPayload {
   pickup_address?: string | null;
   pickup_latitude?: number | null;
   pickup_longitude?: number | null;
+  customer_specification?: string | null;
 }
 
 export interface OrderItemFromSupabase {
@@ -66,6 +67,7 @@ export interface OrderFromSupabase {
   pickup_address: string | null;
   pickup_latitude: number | null;
   pickup_longitude: number | null;
+  customer_specification: string | null;
   created_at: string;
   updated_at: string;
   order_items: OrderItemFromSupabase[];
@@ -83,6 +85,7 @@ const commonOrderSelect = `
   id, store_id, customer_id, customer_name, customer_email, order_date, total_amount, status,
   shipping_address, billing_address, shipping_method, payment_method, tracking_number,
   shipping_latitude, shipping_longitude, delivery_type, pickup_address, pickup_latitude, pickup_longitude,
+  customer_specification,
   created_at, updated_at,
   order_items (
     id, order_id, product_id, product_name_snapshot, quantity, price_per_unit_snapshot,
@@ -154,6 +157,7 @@ export async function createOrder(
       pickup_address: orderData.pickup_address,
       pickup_latitude: orderData.pickup_latitude,
       pickup_longitude: orderData.pickup_longitude,
+      customer_specification: orderData.customer_specification,
     })
     .select(commonOrderSelect.replace('order_items (', 'order_items!left (')) 
     .single();
@@ -419,10 +423,9 @@ export async function getStoreOrderStats(storeId: string): Promise<{ data: Store
   let activeOrdersCount = 0;
 
   orders.forEach(order => {
-    if (order.status === 'Delivered' || (order.status as any) === 'Shipped') { // Keep 'Shipped' for historical data
+    if (order.status === 'Delivered') { 
       totalRevenue += order.total_amount || 0;
     }
-    // Updated active order statuses
     if (['Pending', 'Confirmed', 'Driver Picking Up', 'Delivering'].includes(order.status)) {
       activeOrdersCount++;
     }
