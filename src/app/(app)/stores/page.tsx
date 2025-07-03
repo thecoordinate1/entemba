@@ -98,7 +98,6 @@ const socialIconMap: Record<MockSocialLinkType["platform"], React.ElementType> =
 // Helper to map StoreFromSupabase to MockStoreType for UI compatibility
 const mapStoreFromSupabaseToMockStore = (store: StoreFromSupabase): MockStoreType => ({
   id: store.id,
-  user_id: store.vendor_id, // Ensure this mapping is correct if MockStoreType still uses user_id
   name: store.name,
   description: store.description,
   logo: store.logo_url || "https://placehold.co/200x100.png?text=No+Logo",
@@ -107,6 +106,8 @@ const mapStoreFromSupabaseToMockStore = (store: StoreFromSupabase): MockStoreTyp
   category: store.category,
   socialLinks: store.social_links.map(sl => ({ platform: sl.platform as MockSocialLinkType["platform"], url: sl.url })),
   location: store.location || undefined,
+  pickupLatitude: store.pickup_latitude || undefined,
+  pickupLongitude: store.pickup_longitude || undefined,
   createdAt: new Date(store.created_at).toISOString().split("T")[0],
 });
 
@@ -128,6 +129,8 @@ export default function StoresPage() {
   const [formStoreDescription, setFormStoreDescription] = React.useState("");
   const [formStoreCategory, setFormStoreCategory] = React.useState("");
   const [formStoreLocation, setFormStoreLocation] = React.useState("");
+  const [formStorePickupLat, setFormStorePickupLat] = React.useState<number | string>("");
+  const [formStorePickupLng, setFormStorePickupLng] = React.useState<number | string>("");
   const [formStoreStatus, setFormStoreStatus] = React.useState<MockStoreType["status"]>("Inactive");
   const [formSocialLinks, setFormSocialLinks] = React.useState<StoreSocialLinkPayload[]>([]);
 
@@ -187,6 +190,8 @@ export default function StoresPage() {
     setFormStoreDescription(store.description);
     setFormStoreCategory(store.category);
     setFormStoreLocation(store.location || "");
+    setFormStorePickupLat(store.pickupLatitude || "");
+    setFormStorePickupLng(store.pickupLongitude || "");
     setFormStoreStatus(store.status);
     setFormSocialLinks(store.socialLinks?.map(sl => ({ platform: sl.platform, url: sl.url })) || []);
     setFormLogoSlot({
@@ -203,6 +208,8 @@ export default function StoresPage() {
     setFormStoreDescription("");
     setFormStoreCategory("");
     setFormStoreLocation("");
+    setFormStorePickupLat("");
+    setFormStorePickupLng("");
     setFormStoreStatus("Inactive");
     setFormSocialLinks([]);
     resetLogoSlot();
@@ -224,6 +231,8 @@ export default function StoresPage() {
       category: formStoreCategory,
       status: formStoreStatus,
       location: formStoreLocation || null,
+      pickup_latitude: formStorePickupLat ? parseFloat(String(formStorePickupLat)) : null,
+      pickup_longitude: formStorePickupLng ? parseFloat(String(formStorePickupLng)) : null,
       social_links: formSocialLinks.filter(link => link.url.trim() !== ''),
     };
   };
@@ -430,10 +439,24 @@ export default function StoresPage() {
                 <Input id="category" name="category" value={formStoreCategory} onChange={e => setFormStoreCategory(e.target.value)} placeholder="e.g., Fashion, Electronics" required />
             </div>
             <div className="grid gap-2">
-                <Label htmlFor="location">Location (Optional)</Label>
+                <Label htmlFor="location">Default Pickup Address (Optional)</Label>
                 <Input id="location" name="location" value={formStoreLocation} onChange={e => setFormStoreLocation(e.target.value)} placeholder="e.g., City, Country" />
             </div>
         </div>
+        <Separator className="my-2" />
+        <h4 className="text-md font-medium">Default Pickup Coordinates (Optional)</h4>
+        <p className="text-xs text-muted-foreground -mt-2">Provide coordinates to show map links during order processing.</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid gap-2">
+                <Label htmlFor="pickupLat">Latitude</Label>
+                <Input id="pickupLat" name="pickupLat" type="number" step="any" value={formStorePickupLat} onChange={e => setFormStorePickupLat(e.target.value)} placeholder="e.g., -15.4167" />
+            </div>
+            <div className="grid gap-2">
+                <Label htmlFor="pickupLng">Longitude</Label>
+                <Input id="pickupLng" name="pickupLng" type="number" step="any" value={formStorePickupLng} onChange={e => setFormStorePickupLng(e.target.value)} placeholder="e.g., 28.2833" />
+            </div>
+        </div>
+
         <Separator className="my-2" />
         <h4 className="text-md font-medium">Social Links (Optional)</h4>
         {(["Instagram", "Facebook", "Twitter", "TikTok", "LinkedIn", "Other"] as const).map((platform) => {

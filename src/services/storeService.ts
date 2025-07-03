@@ -16,6 +16,8 @@ export interface StorePayload { // For creating/updating store data
   category: string;
   status: 'Active' | 'Inactive' | 'Maintenance';
   location?: string | null;
+  pickup_latitude?: number | null;
+  pickup_longitude?: number | null;
   logo_url?: string | null;
   data_ai_hint?: string | null;
   social_links?: SocialLinkPayload[];
@@ -31,6 +33,8 @@ export interface StoreFromSupabase {
   status: 'Active' | 'Inactive' | 'Maintenance';
   category: string;
   location: string | null;
+  pickup_latitude: number | null;
+  pickup_longitude: number | null;
   created_at: string;
   updated_at: string;
   social_links: {
@@ -38,6 +42,9 @@ export interface StoreFromSupabase {
     url: string;
   }[];
 }
+
+const STORE_COLUMNS_TO_SELECT = 'id, vendor_id, name, description, logo_url, data_ai_hint, status, category, location, pickup_latitude, pickup_longitude, created_at, updated_at';
+
 
 // Helper to extract path from Supabase Storage URL
 function getPathFromStorageUrl(url: string, bucketName: string): string | null {
@@ -98,7 +105,7 @@ export async function getStoresByUserId(userId: string): Promise<{ data: StoreFr
 
   const { data: storesData, error: storesError } = await supabase
     .from('stores')
-    .select('id, vendor_id, name, description, logo_url, data_ai_hint, status, category, location, created_at, updated_at')
+    .select(STORE_COLUMNS_TO_SELECT)
     .eq('vendor_id', userId)
     .order('created_at', { ascending: false });
 
@@ -136,7 +143,7 @@ export async function getStoreById(storeId: string, userId: string): Promise<{ d
   console.log(`[storeService.getStoreById] Fetching store ${storeId} for user ${userId}`);
   const { data: storeData, error: storeError } = await supabase
     .from('stores')
-    .select('id, vendor_id, name, description, logo_url, data_ai_hint, status, category, location, created_at, updated_at')
+    .select(STORE_COLUMNS_TO_SELECT)
     .eq('id', storeId)
     .eq('vendor_id', userId) // Ensure ownership
     .single();
@@ -193,6 +200,8 @@ export async function createStore(
     category: storeData.category,
     status: storeData.status,
     location: storeData.location,
+    pickup_latitude: storeData.pickup_latitude,
+    pickup_longitude: storeData.pickup_longitude,
     logo_url: null, 
     data_ai_hint: storeData.data_ai_hint,
   };
@@ -200,7 +209,7 @@ export async function createStore(
   const { data: newStore, error: createStoreError } = await supabase
     .from('stores')
     .insert(initialStoreInsertData)
-    .select('id, vendor_id, name, description, logo_url, data_ai_hint, status, category, location, created_at, updated_at')
+    .select(STORE_COLUMNS_TO_SELECT)
     .single();
   
   console.log("[storeService.createStore] Supabase insert response:", { newStore: JSON.stringify(newStore), createStoreError: JSON.stringify(createStoreError, null, 2) });
@@ -256,7 +265,7 @@ export async function createStore(
       .from('stores')
       .update({ logo_url: logoUrlToSave, data_ai_hint: finalDataAiHint })
       .eq('id', newStore.id)
-      .select('id, vendor_id, name, description, logo_url, data_ai_hint, status, category, location, created_at, updated_at')
+      .select(STORE_COLUMNS_TO_SELECT)
       .single();
 
     if (updateLogoError || !updatedStoreWithLogo) {
@@ -320,6 +329,8 @@ export async function updateStore(
     category: storeData.category,
     status: storeData.status,
     location: storeData.location,
+    pickup_latitude: storeData.pickup_latitude,
+    pickup_longitude: storeData.pickup_longitude,
     logo_url: newLogoUrl, // This could be the newly uploaded URL, existing one, or null if cleared & no new upload
     data_ai_hint: newAiHint,
     updated_at: new Date().toISOString(),
@@ -331,7 +342,7 @@ export async function updateStore(
     .update(storeUpdates)
     .eq('id', storeId)
     .eq('vendor_id', userId) 
-    .select('id, vendor_id, name, description, logo_url, data_ai_hint, status, category, location, created_at, updated_at')
+    .select(STORE_COLUMNS_TO_SELECT)
     .single();
 
   if (updateStoreError || !updatedStoreCore) {

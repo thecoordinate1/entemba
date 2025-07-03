@@ -277,17 +277,20 @@ export default function OrdersPage() {
 
         setIsProcessingOrder(false);
         if (isEverythingInStock) {
-            setPickupLocationInfo({ address: selectedStore?.location || "", coords: null });
+            const defaultCoords = (selectedStore?.pickup_latitude && selectedStore?.pickup_longitude)
+                ? { lat: selectedStore.pickup_latitude, lng: selectedStore.pickup_longitude }
+                : null;
+            setPickupLocationInfo({ address: selectedStore?.location || "", coords: defaultCoords });
             setIsPickupLocationDialogOpen(true);
         } else {
             setIsOutOfStockDialogOpen(true);
         }
     };
 
-    if (orderToProcess) {
+    if (orderToProcess && !isPickupLocationDialogOpen && !isDeliveryDialogOpen) {
         checkStockAndProceed();
     }
-  }, [orderToProcess, storeIdFromUrl, toast, selectedStore?.location]);
+  }, [orderToProcess, storeIdFromUrl, toast, selectedStore, isPickupLocationDialogOpen, isDeliveryDialogOpen]);
 
 
   const handleUpdateStatus = async (
@@ -337,10 +340,6 @@ export default function OrdersPage() {
         }, false);
 
         if (success) {
-            setIsDeliveryDialogOpen(false);
-            setOrderToProcess(null);
-            setPickupLocationInfo({ address: "", coords: null });
-
             if (deliveryType === 'courier') {
               toast({ title: "Courier Requested", description: `Order confirmed with Tracking #: ${trackingNumber}` });
             } else {
@@ -349,6 +348,9 @@ export default function OrdersPage() {
         }
     } finally {
         setIsConfirmingDelivery(false);
+        setIsDeliveryDialogOpen(false);
+        setOrderToProcess(null);
+        setPickupLocationInfo({ address: "", coords: null });
     }
   };
 
@@ -879,7 +881,7 @@ export default function OrdersPage() {
       )}
 
         {/* Pickup Location Dialog */}
-        <AlertDialog open={isPickupLocationDialogOpen} onOpenChange={setIsPickupLocationDialogOpen}>
+        <AlertDialog open={isPickupLocationDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) { setOrderToProcess(null); } setIsPickupLocationDialogOpen(isOpen); }}>
             <AlertDialogContent className="sm:max-w-md">
                 <AlertDialogHeader>
                     <AlertDialogTitle className="flex items-center gap-2"><PackageSearch className="h-6 w-6 text-primary" /> Set Pickup Location</AlertDialogTitle>
@@ -892,7 +894,14 @@ export default function OrdersPage() {
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="savedLocation">Use Saved Location</Label>
-                         <Select onValueChange={(value) => setPickupLocationInfo({ address: value, coords: null })} defaultValue={selectedStore?.location || ""}>
+                         <Select onValueChange={(value) => {
+                            if (value === selectedStore?.location) {
+                                const coords = selectedStore.pickup_latitude && selectedStore.pickup_longitude
+                                    ? { lat: selectedStore.pickup_latitude, lng: selectedStore.pickup_longitude }
+                                    : null;
+                                setPickupLocationInfo({ address: value, coords });
+                            }
+                         }} defaultValue={selectedStore?.location || ""}>
                             <SelectTrigger id="savedLocation">
                                 <SelectValue placeholder="Select a saved location..." />
                             </SelectTrigger>
@@ -939,14 +948,14 @@ export default function OrdersPage() {
                     )}
                 </div>
                 <AlertDialogFooter>
-                    <AlertDialogCancel onClick={() => setOrderToProcess(null)}>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction onClick={() => { setIsPickupLocationDialogOpen(false); setIsDeliveryDialogOpen(true); }}>Confirm &amp; Proceed</AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
 
 
-      <Dialog open={isDeliveryDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) { setIsDeliveryDialogOpen(false); setOrderToProcess(null); } }}>
+      <Dialog open={isDeliveryDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) { setOrderToProcess(null); } setIsDeliveryDialogOpen(isOpen); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Check className="h-6 w-6 text-green-500" />Order Confirmed: #{orderToProcess?.id.substring(0,8)}...</DialogTitle>

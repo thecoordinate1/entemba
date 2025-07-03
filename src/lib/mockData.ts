@@ -70,6 +70,8 @@ export interface Store {
   category: string;
   socialLinks?: SocialLink[];
   location?: string;
+  pickupLatitude?: number;
+  pickupLongitude?: number;
   createdAt: string;
 }
 
@@ -141,6 +143,8 @@ export const initialStores: Store[] = [
       { platform: "Facebook", url: "https://facebook.com/artisanboutique" },
     ],
     location: "New York, NY",
+    pickupLatitude: 40.7128,
+    pickupLongitude: -74.0060,
     createdAt: "2022-11-10",
   },
   {
@@ -155,6 +159,8 @@ export const initialStores: Store[] = [
       { platform: "Twitter", url: "https://twitter.com/techgadgethub" },
     ],
     location: "San Francisco, CA",
+    pickupLatitude: 37.7749,
+    pickupLongitude: -122.4194,
     createdAt: "2023-01-25",
   },
   // Other mock stores can remain if needed for initial UI testing without a backend connection,
