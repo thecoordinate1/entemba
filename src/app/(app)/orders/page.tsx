@@ -75,7 +75,6 @@ const defaultNewOrderData = {
   billingAddress: "",
   shippingMethod: "",
   paymentMethod: "",
-  trackingNumber: "",
   shippingLatitude: "",
   shippingLongitude: "",
   status: "Pending" as OrderStatus,
@@ -331,22 +330,18 @@ export default function OrdersPage() {
     
     setIsConfirmingDelivery(true);
     try {
-        const trackingNumber = Math.random().toString(36).substring(2, 8).toUpperCase();
-
         const success = await handleUpdateStatus(orderToProcess.id, 'Confirmed', { 
-            deliveryType, 
-            trackingNumber,
+            deliveryType,
             pickup_address: pickupLocationInfo.address,
             pickup_latitude: pickupLocationInfo.coords?.lat,
             pickup_longitude: pickupLocationInfo.coords?.lng
         }, false);
 
         if (success) {
-            if (deliveryType === 'courier') {
-              toast({ title: "Courier Requested", description: `Order confirmed with Tracking #: ${trackingNumber}` });
-            } else {
-              toast({ title: "Order Confirmed (Self-Delivery)", description: `Tracking #: ${trackingNumber}` });
-            }
+            toast({ 
+                title: "Order Confirmed", 
+                description: `The order is now confirmed for ${deliveryType === 'courier' ? 'courier pickup' : 'self-delivery'}. A tracking number will be assigned.`
+            });
         }
     } finally {
         setIsConfirmingDelivery(false);
@@ -498,9 +493,8 @@ export default function OrdersPage() {
       billing_address: newOrderData.billingAddress || newOrderData.shippingAddress,
       shipping_method: newOrderData.shippingMethod || null,
       payment_method: newOrderData.paymentMethod || null,
-      tracking_number: newOrderData.trackingNumber || null,
-      shipping_latitude: newOrderData.shippingLatitude ? parseFloat(newOrderData.shippingLatitude) : null,
-      shipping_longitude: newOrderData.shippingLongitude ? parseFloat(newOrderData.shippingLongitude) : null,
+      shipping_latitude: newOrderData.shippingLatitude ? parseFloat(String(newOrderData.shippingLatitude)) : null,
+      shipping_longitude: newOrderData.shippingLongitude ? parseFloat(String(newOrderData.shippingLongitude)) : null,
       delivery_type: null,
       customer_specification: newOrderData.customerSpecification || null,
     };
@@ -635,13 +629,24 @@ export default function OrdersPage() {
                             <Label htmlFor="billingAddress">Billing Address (Optional)</Label>
                             <Textarea id="billingAddress" name="billingAddress" value={newOrderData.billingAddress} onChange={handleNewOrderInputChange} placeholder="Leave blank if same as shipping" rows={3}/>
                         </div>
-                         <div className="grid gap-2">
-                            <Label htmlFor="shippingLatitude">Shipping Latitude (Optional)</Label>
-                            <Input id="shippingLatitude" name="shippingLatitude" type="number" step="any" value={newOrderData.shippingLatitude} onChange={handleNewOrderInputChange} placeholder="e.g., 34.0522" />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="shippingLongitude">Shipping Longitude (Optional)</Label>
-                            <Input id="shippingLongitude" name="shippingLongitude" type="number" step="any" value={newOrderData.shippingLongitude} onChange={handleNewOrderInputChange} placeholder="e.g., -118.2437" />
+                        <div className="grid gap-2 md:col-span-2">
+                          <Label htmlFor="shippingCoords">Shipping Coordinates (Lat, Lng)</Label>
+                          <Input
+                            id="shippingCoords"
+                            name="shippingCoords"
+                            value={(newOrderData.shippingLatitude && newOrderData.shippingLongitude) ? `${newOrderData.shippingLatitude}, ${newOrderData.shippingLongitude}` : ""}
+                            onChange={(e) => {
+                                const [latStr, lngStr] = e.target.value.split(',').map(s => s.trim());
+                                const lat = parseFloat(latStr);
+                                const lng = parseFloat(lngStr);
+                                setNewOrderData(prev => ({
+                                    ...prev,
+                                    shippingLatitude: !isNaN(lat) ? lat : "",
+                                    shippingLongitude: !isNaN(lng) ? lng : "",
+                                }));
+                            }}
+                            placeholder="e.g., -15.4167, 28.2833"
+                          />
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="shippingMethod">Shipping Method</Label>
@@ -650,13 +655,6 @@ export default function OrdersPage() {
                         <div className="grid gap-2">
                             <Label htmlFor="paymentMethod">Payment Method</Label>
                             <Input id="paymentMethod" name="paymentMethod" value={newOrderData.paymentMethod} onChange={handleNewOrderInputChange} />
-                        </div>
-                        <div className="grid gap-2 md:col-span-2">
-                            <Label htmlFor="trackingNumber">Tracking Number (Optional)</Label>
-                            <div className="relative">
-                                <Truck className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                <Input id="trackingNumber" name="trackingNumber" value={newOrderData.trackingNumber || ""} onChange={handleNewOrderInputChange} className="pl-8" />
-                            </div>
                         </div>
                     </CardContent>
                   </Card>
