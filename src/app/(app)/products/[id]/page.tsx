@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Edit, Star, Tag, Weight, Ruler, ShoppingCart, DollarSign, UploadCloud, Image as ImageIconLucide } from "lucide-react";
+import { ArrowLeft, Edit, Star, Tag, Weight, Ruler, ShoppingCart, DollarSign, UploadCloud, Image as ImageIconLucide, Calculator } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +37,7 @@ import {
     type ProductImageFromSupabase 
 } from "@/services/productService";
 import type { Product as ProductUIType } from "@/lib/mockData"; // Using this as the target UI type for now
+import { calculateDeliveryCapacity, type CalculateCapacityOutput } from "@/ai/flows/calculate-delivery-capacity-flow";
 
 const MAX_IMAGES = 5;
 
@@ -119,6 +120,12 @@ export default function ProductDetailPage() {
   const [formDimLength, setFormDimLength] = React.useState<number | string | undefined>(undefined);
   const [formDimWidth, setFormDimWidth] = React.useState<number | string | undefined>(undefined);
   const [formDimHeight, setFormDimHeight] = React.useState<number | string | undefined>(undefined);
+
+  // New state for capacity calculator
+  const [vehicleType, setVehicleType] = React.useState<'car' | 'bike'>('bike');
+  const [capacityResult, setCapacityResult] = React.useState<CalculateCapacityOutput | null>(null);
+  const [isCalculatingCapacity, setIsCalculatingCapacity] = React.useState(false);
+  const [capacityError, setCapacityError] = React.useState<string | null>(null);
 
 
   React.useEffect(() => {
@@ -321,6 +328,44 @@ export default function ProductDetailPage() {
         toast({ variant: "destructive", title: "Operation Failed", description: "An unexpected error occurred during update."});
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleCalculateCapacity = async () => {
+    if (!product || !product.dimensions || !product.weight) {
+      toast({
+        variant: "destructive",
+        title: "Missing Information",
+        description: "Product dimensions and weight are required to calculate capacity.",
+      });
+      return;
+    }
+    
+    setIsCalculatingCapacity(true);
+    setCapacityResult(null);
+    setCapacityError(null);
+
+    try {
+      const input = {
+        productName: product.name,
+        productDimensions: product.dimensions,
+        productWeight: product.weight,
+        vehicleType: vehicleType,
+      };
+      
+      const result = await calculateDeliveryCapacity(input);
+      setCapacityResult(result);
+    } catch (error: any) {
+      console.error("Error calculating capacity:", error);
+      const errorMessage = error.message || "An unexpected error occurred.";
+      setCapacityError(errorMessage);
+      toast({
+        variant: "destructive",
+        title: "Calculation Failed",
+        description: errorMessage,
+      });
+    } finally {
+      setIsCalculatingCapacity(false);
     }
   };
 
@@ -664,6 +709,61 @@ export default function ProductDetailPage() {
         <CardFooter className="text-xs text-muted-foreground border-t pt-4 mt-6">
           Product ID: {product.id} &nbsp;&middot;&nbsp; Created on: {new Date(product.createdAt).toLocaleDateString()}
         </CardFooter>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Calculator className="h-6 w-6 text-primary"/> Delivery Capacity Estimator</CardTitle>
+          <CardDescription>Use AI to estimate how many units of this product can fit in a standard vehicle. This requires weight and dimensions to be set for the product.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {(!product.weight || !product.dimensions) ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Please add weight and dimensions to this product to enable the capacity calculator.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <div className="grid gap-1.5 w-full sm:w-auto">
+                  <Label htmlFor="vehicleType">Vehicle Type</Label>
+                  <Select value={vehicleType} onValueChange={(v: 'car' | 'bike') => setVehicleType(v)}>
+                    <SelectTrigger id="vehicleType" className="w-full sm:w-[180px]">
+                      <SelectValue placeholder="Select vehicle" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bike">Delivery Bike</SelectItem>
+                      <SelectItem value="car">Car Trunk</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={handleCalculateCapacity} disabled={isCalculatingCapacity} className="w-full sm:w-auto sm:self-end">
+                  {isCalculatingCapacity ? 'Calculating...' : 'Calculate Capacity'}
+                </Button>
+              </div>
+              {isCalculatingCapacity && (
+                <div className="flex items-center gap-3 p-4 border rounded-lg bg-muted/50">
+                  <Skeleton className="h-10 w-10 rounded-md" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-[250px]" />
+                    <Skeleton className="h-4 w-[200px]" />
+                  </div>
+                </div>
+              )}
+              {capacityError && (
+                 <p className="text-sm text-destructive text-center py-4">{capacityError}</p>
+              )}
+              {capacityResult && !isCalculatingCapacity && (
+                <div className="p-4 border rounded-lg bg-muted/50 space-y-2">
+                  <p className="text-lg">
+                    Estimated max quantity for a <span className="font-semibold capitalize">{vehicleType}</span>: 
+                    <span className="text-2xl font-bold text-primary ml-2">{capacityResult.maxQuantity}</span> units
+                  </p>
+                  <p className="text-sm text-muted-foreground"><span className="font-semibold">Reasoning:</span> {capacityResult.reasoning}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
       </Card>
 
       <Card>
