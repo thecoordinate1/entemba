@@ -25,7 +25,7 @@ const VEHICLE_CAPACITIES = {
   },
 };
 
-export const CalculateCapacityInputSchema = z.object({
+const CalculateCapacityInputSchema = z.object({
   productName: z.string().describe('The name of the product.'),
   productDimensions: z
     .object({
@@ -39,7 +39,7 @@ export const CalculateCapacityInputSchema = z.object({
 });
 export type CalculateCapacityInput = z.infer<typeof CalculateCapacityInputSchema>;
 
-export const CalculateCapacityOutputSchema = z.object({
+const CalculateCapacityOutputSchema = z.object({
   maxQuantity: z
     .number()
     .describe('The maximum integer quantity of the product that can fit in the vehicle.'),
