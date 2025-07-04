@@ -68,6 +68,7 @@ export interface OrderFromSupabase {
   pickup_latitude: number | null;
   pickup_longitude: number | null;
   customer_specification: string | null;
+  delivery_cost: number;
   created_at: string;
   updated_at: string;
   order_items: OrderItemFromSupabase[];
@@ -85,7 +86,7 @@ const commonOrderSelect = `
   id, store_id, customer_id, customer_name, customer_email, order_date, total_amount, status,
   shipping_address, billing_address, shipping_method, payment_method, tracking_number,
   shipping_latitude, shipping_longitude, delivery_type, pickup_address, pickup_latitude, pickup_longitude,
-  customer_specification,
+  customer_specification, delivery_cost,
   created_at, updated_at,
   order_items (
     id, order_id, product_id, product_name_snapshot, quantity, price_per_unit_snapshot,

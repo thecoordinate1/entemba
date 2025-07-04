@@ -57,6 +57,7 @@ const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
     pickupLatitude: order.pickup_latitude || undefined,
     pickupLongitude: order.pickup_longitude || undefined,
     customerSpecification: order.customer_specification || undefined,
+    deliveryCost: order.delivery_cost || 0,
   };
 };
 
@@ -187,6 +188,9 @@ export default function OrderDetailPage() {
 
   const CurrentStatusIcon = orderStatusIcons[order.status];
   const DeliveryIcon = order.deliveryType === 'courier' ? Bike : order.deliveryType === 'self_delivery' ? Package : ShippingTruckIcon;
+  const subtotal = order.detailedItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const shippingCost = order.deliveryCost || 0;
+  const tax = 0; // Tax is currently not implemented
 
   return (
     <div className="flex flex-col gap-6">
@@ -336,15 +340,15 @@ export default function OrderDetailPage() {
              <div className="w-full sm:w-1/3 space-y-2">
                 <div className="flex justify-between">
                     <span>Subtotal:</span>
-                    <span>ZMW {order.total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                    <span>ZMW {subtotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
                 <div className="flex justify-between">
                     <span>Shipping:</span>
-                    <span>ZMW 0.00</span>
+                    <span>ZMW {shippingCost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
                  <div className="flex justify-between">
                     <span>Tax:</span>
-                    <span>ZMW 0.00</span>
+                    <span>ZMW {tax.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
                 <Separator />
                  <div className="flex justify-between font-bold text-lg">

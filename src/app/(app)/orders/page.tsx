@@ -110,6 +110,7 @@ const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
     pickupLatitude: order.pickup_latitude || undefined,
     pickupLongitude: order.pickup_longitude || undefined,
     customerSpecification: order.customer_specification || undefined,
+    deliveryCost: order.delivery_cost || 0,
   };
 };
 
@@ -298,8 +299,8 @@ export default function OrdersPage() {
     orderId: string,
     newStatus: OrderStatus,
     options?: {
-      deliveryType?: 'self_delivery' | 'courier' | null;
       trackingNumber?: string | null;
+      deliveryType?: 'self_delivery' | 'courier' | null;
       pickup_address?: string | null;
       pickup_latitude?: number | null;
       pickup_longitude?: number | null;
@@ -340,7 +341,7 @@ export default function OrdersPage() {
         if (success) {
             toast({ 
                 title: "Order Confirmed", 
-                description: `The order is now confirmed for ${deliveryType === 'courier' ? 'courier pickup' : 'self-delivery'}. A tracking number will be assigned.`
+                description: `The order is now confirmed. A tracking number will be assigned by the system.`
             });
         }
     } finally {
