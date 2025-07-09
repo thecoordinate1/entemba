@@ -20,7 +20,7 @@ import type { SocialLink as MockSocialLinkType } from "@/lib/mockData"; // Using
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
-import { Instagram, Facebook, Twitter, Link as LinkIcon, Palette, User, Shield, CreditCard, Building, UploadCloud } from "lucide-react";
+import { Instagram, Facebook, Twitter, Link as LinkIcon, Palette, User, Shield, CreditCard, Building, UploadCloud, LocateFixed, Copy } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { getCurrentVendorProfile, updateCurrentVendorProfile, uploadAvatar, type VendorProfile } from "@/services/userService";
@@ -77,6 +77,11 @@ export default function SettingsPage() {
   const [logoPreview, setLogoPreview] = React.useState<string | null>(null);
   const [storeDataAiHint, setStoreDataAiHint] = React.useState<string>("");
 
+  // Location state
+  const [storePickupLat, setStorePickupLat] = React.useState<number | string>("");
+  const [storePickupLng, setStorePickupLng] = React.useState<number | string>("");
+  const [isFetchingLocation, setIsFetchingLocation] = React.useState(false);
+
   // Theme state
   const [currentTheme, setCurrentTheme] = React.useState("system");
 
@@ -126,6 +131,7 @@ export default function SettingsPage() {
           setSelectedStore(null);
           // Reset form fields if store not found or error
           setStoreName(""); setStoreDescription(""); setStoreCategory(""); setStoreLocation(""); 
+          setStorePickupLat(""); setStorePickupLng("");
           setStoreStatus("Inactive"); setStoreSocialLinks([]); setStoreLogo(null); 
           setLogoPreview(null); setStoreDataAiHint("");
         } else if (storeDetails) {
@@ -134,6 +140,8 @@ export default function SettingsPage() {
           setStoreDescription(storeDetails.description);
           setStoreCategory(storeDetails.category);
           setStoreLocation(storeDetails.location || "");
+          setStorePickupLat(storeDetails.pickup_latitude || "");
+          setStorePickupLng(storeDetails.pickup_longitude || "");
           setStoreStatus(storeDetails.status);
           setStoreSocialLinks(storeDetails.social_links || []);
           setStoreLogo(storeDetails.logo_url);
@@ -145,6 +153,7 @@ export default function SettingsPage() {
         setSelectedStore(null); 
          // Reset form fields if no storeId or no authUser
          setStoreName(""); setStoreDescription(""); setStoreCategory(""); setStoreLocation(""); 
+         setStorePickupLat(""); setStorePickupLng("");
          setStoreStatus("Inactive"); setStoreSocialLinks([]); setStoreLogo(null); 
          setLogoPreview(null); setStoreDataAiHint("");
       }
@@ -255,6 +264,8 @@ export default function SettingsPage() {
         description: storeDescription,
         category: storeCategory,
         location: storeLocation || null,
+        pickup_latitude: storePickupLat ? parseFloat(String(storePickupLat)) : null,
+        pickup_longitude: storePickupLng ? parseFloat(String(storePickupLng)) : null,
         status: storeStatus,
         social_links: storeSocialLinks.filter(link => link.url.trim() !== ''),
         logo_url: logoPreview, // Pass current preview; service handles if it's old or new data URI
@@ -299,6 +310,27 @@ export default function SettingsPage() {
     // Placeholder - actual password change should call Supabase auth.updateUser({ password: newPassword })
     toast({ title: "Password Changed", description: "Your password has been successfully updated (Placeholder)." });
     (e.target as HTMLFormElement).reset();
+  };
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast({ variant: "destructive", title: "Geolocation Not Supported" });
+      return;
+    }
+    setIsFetchingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setStorePickupLat(latitude);
+        setStorePickupLng(longitude);
+        setIsFetchingLocation(false);
+        toast({ title: "Location Captured", description: `Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}` });
+      },
+      (error) => {
+        toast({ variant: "destructive", title: "Geolocation Failed", description: error.message });
+        setIsFetchingLocation(false);
+      }
+    );
   };
 
   React.useEffect(() => {
@@ -419,10 +451,52 @@ export default function SettingsPage() {
                         <Input id="storeCategory" value={storeCategory} onChange={(e) => setStoreCategory(e.target.value)} />
                     </div>
                      <div className="grid gap-2">
-                        <Label htmlFor="storeLocation">Location</Label>
+                        <Label htmlFor="storeLocation">Store Location / Address</Label>
                         <Input id="storeLocation" value={storeLocation} onChange={(e) => setStoreLocation(e.target.value)} />
                     </div>
                    </div>
+                   
+                    <Separator />
+                    <h4 className="text-md font-medium">Default Pickup Coordinates</h4>
+                    <p className="text-sm text-muted-foreground -mt-2">Provide precise coordinates for map links during order processing.</p>
+                    
+                    <Button variant="outline" className="w-full" type="button" onClick={handleUseCurrentLocation} disabled={isFetchingLocation}>
+                        <LocateFixed className="mr-2 h-4 w-4"/> {isFetchingLocation ? "Fetching..." : "Use Current GPS Location"}
+                    </Button>
+
+                    <div className="grid gap-2">
+                        <Label htmlFor="pickupCoords">Coordinates (Lat, Lng)</Label>
+                        <Input
+                            id="pickupCoords"
+                            value={storePickupLat && storePickupLng ? `${storePickupLat}, ${storePickupLng}` : ""}
+                            onChange={(e) => {
+                                const [latStr, lngStr] = e.target.value.split(',').map(s => s.trim());
+                                const lat = parseFloat(latStr);
+                                const lng = parseFloat(lngStr);
+                                setStorePickupLat(!isNaN(lat) ? lat : "");
+                                setStorePickupLng(!isNaN(lng) ? lng : "");
+                            }}
+                            placeholder="e.g., -15.4167, 28.2833"
+                        />
+                    </div>
+                    {storePickupLat && storePickupLng ? (
+                        <div className="space-y-2 rounded-md border p-3">
+                            <p className="text-sm font-medium">Map Links</p>
+                            <p className="text-xs text-muted-foreground">Click to open, or copy coordinates.</p>
+                            <div className="flex items-center gap-2">
+                                <a href={`https://www.google.com/maps/search/?api=1&query=${storePickupLat},${storePickupLng}`} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3"/>Google Maps</a>
+                                <span>|</span>
+                                <a href={`http://maps.apple.com/?q=${storePickupLat},${storePickupLng}`} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3"/>Apple Maps</a>
+                                <Button size="icon" variant="ghost" type="button" className="h-6 w-6 ml-auto" onClick={() => {
+                                    navigator.clipboard.writeText(`${storePickupLat}, ${storePickupLng}`);
+                                    toast({title: "Copied to clipboard"});
+                                }}>
+                                    <Copy className="h-4 w-4"/>
+                                </Button>
+                            </div>
+                        </div>
+                    ) : null}
+
                    <div className="grid gap-2">
                         <Label htmlFor="storeStatus">Status</Label>
                         <Select value={storeStatus} onValueChange={(value: StoreFromSupabase["status"]) => setStoreStatus(value)}>

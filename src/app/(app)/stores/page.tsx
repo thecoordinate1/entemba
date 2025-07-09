@@ -31,7 +31,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MoreVertical, PlusCircle, Edit, Trash2, MapPin, Eye, Tag, Instagram, Facebook, Twitter, Link as LinkIconLucide, UploadCloud, ExternalLink, LocateFixed, Copy } from "lucide-react";
+import { MoreVertical, PlusCircle, Edit, Trash2, MapPin, Eye, Tag, Instagram, Facebook, Twitter, Link as LinkIconLucide, UploadCloud, ExternalLink } from "lucide-react";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -133,7 +133,6 @@ export default function StoresPage() {
   const [formStorePickupLng, setFormStorePickupLng] = React.useState<number | string>("");
   const [formStoreStatus, setFormStoreStatus] = React.useState<MockStoreType["status"]>("Inactive");
   const [formSocialLinks, setFormSocialLinks] = React.useState<StoreSocialLinkPayload[]>([]);
-  const [isFetchingLocation, setIsFetchingLocation] = React.useState(false);
 
 
   React.useEffect(() => {
@@ -383,28 +382,6 @@ export default function StoresPage() {
 
   const getSocialUrl = (platform: StoreSocialLinkPayload["platform"]) => formSocialLinks.find(link => link.platform === platform)?.url || "";
 
-  const handleUseCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      toast({ variant: "destructive", title: "Geolocation Not Supported" });
-      return;
-    }
-    setIsFetchingLocation(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        setFormStorePickupLat(latitude);
-        setFormStorePickupLng(longitude);
-        setIsFetchingLocation(false);
-        toast({ title: "Location Captured", description: `Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}` });
-      },
-      (error) => {
-        toast({ variant: "destructive", title: "Geolocation Failed", description: error.message });
-        setIsFetchingLocation(false);
-      }
-    );
-  };
-
-
   const renderStoreFormFields = () => {
     return (
       <>
@@ -466,47 +443,6 @@ export default function StoresPage() {
                 <Input id="location" name="location" value={formStoreLocation} onChange={e => setFormStoreLocation(e.target.value)} placeholder="e.g., 123 Main St, Lusaka" />
             </div>
         </div>
-        <Separator className="my-2" />
-        <h4 className="text-md font-medium">Default Pickup Coordinates (Optional)</h4>
-        <p className="text-xs text-muted-foreground -mt-2">Provide coordinates for map links during order processing.</p>
-        
-        <Button variant="outline" className="w-full mt-2" type="button" onClick={handleUseCurrentLocation} disabled={isFetchingLocation}>
-            <LocateFixed className="mr-2 h-4 w-4"/> {isFetchingLocation ? "Fetching..." : "Use Current GPS Location"}
-        </Button>
-
-        <div className="grid gap-2 mt-2">
-            <Label htmlFor="pickupCoords">Coordinates (Lat, Lng)</Label>
-            <Input
-                id="pickupCoords"
-                value={formStorePickupLat && formStorePickupLng ? `${formStorePickupLat}, ${formStorePickupLng}` : ""}
-                onChange={(e) => {
-                    const [latStr, lngStr] = e.target.value.split(',').map(s => s.trim());
-                    const lat = parseFloat(latStr);
-                    const lng = parseFloat(lngStr);
-                    setFormStorePickupLat(!isNaN(lat) ? lat : "");
-                    setFormStorePickupLng(!isNaN(lng) ? lng : "");
-                }}
-                placeholder="e.g., -15.4167, 28.2833"
-            />
-        </div>
-        {formStorePickupLat && formStorePickupLng && (
-            <div className="space-y-2 rounded-md border p-3 mt-2">
-                <p className="text-sm font-medium">Map Links</p>
-                <p className="text-xs text-muted-foreground">Click to open, or copy coordinates.</p>
-                <div className="flex items-center gap-2">
-                    <a href={`https://www.google.com/maps/search/?api=1&query=${formStorePickupLat},${formStorePickupLng}`} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1"><LinkIconLucide className="h-3 w-3"/>Google Maps</a>
-                    <span>|</span>
-                    <a href={`http://maps.apple.com/?q=${formStorePickupLat},${formStorePickupLng}`} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1"><LinkIconLucide className="h-3 w-3"/>Apple Maps</a>
-                    <Button size="icon" variant="ghost" type="button" className="h-6 w-6 ml-auto" onClick={() => {
-                        navigator.clipboard.writeText(`${formStorePickupLat}, ${formStorePickupLng}`);
-                        toast({title: "Copied to clipboard"});
-                    }}>
-                        <Copy className="h-4 w-4"/>
-                    </Button>
-                </div>
-            </div>
-        )}
-
         <Separator className="my-2" />
         <h4 className="text-md font-medium">Social Links (Optional)</h4>
         {(["Instagram", "Facebook", "Twitter", "TikTok", "LinkedIn", "Other"] as const).map((platform) => {
