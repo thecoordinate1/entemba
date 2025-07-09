@@ -679,7 +679,7 @@ export default function StoresPage() {
                 </CardContent>
                 <CardFooter>
                 <Button variant="outline" className="w-full" asChild>
-                    <Link href={`/dashboard?storeId=${store.id}`}>Manage Store</Link>
+                    <Link href={`/settings?storeId=${store.id}`}>Manage Store</Link>
                 </Button>
                 </CardFooter>
             </Card>
