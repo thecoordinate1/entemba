@@ -76,94 +76,50 @@ This document outlines the steps to refine the E-Ntemba application, implement n
 - [x] **Loading States & Performance**
     - [x] Review all pages for consistent skeleton loaders or loading messages.
     - [x] Identify and optimize slow API calls or client-side computations. (Initial pass done, further backend optimization might be needed for RPCs if slowness persists).
-    - [x] **Consider pagination for tables:**
+    - [x] **Implement pagination for tables:**
         - [x] Products Page (`/products/page.tsx`)
         - [x] Orders Page (`/orders/page.tsx`)
         - [x] Customers Page (`/customers/page.tsx`)
-    - [ ] **Review database indexes in Supabase for frequently queried columns.** (Guidance Provided / User to Implement)
+- [ ] **Review database indexes in Supabase for frequently queried columns.** (Guidance Provided / User to Implement)
 
-## Phase 4: Aggregated Reporting Views
+## Phase 4: Final Deployment Checklist
 
-- [ ] **All Stores Revenue View**
-    - [ ] **Backend (Supabase RPC):**
-        - [ ] `get_vendor_wide_revenue_summary_stats(p_vendor_id UUID)`
-        - [ ] `get_vendor_wide_monthly_revenue(p_vendor_id UUID, p_number_of_months INTEGER)`
-    - [ ] **Frontend (New Page/Toggle & Service Update):**
-        - [ ] Implement UI to display aggregated revenue.
-- [ ] **All Stores Profit View**
-    - [ ] **Backend (Supabase RPC):**
-        - [ ] `get_vendor_wide_profit_summary_stats(p_vendor_id UUID)`
-        - [ ] `get_vendor_wide_monthly_profit(p_vendor_id UUID, p_number_of_months INTEGER)`
-    - [ ] **Frontend (New Page/Toggle & Service Update):**
-        - [ ] Implement UI to display aggregated profit.
+- [ ] **Security: Final RLS Policy Review**
+    - [ ] Perform a final, thorough review of all Row Level Security policies.
+    - [ ] Test access with at least two different vendor accounts to ensure data is properly segregated.
+    - [ ] Test that unauthorized users cannot access any data.
 
-## Phase 5: Notifications
+- [ ] **Functionality: End-to-End Testing**
+    - [ ] **Authentication:** Test sign-up (with email confirmation), sign-in, sign-out, and password reset flows.
+    - [ ] **CRUD Operations:** Verify that creating, reading, updating, and deleting works for Stores, Products, Orders, and Customers. Pay special attention to edge cases (e.g., deleting a store with products).
+    - [ ] **Reporting:** Check all dashboard and report pages with real and test data to ensure accuracy.
+    - [ ] **Image Uploads:** Confirm that uploading/changing avatars, store logos, and product images works correctly.
+
+- [ ] **Performance & UX:**
+    - [ ] **Cross-Browser Testing:** Test the application in major browsers (Chrome, Firefox, Safari).
+    - [ ] **Responsiveness:** Verify the application looks and works well on mobile, tablet, and desktop screens.
+    - [ ] **Code Cleanup:** Remove any remaining `console.log()` statements or commented-out code.
+
+- [ ] **Deployment Configuration:**
+    - [ ] **Environment Variables:** Ensure `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are set correctly in your production hosting environment (e.g., Vercel, Netlify).
+    - [ ] **Domain Configuration:** If using a custom domain, ensure it is configured correctly.
+    - [ ] **Deploy & Test:** Deploy the application to your hosting provider and perform a final smoke test on the live URL.
+
+## Phase 5: Future Features (Post-Launch)
+
+- [ ] **Aggregated Reporting Views (All Stores)**
+    - [ ] Backend (Supabase RPCs) for vendor-wide revenue and profit stats.
+    - [ ] Frontend UI to display aggregated views.
 
 - [ ] **Real-time In-App Notifications (Low Stock, New Orders)**
-    - [ ] **Backend (Supabase Realtime & DB Changes):**
-        - [ ] Set up Supabase Realtime subscriptions on `products` (for stock) and `orders`.
-        - [ ] OR Use database triggers to insert into a `notifications` table.
-    - [ ] **Frontend (UI & Logic):**
-        - [ ] Implement client-side Supabase Realtime listeners.
-        - [ ] Create UI component for displaying notifications (e.g., toast, bell icon).
-- [ ] **Email Notifications (New Features, Sales Completion)**
-    - [ ] **Backend (Supabase Edge Function & Email Provider):**
-        - [ ] Choose and configure an email provider (e.g., SendGrid, Resend).
-        - [ ] Create Edge Function(s) for sending emails.
-    - [ ] **Frontend (Triggering Logic):**
-        - [ ] UI elements if needed (e.g., admin panel to send feature updates).
+    - [ ] Backend (Supabase Realtime & DB Changes).
+    - [ ] Frontend UI and logic for notifications.
 
-## Phase 6: Product Reviews
+- [ ] **Product Reviews Functionality**
 
-- [ ] **Reviews Functionality (Viewing)**
-    - [ ] **Backend (New Table & RPC):**
-        - [ ] Create `product_reviews` table (`id`, `product_id`, `customer_id` (optional), `rating`, `comment`, `created_at`, `status`).
-        - [ ] Implement RLS policies for `product_reviews`.
-        - [ ] Create RPC: `get_product_reviews(p_product_id UUID)`.
-        - [ ] Create RPC: `get_product_average_rating(p_product_id UUID)`.
-    - [ ] **Frontend (UI & Service Update):**
-        - [ ] Update `productService.ts`.
-        - [ ] Refactor "Customer Reviews" section in `/products/[id]/page.tsx`.
-
-## Phase 7: Advanced Settings & Further Dynamic Data
-
-- [ ] **Revenue Settings UI (`/reports/revenue/page.tsx`)**
-    - [ ] **Backend (Supabase Schema):**
-        - [ ] Add `currency`, `default_tax_rate`, `prices_include_tax` columns to `stores` or a new `store_settings` table.
-    - [ ] **Frontend (UI & Service Update):**
-        - [ ] Update `storeService.ts` to fetch/update these settings.
-        - [ ] Make "Revenue Settings" section in revenue report partially functional (save/load preference).
-    - [ ] **Note:** Full application of these settings to calculations is a larger task.
-- [ ] **Dynamic "Revenue by Source" Pie Chart**
-    - [ ] **Backend (Schema Change & RPC):**
-        - [ ] Add `order_source` column to `orders` table.
-        - [ ] Create RPC: `get_revenue_by_source(p_store_id UUID, p_days_period INTEGER)`.
-    - [ ] **Frontend (Service & UI Update):**
-        - [ ] Update `reportService.ts` and the chart component.
-
-## Phase 8: Complex Integrations (Significant Future Work)
-
-- [ ] **Billing: Mobile Money Integration (Airtel, MTN)**
-    - [ ] Detailed API research for Airtel and MTN.
-    - [ ] Secure backend infrastructure (Edge Functions) for payment processing.
-    - [ ] Robust error handling and transaction reconciliation.
-    - [ ] UI for vendor account configuration and payout status.
-
-## Phase 9: Final Testing & Deployment (Reiteration)
-*(This aligns with the original Phase 9 & 10 from SUPABASE_INTEGRATION_ROADMAP.md)*
-
-- [ ] **RLS Policy Deep Dive & Security Review**
-- [ ] **Comprehensive CRUD Operations Testing**
-- [ ] **User Authentication Flow Testing**
-- [ ] **Image/File Uploads Testing**
-- [ ] **Cross-Browser & Responsiveness Testing**
-- [ ] **Performance Optimization (Indexes, Pagination)**
-- [ ] **Code Cleanup & Documentation**
-- [ ] **Final Vercel Deployment Checks**
-    - [ ] Environment variables correctly set for production.
-    - [ ] Custom domains configured if needed.
-    - [ ] Test deployed application thoroughly.
+- [ ] **Complex Integrations (Mobile Money)**
 
 ---
 *This roadmap will be updated as tasks are completed.*
 
+    
