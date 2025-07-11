@@ -85,6 +85,12 @@ export default function SettingsPage() {
   // Theme state
   const [currentTheme, setCurrentTheme] = React.useState("system");
 
+  // Password state
+  const [newPassword, setNewPassword] = React.useState("");
+  const [confirmPassword, setConfirmPassword] = React.useState("");
+  const [isUpdatingPassword, setIsUpdatingPassword] = React.useState(false);
+
+
   React.useEffect(() => {
     const storedTheme = localStorage.getItem('theme') || 'system';
     setCurrentTheme(storedTheme);
@@ -305,11 +311,32 @@ export default function SettingsPage() {
   
   const getSocialUrl = (platform: SocialLinkPayload["platform"]) => storeSocialLinks.find(link => link.platform === platform)?.url || "";
 
-  const handlePasswordChange = (e: React.FormEvent) => {
+  const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Placeholder - actual password change should call Supabase auth.updateUser({ password: newPassword })
-    toast({ title: "Password Changed", description: "Your password has been successfully updated (Placeholder)." });
-    (e.target as HTMLFormElement).reset();
+    if (!newPassword || !confirmPassword) {
+      toast({ variant: "destructive", title: "Missing Fields", description: "Please enter and confirm your new password." });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast({ variant: "destructive", title: "Passwords Do Not Match", description: "Please re-enter your new password." });
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast({ variant: "destructive", title: "Password Too Short", description: "Password must be at least 6 characters long." });
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setIsUpdatingPassword(false);
+    
+    if (error) {
+        toast({ variant: "destructive", title: "Password Update Failed", description: error.message });
+    } else {
+        toast({ title: "Password Updated", description: "Your password has been successfully updated." });
+        setNewPassword("");
+        setConfirmPassword("");
+    }
   };
 
   const handleUseCurrentLocation = () => {
@@ -589,18 +616,14 @@ export default function SettingsPage() {
               <CardContent>
                 <form onSubmit={handlePasswordChange} className="space-y-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="currentPassword">Current Password</Label>
-                    <Input id="currentPassword" type="password" />
-                  </div>
-                  <div className="grid gap-2">
                     <Label htmlFor="newPassword">New Password</Label>
-                    <Input id="newPassword" type="password" />
+                    <Input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} disabled={isUpdatingPassword} />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                    <Input id="confirmPassword" type="password" />
+                    <Input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} disabled={isUpdatingPassword}/>
                   </div>
-                  <Button type="submit">Change Password</Button>
+                  <Button type="submit" disabled={isUpdatingPassword}>{isUpdatingPassword ? 'Updating...' : 'Change Password'}</Button>
                 </form>
               </CardContent>
             </Card>
