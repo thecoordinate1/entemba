@@ -20,7 +20,7 @@ import type { SocialLink as MockSocialLinkType } from "@/lib/mockData"; // Using
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
-import { Instagram, Facebook, Twitter, Link as LinkIcon, Palette, User, Shield, CreditCard, Building, UploadCloud, LocateFixed, Copy } from "lucide-react";
+import { Instagram, Facebook, Twitter, Link as LinkIcon, Palette, User, Shield, CreditCard, Building, UploadCloud, LocateFixed, Copy, Banknote, Phone } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { getCurrentVendorProfile, updateCurrentVendorProfile, uploadAvatar, type VendorProfile } from "@/services/userService";
@@ -360,6 +360,14 @@ export default function SettingsPage() {
     );
   };
 
+  const handleSavePayoutDetails = (e: React.FormEvent) => {
+    e.preventDefault();
+    toast({
+      title: "Settings Saved (Placeholder)",
+      description: "Saving payout information is not yet implemented. This is a UI placeholder.",
+    });
+  };
+
   React.useEffect(() => {
     return () => { 
       if (avatarPreview && (avatarPreview.startsWith('blob:') || avatarFile)) URL.revokeObjectURL(avatarPreview);
@@ -672,26 +680,73 @@ export default function SettingsPage() {
         <TabsContent value="billing">
           <Card>
             <CardHeader>
-              <CardTitle>Billing</CardTitle>
-              <CardDescription>Manage your subscription and payment methods.</CardDescription>
+              <CardTitle>Payout Information</CardTitle>
+              <CardDescription>Manage where you receive your money.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <h3 className="font-medium">Current Plan</h3>
-                <p className="text-muted-foreground">Pro Plan ($49/month)</p>
-              </div>
-              <div>
-                <h3 className="font-medium">Payment Method</h3>
-                <p className="text-muted-foreground">Visa ending in **** 1234</p>
-              </div>
-              <Separator />
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Button variant="outline">Manage Subscription</Button>
-                <Button variant="outline">View Invoices</Button>
-              </div>
-               <p className="text-xs text-muted-foreground pt-4">
-                For any billing inquiries, please contact support. This is a placeholder section.
-              </p>
+            <CardContent>
+              <form onSubmit={handleSavePayoutDetails} className="space-y-8">
+                {/* Bank Account Section */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium flex items-center gap-2"><Banknote className="h-5 w-5 text-primary"/>Bank Account Details</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="bankName">Bank Name</Label>
+                      <Input id="bankName" placeholder="e.g., Zanaco" />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="accountHolder">Account Holder Name</Label>
+                      <Input id="accountHolder" placeholder="e.g., John Doe" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="accountNumber">Account Number</Label>
+                      <Input id="accountNumber" placeholder="e.g., 1234567890" />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="branchName">Branch Name</Label>
+                      <Input id="branchName" placeholder="e.g., Manda Hill" />
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Mobile Money Section */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium flex items-center gap-2"><Phone className="h-5 w-5 text-primary"/>Mobile Money Details</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="momoProvider">Provider</Label>
+                      <Select>
+                        <SelectTrigger id="momoProvider">
+                          <SelectValue placeholder="Select a provider" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="mtn">MTN Mobile Money</SelectItem>
+                          <SelectItem value="airtel">Airtel Money</SelectItem>
+                          <SelectItem value="zamtel">Zamtel Kwacha</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="momoNumber">Mobile Number</Label>
+                      <Input id="momoNumber" placeholder="e.g., 0966123456" />
+                    </div>
+                  </div>
+                   <div className="grid gap-2">
+                      <Label htmlFor="momoName">Registered Name</Label>
+                      <Input id="momoName" placeholder="e.g., John Doe" />
+                    </div>
+                </div>
+                
+                <div className="pt-4">
+                  <Button type="submit">Save Payout Details</Button>
+                </div>
+                <p className="text-xs text-muted-foreground pt-2">
+                    Note: For security, saving these details is not yet enabled. This is a UI placeholder for the MVP.
+                </p>
+              </form>
             </CardContent>
           </Card>
         </TabsContent>
