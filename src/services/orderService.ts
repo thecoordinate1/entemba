@@ -148,17 +148,13 @@ export async function createOrder(
       total_amount: orderData.total_amount,
       status: orderData.status,
       shipping_address: orderData.shipping_address,
-      billing_address: orderData.billing_address,
-      shipping_method: orderData.shipping_method,
-      payment_method: orderData.payment_method,
-      tracking_number: orderData.tracking_number,
-      shipping_latitude: orderData.shipping_latitude,
-      shipping_longitude: orderData.shipping_longitude,
-      delivery_type: orderData.delivery_type,
-      pickup_address: orderData.pickup_address,
-      pickup_latitude: orderData.pickup_latitude,
-      pickup_longitude: orderData.pickup_longitude,
-      customer_specification: orderData.customer_specification,
+      billing_address: orderData.billing_address || orderData.shipping_address,
+      shipping_method: orderData.shipping_method || null,
+      payment_method: orderData.payment_method || null,
+      shipping_latitude: orderData.shipping_latitude ? parseFloat(String(orderData.shipping_latitude)) : null,
+      shipping_longitude: orderData.shipping_longitude ? parseFloat(String(orderData.shipping_longitude)) : null,
+      delivery_type: null,
+      customer_specification: orderData.customer_specification || null,
     })
     .select(commonOrderSelect.replace('order_items (', 'order_items!left (')) 
     .single();
@@ -437,7 +433,7 @@ export async function getStoreOrderStats(storeId: string): Promise<{ data: Store
 }
 
 
-export async function getStoreTotalProductsSold(storeId: string): Promise<{ data: { totalSold: number } | null; error: Error | null }> {
+export async function getStoreTotalProductsSold(storeId: string): Promise<{ data: number | null; error: Error | null }> {
   console.log(`[orderService.getStoreTotalProductsSold] Fetching total products sold for store ID: ${storeId}`);
   if (!storeId) {
     console.error("[orderService.getStoreTotalProductsSold] Store ID is required.");
@@ -459,10 +455,10 @@ export async function getStoreTotalProductsSold(storeId: string): Promise<{ data
     return { data: null, error: new Error(detailedErrorMessage) };
   }
   
-  const totalSold = data ?? 0;
+  const totalSold = typeof data === 'number' ? data : 0;
 
   console.log(`[orderService.getStoreTotalProductsSold] Total products sold for store ${storeId}: ${totalSold}`);
-  return { data: { totalSold: totalSold }, error: null };
+  return { data: totalSold, error: null };
 }
 
 

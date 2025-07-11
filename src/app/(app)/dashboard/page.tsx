@@ -237,7 +237,7 @@ export default function DashboardPage() {
       if (productsSoldResult.status === 'fulfilled') {
         const { data, error } = productsSoldResult.value;
         if (error) currentErrorMessages.push(`Products Sold: ${error.message}`);
-        if (data) setProductsSoldCount(data.totalSold);
+        if (data !== null) setProductsSoldCount(data);
       } else {
         currentErrorMessages.push(`Products Sold: ${(productsSoldResult.reason as Error).message}`);
         setProductsSoldCount(null);
@@ -488,4 +488,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
