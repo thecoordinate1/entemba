@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 import { Instagram, Facebook, Twitter, Link as LinkIcon, Palette, User, Shield, CreditCard, Building, UploadCloud, LocateFixed, Copy, Banknote, Phone } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
-import { getCurrentVendorProfile, updateCurrentVendorProfile, uploadAvatar, type VendorProfile } from "@/services/userService";
+import { getCurrentVendorProfile, updateCurrentVendorProfile, uploadAvatar, type VendorProfile, type VendorProfileUpdatePayload } from "@/services/userService";
 import { getStoreById, updateStore, type StoreFromSupabase, type SocialLinkPayload, type StorePayload } from "@/services/storeService";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -55,6 +55,7 @@ export default function SettingsPage() {
   const [authUser, setAuthUser] = React.useState<AuthUser | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = React.useState(true);
   const [isLoadingStore, setIsLoadingStore] = React.useState(false);
+  const [isUpdatingPayout, setIsUpdatingPayout] = React.useState(false);
 
   // User profile state
   const [userName, setUserName] = React.useState("");
@@ -62,6 +63,15 @@ export default function SettingsPage() {
   const [userAvatar, setUserAvatar] = React.useState<string | null>(null); 
   const [avatarFile, setAvatarFile] = React.useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = React.useState<string | null>(null); 
+
+  // Payout state
+  const [bankName, setBankName] = React.useState('');
+  const [accountHolder, setAccountHolder] = React.useState('');
+  const [accountNumber, setAccountNumber] = React.useState('');
+  const [branchName, setBranchName] = React.useState('');
+  const [momoProvider, setMomoProvider] = React.useState('');
+  const [momoNumber, setMomoNumber] = React.useState('');
+  const [momoName, setMomoName] = React.useState('');
 
   // Store settings state
   const [selectedStore, setSelectedStore] = React.useState<StoreFromSupabase | null>(null);
@@ -111,6 +121,15 @@ export default function SettingsPage() {
           setUserEmail(profile.email || user.email || "");
           setUserAvatar(profile.avatar_url || user.user_metadata?.avatar_url || null);
           setAvatarPreview(profile.avatar_url || user.user_metadata?.avatar_url || null);
+          // Set payout info
+          setBankName(profile.bank_name || '');
+          setAccountHolder(profile.bank_account_holder || '');
+          setAccountNumber(profile.bank_account_number || '');
+          setBranchName(profile.bank_branch_name || '');
+          setMomoProvider(profile.mobile_money_provider || '');
+          setMomoNumber(profile.mobile_money_number || '');
+          setMomoName(profile.mobile_money_name || '');
+
         } else {
           setUserName(user.user_metadata?.display_name || user.email || "");
           setUserEmail(user.email || "");
@@ -360,12 +379,32 @@ export default function SettingsPage() {
     );
   };
 
-  const handleSavePayoutDetails = (e: React.FormEvent) => {
+  const handleSavePayoutDetails = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast({
-      title: "Settings Saved (Placeholder)",
-      description: "Saving payout information is not yet implemented. This is a UI placeholder.",
-    });
+    if (!authUser) {
+      toast({ variant: "destructive", title: "Not Authenticated" });
+      return;
+    }
+    setIsUpdatingPayout(true);
+
+    const payload: VendorProfileUpdatePayload = {
+      bank_name: bankName,
+      bank_account_holder: accountHolder,
+      bank_account_number: accountNumber,
+      bank_branch_name: branchName,
+      mobile_money_provider: momoProvider,
+      mobile_money_number: momoNumber,
+      mobile_money_name: momoName,
+    };
+    
+    const { error } = await updateCurrentVendorProfile(authUser.id, payload);
+    
+    if (error) {
+      toast({ variant: "destructive", title: "Update Failed", description: error.message || "Could not save payout details." });
+    } else {
+      toast({ title: "Payout Details Saved", description: "Your payout information has been successfully updated." });
+    }
+    setIsUpdatingPayout(false);
   };
 
   React.useEffect(() => {
@@ -691,21 +730,21 @@ export default function SettingsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label htmlFor="bankName">Bank Name</Label>
-                      <Input id="bankName" placeholder="e.g., Zanaco" />
+                      <Input id="bankName" value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="e.g., Zanaco" />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="accountHolder">Account Holder Name</Label>
-                      <Input id="accountHolder" placeholder="e.g., John Doe" />
+                      <Input id="accountHolder" value={accountHolder} onChange={(e) => setAccountHolder(e.target.value)} placeholder="e.g., John Doe" />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label htmlFor="accountNumber">Account Number</Label>
-                      <Input id="accountNumber" placeholder="e.g., 1234567890" />
+                      <Input id="accountNumber" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder="e.g., 1234567890" />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="branchName">Branch Name</Label>
-                      <Input id="branchName" placeholder="e.g., Manda Hill" />
+                      <Input id="branchName" value={branchName} onChange={(e) => setBranchName(e.target.value)} placeholder="e.g., Manda Hill" />
                     </div>
                   </div>
                 </div>
@@ -718,7 +757,7 @@ export default function SettingsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label htmlFor="momoProvider">Provider</Label>
-                      <Select>
+                      <Select value={momoProvider} onValueChange={setMomoProvider}>
                         <SelectTrigger id="momoProvider">
                           <SelectValue placeholder="Select a provider" />
                         </SelectTrigger>
@@ -731,21 +770,18 @@ export default function SettingsPage() {
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="momoNumber">Mobile Number</Label>
-                      <Input id="momoNumber" placeholder="e.g., 0966123456" />
+                      <Input id="momoNumber" value={momoNumber} onChange={(e) => setMomoNumber(e.target.value)} placeholder="e.g., 0966123456" />
                     </div>
                   </div>
                    <div className="grid gap-2">
                       <Label htmlFor="momoName">Registered Name</Label>
-                      <Input id="momoName" placeholder="e.g., John Doe" />
+                      <Input id="momoName" value={momoName} onChange={(e) => setMomoName(e.target.value)} placeholder="e.g., John Doe" />
                     </div>
                 </div>
                 
                 <div className="pt-4">
-                  <Button type="submit">Save Payout Details</Button>
+                  <Button type="submit" disabled={isUpdatingPayout}>{isUpdatingPayout ? 'Saving...' : 'Save Payout Details'}</Button>
                 </div>
-                <p className="text-xs text-muted-foreground pt-2">
-                    Note: For security, saving these details is not yet enabled. This is a UI placeholder for the MVP.
-                </p>
               </form>
             </CardContent>
           </Card>

@@ -12,6 +12,27 @@ export interface VendorProfile {
   avatar_url: string | null;
   created_at?: string;
   updated_at?: string;
+  // Payout Information
+  bank_name: string | null;
+  bank_account_holder: string | null;
+  bank_account_number: string | null;
+  bank_branch_name: string | null;
+  mobile_money_provider: string | null;
+  mobile_money_number: string | null;
+  mobile_money_name: string | null;
+}
+
+export interface VendorProfileUpdatePayload {
+  display_name?: string;
+  email?: string; 
+  avatar_url?: string;
+  bank_name?: string;
+  bank_account_holder?: string;
+  bank_account_number?: string;
+  bank_branch_name?: string;
+  mobile_money_provider?: string;
+  mobile_money_number?: string;
+  mobile_money_name?: string;
 }
 
 export async function getCurrentVendorProfile(userId: string): Promise<{ profile: VendorProfile | null, error: any }> {
@@ -42,32 +63,23 @@ export async function getCurrentVendorProfile(userId: string): Promise<{ profile
 
 export async function updateCurrentVendorProfile(
   userId: string,
-  updates: {
-    display_name?: string;
-    email?: string; 
-    avatar_url?: string;
-  }
+  updates: VendorProfileUpdatePayload
 ): Promise<{ profile: VendorProfile | null, error: any }> {
   console.log("[userService.updateCurrentVendorProfile] Updating profile for userId:", userId, "with updates:", updates);
   if (!userId) {
     console.error("[userService.updateCurrentVendorProfile] User ID is required.");
     return { profile: null, error: { message: "User ID is required for update." } };
   }
-
-  const allowedUpdates: Partial<VendorProfile> = {};
-  if (updates.display_name !== undefined) allowedUpdates.display_name = updates.display_name;
-  if (updates.email !== undefined) allowedUpdates.email = updates.email; 
-  if (updates.avatar_url !== undefined) allowedUpdates.avatar_url = updates.avatar_url;
   
-  if (Object.keys(allowedUpdates).length === 0) {
-    console.warn("[userService.updateCurrentVendorProfile] No valid fields to update.");
+  if (Object.keys(updates).length === 0) {
+    console.warn("[userService.updateCurrentVendorProfile] No fields to update.");
     const currentProfile = await getCurrentVendorProfile(userId);
-    return { profile: currentProfile.profile, error: {message: "No valid fields to update."}};
+    return { profile: currentProfile.profile, error: {message: "No fields to update."}};
   }
 
   const { data, error } = await supabase
     .from('vendors')
-    .update(allowedUpdates)
+    .update(updates)
     .eq('id', userId)
     .select()
     .single();
