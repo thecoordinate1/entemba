@@ -142,16 +142,12 @@ const StoreSelector = ({ stores, selectedStoreId, onStoreChange, isLoadingOveral
   );
 };
 
-
 const MobileSheetSidebar = ({
   children,
-  openMobile,
-  setOpenMobile,
 }: {
   children: React.ReactNode;
-  openMobile: boolean;
-  setOpenMobile: (open: boolean) => void;
 }) => {
+  const { openMobile, setOpenMobile } = useSidebar();
   return (
     <Sheet open={openMobile} onOpenChange={setOpenMobile}>
       <SheetContent
@@ -261,7 +257,6 @@ const SidebarContentContainer = ({
     </TooltipProvider>
   );
 };
-
 
 function AppShellLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -509,7 +504,7 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
       <Sidebar>
         <SidebarContentContainer {...sidebarProps} />
       </Sidebar>
-      <MobileSheetSidebar openMobile={openMobile} setOpenMobile={setOpenMobile}>
+      <MobileSheetSidebar>
         <SidebarContentContainer {...sidebarProps} />
       </MobileSheetSidebar>
       <SidebarInset className="flex flex-col">
@@ -554,4 +549,3 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </SidebarProvider>
   );
 }
-
