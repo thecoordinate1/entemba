@@ -19,6 +19,7 @@ import {
   SidebarMenuButton,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { NavItem } from "@/config/nav";
@@ -144,6 +145,128 @@ const StoreSelector = ({ stores, selectedStoreId, onStoreChange, isLoadingOveral
 };
 
 
+const MobileSheetSidebar = ({
+  children,
+  openMobile,
+  setOpenMobile,
+}: {
+  children: React.ReactNode;
+  openMobile: boolean;
+  setOpenMobile: (open: boolean) => void;
+}) => {
+  return (
+    <Sheet open={openMobile} onOpenChange={setOpenMobile}>
+      <SheetContent
+        data-sidebar="sidebar"
+        data-mobile="true"
+        className="w-[18rem] bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+        side="left"
+      >
+        <div className="flex h-full w-full flex-col">{children}</div>
+      </SheetContent>
+    </Sheet>
+  );
+};
+
+const SidebarContentContainer = ({
+  getHrefWithStoreId,
+  pathname,
+  authUser,
+  availableStores,
+  selectedStoreId,
+  handleStoreChange,
+  isLoadingProfile,
+  isLoadingStores,
+  areStoresFetched,
+  vendorDisplayName,
+  vendorEmail,
+  vendorAvatarUrl,
+  handleLogout,
+  disableNavCondition
+}: any) => {
+  const overallAppLoading = isLoadingProfile || (isLoadingStores && !areStoresFetched);
+
+  return (
+    <>
+      <SidebarHeader className="p-4">
+        <Link href={getHrefWithStoreId("/dashboard")} className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
+          <Gem className="h-8 w-8 text-accent" />
+          <span className="text-xl font-semibold group-data-[collapsible=icon]:hidden">
+            E-Ntemba
+          </span>
+        </Link>
+      </SidebarHeader>
+
+      <SidebarContent className="p-3 space-y-1">
+        {authUser && (
+          <TooltipProvider>
+            <StoreSelector
+              stores={availableStores}
+              selectedStoreId={selectedStoreId}
+              onStoreChange={handleStoreChange}
+              isLoadingOverall={overallAppLoading}
+            />
+          </TooltipProvider>
+        )}
+        <ScrollArea className="h-full">
+          <SidebarMenu className="space-y-1">
+            {navItems.map((item) => (
+              <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton
+                  asChild
+                  size="lg"
+                  isActive={pathname.startsWith(item.href.split("?")[0]) && ((item.href === '/' && pathname === '/') || item.href !== '/')}
+                  tooltip={{children: item.title, className:"bg-sidebar-accent text-sidebar-accent-foreground"}}
+                  className="h-12 text-base"
+                  disabled={disableNavCondition(item.href)}
+                >
+                  <Link href={getHrefWithStoreId(item.href)}>
+                    <item.icon className="h-5 w-5" />
+                    <span>{item.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </ScrollArea>
+      </SidebarContent>
+
+      <SidebarFooter className="p-4 space-y-2">
+        {authUser && (
+          <>
+          <UserDisplay
+              displayName={vendorDisplayName}
+              email={vendorEmail}
+              avatarUrl={vendorAvatarUrl}
+              isLoading={isLoadingProfile}
+          />
+          <Button variant="ghost" asChild className="w-full justify-start h-11 text-base group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:aspect-square group-data-[collapsible=icon]:h-11">
+              <Link href={getHrefWithStoreId("/settings")}>
+              <Settings className="mr-2 group-data-[collapsible=icon]:mr-0 h-5 w-5" /> <span className="group-data-[collapsible=icon]:hidden">Settings</span>
+              </Link>
+          </Button>
+          <Button
+              variant="ghost"
+              className="w-full justify-start h-11 text-base group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:aspect-square group-data-[collapsible=icon]:h-11"
+              onClick={handleLogout}
+          >
+              <LogOut className="mr-2 group-data-[collapsible=icon]:mr-0 h-5 w-5" /> <span className="group-data-[collapsible=icon]:hidden">Logout</span>
+          </Button>
+          </>
+        )}
+        {!authUser && !isLoadingProfile && (
+           <Button variant="outline" asChild className="w-full justify-start h-11 text-base group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:aspect-square group-data-[collapsible=icon]:h-11">
+              <Link href="/login">
+                  <LogOut className="mr-2 group-data-[collapsible=icon]:mr-0 h-5 w-5" /> <span className="group-data-[collapsible=icon]:hidden">Login</span>
+              </Link>
+          </Button>
+        )}
+      </SidebarFooter>
+    </>
+  );
+};
+
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -257,13 +380,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         setSelectedStoreId(storeIdFromUrl);
       }
     } else if (availableStores.length > 0) {
-      // If URL has no valid storeId, or no storeId at all, but stores are available.
-      // The other effect will handle redirecting to set the first storeId in URL.
-      // Here, we can optimistically set selectedStoreId if it's not set or invalid.
       if (!selectedStoreId || !availableStores.some(s => s.id === selectedStoreId)) {
-         // setSelectedStoreId(availableStores[0].id); // Let URL drive this to avoid race conditions
       }
-    } else { // No stores available, or storeIdFromUrl is invalid
+    } else {
       if (selectedStoreId !== null) {
         setSelectedStoreId(null);
       }
@@ -290,13 +409,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         const newParams = new URLSearchParams(searchParamsHook.toString());
         newParams.set("storeId", firstStoreId);
         router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
-        // SelectedStoreId will update via the other effect reacting to searchParamsHook
       } else if (!currentStoreIdFromUrl && (!selectedStoreId || selectedStoreId !== firstStoreId)) {
-        // If no storeId in URL, but stores exist, update internal state.
-        // The URL will be updated by the above block if not on certain pages.
         setSelectedStoreId(firstStoreId);
       }
-    } else { // No stores available
+    } else { 
       if (selectedStoreId !== null) setSelectedStoreId(null);
       if (currentStoreIdFromUrl && !currentPathIsPublic && !isOnStoresPage && !isOnSettingsPage) {
         const newParams = new URLSearchParams(searchParamsHook.toString());
@@ -345,7 +461,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const newParams = new URLSearchParams(searchParamsHook.toString());
     newParams.set("storeId", storeId);
     router.push(`${pathname}?${newParams.toString()}`);
-    // setSelectedStoreId(storeId); // Let the effect handle this
   };
 
   const getHrefWithStoreId = (href: string) => {
@@ -374,102 +489,48 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const disableNavCondition = (itemHref: string) => {
     if (!authUser) return false;
     const path = itemHref.split("?")[0];
-    if (path === "/stores" || path === "/settings") return false; // Always enable stores and settings
-    return !selectedStoreId && areStoresFetched && availableStores.length > 0; // Disable if no store selected but stores exist
+    if (path === "/stores" || path === "/settings") return false; 
+    return !selectedStoreId && areStoresFetched && availableStores.length > 0;
   };
-
-  const overallAppLoading = isLoadingProfile || (isLoadingStores && !areStoresFetched);
+  
+  const { openMobile, setOpenMobile } = useSidebar();
+  
+  const sidebarProps = {
+    getHrefWithStoreId,
+    pathname,
+    authUser,
+    availableStores,
+    selectedStoreId,
+    handleStoreChange,
+    isLoadingProfile,
+    isLoadingStores,
+    areStoresFetched,
+    vendorDisplayName,
+    vendorEmail,
+    vendorAvatarUrl,
+    handleLogout,
+    disableNavCondition
+  }
 
   return (
     <SidebarProvider defaultOpen={defaultOpen} collapsible="icon">
-      <Sidebar>
-        <SidebarHeader className="p-4">
-          <Link href={getHrefWithStoreId("/dashboard")} className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-            <Gem className="h-8 w-8 text-accent" />
-            <span className="text-xl font-semibold group-data-[collapsible=icon]:hidden">
-              E-Ntemba
-            </span>
-          </Link>
-        </SidebarHeader>
-
-        <SidebarContent className="p-3 space-y-1">
-          {authUser && (
-            <TooltipProvider>
-              <StoreSelector
-                stores={availableStores}
-                selectedStoreId={selectedStoreId}
-                onStoreChange={handleStoreChange}
-                isLoadingOverall={overallAppLoading}
-              />
-            </TooltipProvider>
-          )}
-          <ScrollArea className="h-full">
-            <SidebarMenu className="space-y-1">
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    asChild
-                    size="lg"
-                    isActive={pathname.startsWith(item.href.split("?")[0]) && ((item.href === '/' && pathname === '/') || item.href !== '/')}
-                    tooltip={{children: item.title, className:"bg-sidebar-accent text-sidebar-accent-foreground"}}
-                    className="h-12 text-base"
-                    disabled={disableNavCondition(item.href)}
-                  >
-                    <Link href={getHrefWithStoreId(item.href)}>
-                      <item.icon className="h-5 w-5" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </ScrollArea>
-        </SidebarContent>
-
-        <SidebarFooter className="p-4 space-y-2">
-          {authUser && (
-            <>
-            <UserDisplay
-                displayName={vendorDisplayName}
-                email={vendorEmail}
-                avatarUrl={vendorAvatarUrl}
-                isLoading={isLoadingProfile}
-            />
-            <Button variant="ghost" asChild className="w-full justify-start h-11 text-base group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:aspect-square group-data-[collapsible=icon]:h-11">
-                <Link href={getHrefWithStoreId("/settings")}>
-                <Settings className="mr-2 group-data-[collapsible=icon]:mr-0 h-5 w-5" /> <span className="group-data-[collapsible=icon]:hidden">Settings</span>
-                </Link>
-            </Button>
-            <Button
-                variant="ghost"
-                className="w-full justify-start h-11 text-base group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:aspect-square group-data-[collapsible=icon]:h-11"
-                onClick={handleLogout}
-            >
-                <LogOut className="mr-2 group-data-[collapsible=icon]:mr-0 h-5 w-5" /> <span className="group-data-[collapsible=icon]:hidden">Logout</span>
-            </Button>
-            </>
-          )}
-          {!authUser && !isLoadingProfile && (
-             <Button variant="outline" asChild className="w-full justify-start h-11 text-base group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:aspect-square group-data-[collapsible=icon]:h-11">
-                <Link href="/login">
-                    <LogOut className="mr-2 group-data-[collapsible=icon]:mr-0 h-5 w-5" /> <span className="group-data-[collapsible=icon]:hidden">Login</span>
-                </Link>
-            </Button>
-          )}
-        </SidebarFooter>
-      </Sidebar>
-      <SidebarInset className="flex flex-col">
-        <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm sm:h-20 sm:px-6">
-          <SidebarTrigger className="md:hidden" />
-           <h1 className="text-xl font-semibold sm:text-2xl truncate">
-            {pageTitle}
-          </h1>
-        </header>
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-          {children}
-        </main>
-      </SidebarInset>
+        <Sidebar>
+            <SidebarContentContainer {...sidebarProps} />
+        </Sidebar>
+        <MobileSheetSidebar openMobile={openMobile} setOpenMobile={setOpenMobile}>
+            <SidebarContentContainer {...sidebarProps} />
+        </MobileSheetSidebar>
+        <SidebarInset className="flex flex-col">
+            <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm sm:h-20 sm:px-6">
+            <SidebarTrigger className="md:hidden" />
+            <h1 className="text-xl font-semibold sm:text-2xl truncate">
+                {pageTitle}
+            </h1>
+            </header>
+            <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+            {children}
+            </main>
+        </SidebarInset>
     </SidebarProvider>
   );
 }
-    
