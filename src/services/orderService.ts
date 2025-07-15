@@ -2,6 +2,7 @@
 // src/services/orderService.ts
 import { createClient } from '@/lib/supabase/client';
 import type { OrderStatus } from '@/lib/mockData';
+import type { CustomerFromSupabase } from './customerService';
 
 const supabase = createClient();
 
@@ -72,6 +73,7 @@ export interface OrderFromSupabase {
   created_at: string;
   updated_at: string;
   order_items: OrderItemFromSupabase[];
+  customers: CustomerFromSupabase | null; // Added customer details
 }
 
 // Expected structure from the get_monthly_sales_overview RPC function
@@ -91,7 +93,8 @@ const commonOrderSelect = `
   order_items (
     id, order_id, product_id, product_name_snapshot, quantity, price_per_unit_snapshot,
     product_image_url_snapshot, data_ai_hint_snapshot, created_at
-  )
+  ),
+  customers ( * )
 `;
 
 export async function getOrdersByStoreId(

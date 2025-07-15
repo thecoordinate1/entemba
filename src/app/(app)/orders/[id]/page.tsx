@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Table, TableBody, TableCell, TableRow, TableHead, TableHeader } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, Printer, MapPin, User, CalendarDays, CreditCard, Truck as ShippingTruckIcon, DollarSign, AlertCircle, LocateFixed, Bike, Package, PackageSearch, Link as LinkIcon, Copy, ClipboardList } from "lucide-react";
+import { ArrowLeft, Edit, Printer, MapPin, User, CalendarDays, CreditCard, Truck as ShippingTruckIcon, DollarSign, AlertCircle, LocateFixed, Bike, Package, PackageSearch, Link as LinkIcon, Copy, ClipboardList, Phone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
@@ -33,6 +33,7 @@ const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
     id: order.id,
     customerName: order.customer_name,
     customerEmail: order.customer_email,
+    customerPhone: order.customers?.phone || undefined, // Extract phone from nested customer
     date: new Date(order.order_date).toISOString().split("T")[0],
     total: order.total_amount,
     status: order.status as OrderStatusUIType,
@@ -247,6 +248,13 @@ export default function OrderDetailPage() {
               <h4 className="font-semibold flex items-center"><User className="mr-2 h-5 w-5 text-primary" /> Customer</h4>
               <p>{order.customerName}</p>
               <p className="text-sm text-muted-foreground">{order.customerEmail}</p>
+              {order.customerPhone && (
+                 <Button asChild variant="outline" size="sm" className="mt-2">
+                    <a href={`tel:${order.customerPhone}`}>
+                        <Phone className="mr-2 h-4 w-4"/> Call Customer
+                    </a>
+                </Button>
+              )}
             </div>
             <div className="space-y-1">
               <h4 className="font-semibold flex items-center"><MapPin className="mr-2 h-5 w-5 text-primary" /> Shipping Address</h4>

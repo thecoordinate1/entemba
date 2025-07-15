@@ -38,6 +38,7 @@ export interface Order {
   id: string;
   customerName: string;
   customerEmail: string;
+  customerPhone?: string; // Added phone number
   date: string;
   total: number;
   status: OrderStatus;
