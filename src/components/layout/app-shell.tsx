@@ -394,12 +394,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <SidebarContent className="p-3 space-y-1">
           {authUser && (
-            <StoreSelector
-              stores={availableStores}
-              selectedStoreId={selectedStoreId}
-              onStoreChange={handleStoreChange}
-              isLoadingOverall={overallAppLoading}
-            />
+            <TooltipProvider>
+              <StoreSelector
+                stores={availableStores}
+                selectedStoreId={selectedStoreId}
+                onStoreChange={handleStoreChange}
+                isLoadingOverall={overallAppLoading}
+              />
+            </TooltipProvider>
           )}
           <ScrollArea className="h-full">
             <SidebarMenu className="space-y-1">
