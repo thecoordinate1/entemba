@@ -267,7 +267,7 @@ const SidebarContentContainer = ({
 };
 
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+function AppShellLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParamsHook = useSearchParams();
@@ -278,7 +278,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [isLoadingStores, setIsLoadingStores] = React.useState(true);
   const [areStoresFetched, setAreStoresFetched] = React.useState(false);
 
-  const [defaultOpen, setDefaultOpen] = React.useState(true);
   const [hasMounted, setHasMounted] = React.useState(false);
 
   const [authUser, setAuthUser] = React.useState<AuthUser | null>(null);
@@ -289,6 +288,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [pageTitle, setPageTitle] = React.useState("Loading...");
 
   const supabase = createClient();
+  const { openMobile, setOpenMobile } = useSidebar();
+
 
   const fetchInitialUserData = React.useCallback(async (user: AuthUser) => {
     setIsLoadingProfile(true);
@@ -335,9 +336,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     setHasMounted(true);
-    const cookieValue = document.cookie.split("; ").find((row) => row.startsWith("sidebar_state="))?.split("=")[1];
-    if (cookieValue) setDefaultOpen(cookieValue === "true");
-
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       const currentUser = session?.user ?? null;
       setAuthUser(currentUser);
@@ -492,9 +490,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (path === "/stores" || path === "/settings") return false; 
     return !selectedStoreId && areStoresFetched && availableStores.length > 0;
   };
-  
-  const { openMobile, setOpenMobile } = useSidebar();
-  
+
   const sidebarProps = {
     getHrefWithStoreId,
     pathname,
@@ -510,27 +506,55 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     vendorAvatarUrl,
     handleLogout,
     disableNavCondition
+  };
+
+  return (
+    <>
+      <Sidebar>
+        <SidebarContentContainer {...sidebarProps} />
+      </Sidebar>
+      <MobileSheetSidebar openMobile={openMobile} setOpenMobile={setOpenMobile}>
+        <SidebarContentContainer {...sidebarProps} />
+      </MobileSheetSidebar>
+      <SidebarInset className="flex flex-col">
+        <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm sm:h-20 sm:px-6">
+          <SidebarTrigger className="md:hidden" />
+          <h1 className="text-xl font-semibold sm:text-2xl truncate">
+            {pageTitle}
+          </h1>
+        </header>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+          {children}
+        </main>
+      </SidebarInset>
+    </>
+  );
+}
+
+export function AppShell({ children }: { children: React.ReactNode }) {
+  const [hasMounted, setHasMounted] = React.useState(false);
+  const [defaultOpen, setDefaultOpen] = React.useState(true);
+
+  React.useEffect(() => {
+    setHasMounted(true);
+    const cookieValue = document.cookie.split("; ").find((row) => row.startsWith("sidebar_state="))?.split("=")[1];
+    if (cookieValue) setDefaultOpen(cookieValue === "true");
+  }, []);
+
+  if (!hasMounted) {
+    return (
+      <div className="flex min-h-svh w-full items-center justify-center bg-background">
+        <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+      </div>
+    );
   }
 
   return (
     <SidebarProvider defaultOpen={defaultOpen} collapsible="icon">
-        <Sidebar>
-            <SidebarContentContainer {...sidebarProps} />
-        </Sidebar>
-        <MobileSheetSidebar openMobile={openMobile} setOpenMobile={setOpenMobile}>
-            <SidebarContentContainer {...sidebarProps} />
-        </MobileSheetSidebar>
-        <SidebarInset className="flex flex-col">
-            <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm sm:h-20 sm:px-6">
-            <SidebarTrigger className="md:hidden" />
-            <h1 className="text-xl font-semibold sm:text-2xl truncate">
-                {pageTitle}
-            </h1>
-            </header>
-            <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-            {children}
-            </main>
-        </SidebarInset>
+      <AppShellLayout>{children}</AppShellLayout>
     </SidebarProvider>
   );
 }
