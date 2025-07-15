@@ -90,18 +90,16 @@ const StoreSelector = ({ stores, selectedStoreId, onStoreChange, isLoadingOveral
     const selectedStoreName = stores.find(s => s.id === selectedStoreId)?.name;
     const tooltipText = isLoadingOverall ? "Loading..." : (selectedStoreName || (stores.length > 0 ? "Select Store" : "No Stores"));
     return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="w-full justify-center text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground my-2" disabled={isLoadingOverall || stores.length === 0}>
-              {isLoadingOverall && stores.length === 0 ? <Skeleton className="h-5 w-5 rounded-full" /> : <StoreIcon className="h-5 w-5" />}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right" className="bg-sidebar-accent text-sidebar-accent-foreground">
-             {tooltipText}
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon" className="w-full justify-center text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground my-2" disabled={isLoadingOverall || stores.length === 0}>
+            {isLoadingOverall && stores.length === 0 ? <Skeleton className="h-5 w-5 rounded-full" /> : <StoreIcon className="h-5 w-5" />}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="right" className="bg-sidebar-accent text-sidebar-accent-foreground">
+            {tooltipText}
+        </TooltipContent>
+      </Tooltip>
     );
   }
 
@@ -187,7 +185,7 @@ const SidebarContentContainer = ({
   const overallAppLoading = isLoadingProfile || (isLoadingStores && !areStoresFetched);
 
   return (
-    <>
+    <TooltipProvider>
       <SidebarHeader className="p-4">
         <Link href={getHrefWithStoreId("/dashboard")} className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
           <Gem className="h-8 w-8 text-accent" />
@@ -199,14 +197,12 @@ const SidebarContentContainer = ({
 
       <SidebarContent className="p-3 space-y-1">
         {authUser && (
-          <TooltipProvider>
-            <StoreSelector
-              stores={availableStores}
-              selectedStoreId={selectedStoreId}
-              onStoreChange={handleStoreChange}
-              isLoadingOverall={overallAppLoading}
-            />
-          </TooltipProvider>
+          <StoreSelector
+            stores={availableStores}
+            selectedStoreId={selectedStoreId}
+            onStoreChange={handleStoreChange}
+            isLoadingOverall={overallAppLoading}
+          />
         )}
         <ScrollArea className="h-full">
           <SidebarMenu className="space-y-1">
@@ -262,7 +258,7 @@ const SidebarContentContainer = ({
           </Button>
         )}
       </SidebarFooter>
-    </>
+    </TooltipProvider>
   );
 };
 
@@ -558,3 +554,4 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </SidebarProvider>
   );
 }
+
