@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import type { User as AuthUser } from '@supabase/supabase-js';
-import { cva } from "class-variance-authority";
 
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -129,30 +128,6 @@ const StoreSelector = ({
     </Select>
   );
 };
-
-const navItemVariants = cva(
-  "flex items-center justify-start gap-2 rounded-md p-3 text-base font-medium transition-colors",
-  {
-    variants: {
-      isActive: {
-        true: "bg-sidebar-accent text-sidebar-accent-foreground",
-        false: "text-sidebar-foreground hover:bg-sidebar-accent/50",
-      },
-      isCollapsed: {
-        true: "justify-center",
-        false: "justify-start",
-      },
-      isDisabled: {
-        true: "cursor-not-allowed opacity-50",
-      }
-    },
-    defaultVariants: {
-      isActive: false,
-      isCollapsed: false,
-      isDisabled: false,
-    },
-  }
-);
 
 
 function AppShellLayout({ children }: { children: React.ReactNode }) {
@@ -280,7 +255,7 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
   const sidebarContent = (
     <TooltipProvider>
       <div className="flex h-full flex-col p-2 bg-sidebar text-sidebar-foreground">
-        <div className="flex items-center justify-between p-2">
+        <div className="flex items-center justify-between p-2 flex-shrink-0">
           {!isSidebarCollapsed && (
             <Link href={getHrefWithStoreId("/dashboard")} className="flex items-center gap-2">
               <Gem className="h-8 w-8 text-accent" />
@@ -292,10 +267,12 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
           </Button>
         </div>
         
-        <Separator className="my-2 bg-sidebar-border" />
+        <Separator className="my-2 bg-sidebar-border flex-shrink-0" />
         
         {authUser && (
-          <StoreSelector stores={availableStores} selectedStoreId={selectedStoreId} onStoreChange={handleStoreChange} isLoading={isLoadingStores} isCollapsed={isSidebarCollapsed} />
+          <div className="px-2 flex-shrink-0">
+             <StoreSelector stores={availableStores} selectedStoreId={selectedStoreId} onStoreChange={handleStoreChange} isLoading={isLoadingStores} isCollapsed={isSidebarCollapsed} />
+          </div>
         )}
         
         <ScrollArea className="flex-1">
@@ -306,7 +283,12 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
               const navLink = (
                 <Link
                   href={getHrefWithStoreId(item.href)}
-                  className={cn(navItemVariants({ isActive, isCollapsed: isSidebarCollapsed, isDisabled }))}
+                  className={cn("flex items-center justify-start gap-2 rounded-md p-3 text-base font-medium transition-colors", {
+                    'bg-sidebar-accent text-sidebar-accent-foreground': isActive,
+                    'text-sidebar-foreground hover:bg-sidebar-accent/50': !isActive,
+                    'justify-center': isSidebarCollapsed,
+                    'cursor-not-allowed opacity-50': isDisabled
+                  })}
                   aria-disabled={isDisabled}
                   onClick={(e) => {
                     if (isDisabled) e.preventDefault();
@@ -330,20 +312,20 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
           </nav>
         </ScrollArea>
         
-        <div className="mt-auto p-2 space-y-2">
+        <div className="mt-auto p-2 space-y-2 flex-shrink-0">
           {authUser && (
             <>
               <UserDisplay displayName={vendorDisplayName} email={vendorEmail} avatarUrl={vendorAvatarUrl} isLoading={isLoadingProfile} isCollapsed={isSidebarCollapsed} />
-              <Link href={getHrefWithStoreId('/settings')} className={cn(navItemVariants({ isCollapsed: isSidebarCollapsed, isActive: pathname.startsWith('/settings')}))}>
+              <Link href={getHrefWithStoreId('/settings')} className={cn("flex items-center justify-start gap-2 rounded-md p-3 text-base font-medium transition-colors", {'bg-sidebar-accent text-sidebar-accent-foreground': pathname.startsWith('/settings'), 'text-sidebar-foreground hover:bg-sidebar-accent/50': !pathname.startsWith('/settings'), 'justify-center': isSidebarCollapsed })}>
                 <Settings className="h-5 w-5" /><span className={cn(isSidebarCollapsed && "hidden")}>Settings</span>
               </Link>
-              <Button variant="ghost" className={cn("w-full", navItemVariants({ isCollapsed: isSidebarCollapsed }))} onClick={handleLogout}>
+              <Button variant="ghost" className={cn("w-full flex items-center justify-start gap-2 rounded-md p-3 text-base font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/50", {'justify-center': isSidebarCollapsed})} onClick={handleLogout}>
                 <LogOut className="h-5 w-5" /><span className={cn(isSidebarCollapsed && "hidden")}>Logout</span>
               </Button>
             </>
           )}
           {!authUser && !isLoadingProfile && (
-            <Link href="/login" className={cn(navItemVariants({ isCollapsed: isSidebarCollapsed }))}>
+            <Link href="/login" className={cn("flex items-center justify-start gap-2 rounded-md p-3 text-base font-medium transition-colors", {'justify-center': isSidebarCollapsed })}>
               <LogOut className="h-5 w-5" /><span className={cn(isSidebarCollapsed && "hidden")}>Login</span>
             </Link>
           )}
@@ -353,11 +335,11 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="flex min-h-screen w-full">
-      <aside className={cn("hidden md:block bg-sidebar transition-all duration-300", isSidebarCollapsed ? "w-20" : "w-64")}>
+    <div className="flex min-h-screen w-full has-[aside[data-state=sticky]]:overflow-hidden">
+      <aside data-state="sticky" className={cn("hidden md:block bg-sidebar transition-all duration-300 fixed top-0 left-0 z-20 h-full", isSidebarCollapsed ? "w-20" : "w-64")}>
         {sidebarContent}
       </aside>
-      <div className="flex flex-col flex-1">
+      <div className={cn("flex flex-col flex-1 transition-all duration-300", isSidebarCollapsed ? "md:pl-20" : "md:pl-64")}>
         <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm sm:h-20 sm:px-6">
           <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
             <SheetTrigger asChild>

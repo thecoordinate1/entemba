@@ -87,4 +87,8 @@
     @apply bg-background text-foreground;
     /* font-family is set by RootLayout using CSS variables */
   }
+  /* Hide scrollbar for the body when a sticky element is present */
+  html:has(aside[data-state="sticky"]) {
+    overflow: hidden;
+  }
 }
