@@ -254,8 +254,8 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
 
   const sidebarContent = (
     <TooltipProvider>
-      <div className="flex h-full flex-col p-2 bg-sidebar text-sidebar-foreground">
-        <div className="flex items-center justify-between p-2 flex-shrink-0">
+      <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
+        <div className="flex h-16 items-center justify-between p-2 flex-shrink-0">
           {!isSidebarCollapsed && (
             <Link href={getHrefWithStoreId("/dashboard")} className="flex items-center gap-2">
               <Gem className="h-8 w-8 text-accent" />
@@ -267,10 +267,10 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
           </Button>
         </div>
         
-        <Separator className="my-2 bg-sidebar-border flex-shrink-0" />
+        <Separator className="my-0 bg-sidebar-border flex-shrink-0" />
         
         {authUser && (
-          <div className="px-2 flex-shrink-0">
+          <div className="px-2 pt-2 flex-shrink-0">
              <StoreSelector stores={availableStores} selectedStoreId={selectedStoreId} onStoreChange={handleStoreChange} isLoading={isLoadingStores} isCollapsed={isSidebarCollapsed} />
           </div>
         )}
