@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -27,6 +28,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Separator } from "@/components/ui/separator";
 import { signOut } from "@/services/authService";
 import { getCurrentVendorProfile } from "@/services/userService";
 import { getStoresByUserId, type StoreFromSupabase } from "@/services/storeService";
