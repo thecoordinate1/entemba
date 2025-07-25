@@ -335,30 +335,32 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="flex min-h-screen w-full has-[aside[data-state=sticky]]:overflow-hidden">
+    <div className="flex min-h-screen w-full bg-muted/30">
       <aside data-state="sticky" className={cn("hidden md:block bg-sidebar transition-all duration-300 fixed top-0 left-0 z-20 h-full", isSidebarCollapsed ? "w-20" : "w-64")}>
         {sidebarContent}
       </aside>
       <div className={cn("flex flex-col flex-1 transition-all duration-300", isSidebarCollapsed ? "md:pl-20" : "md:pl-64")}>
-        <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm sm:h-20 sm:px-6">
-          <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-            <SheetTrigger asChild>
-              <Button size="icon" variant="outline" className="md:hidden">
-                <Menu className="h-5 w-5" />
-                <span className="sr-only">Toggle Menu</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="p-0 w-72 bg-sidebar text-sidebar-foreground border-r-sidebar-border">
-              {React.cloneElement(sidebarContent, { isCollapsed: false })}
-            </SheetContent>
-          </Sheet>
-          <h1 className="text-xl font-semibold sm:text-2xl truncate">
-            {isLoadingOverall ? "Loading..." : pageTitle}
-          </h1>
-        </header>
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-muted/30">
-          {children}
-        </main>
+        <div className="relative flex h-full max-h-screen flex-col">
+            <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm sm:h-20 sm:px-6">
+                <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+                    <SheetTrigger asChild>
+                    <Button size="icon" variant="outline" className="md:hidden">
+                        <Menu className="h-5 w-5" />
+                        <span className="sr-only">Toggle Menu</span>
+                    </Button>
+                    </SheetTrigger>
+                    <SheetContent side="left" className="p-0 w-72 bg-sidebar text-sidebar-foreground border-r-sidebar-border">
+                    {React.cloneElement(sidebarContent, { isCollapsed: false })}
+                    </SheetContent>
+                </Sheet>
+                <h1 className="text-xl font-semibold sm:text-2xl truncate">
+                    {isLoadingOverall ? "Loading..." : pageTitle}
+                </h1>
+            </header>
+            <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+                {children}
+            </main>
+        </div>
       </div>
     </div>
   );
