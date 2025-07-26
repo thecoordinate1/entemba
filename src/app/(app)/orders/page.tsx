@@ -920,7 +920,7 @@ export default function OrdersPage() {
                       </Select>
                   </div>
                   <Separator />
-                  <Button variant="outline" className="w-full" onClick={handleUseCurrentLocation} disabled={isFetchingLocation}>
+                  <Button variant="outline" className="w-full" type="button" onClick={handleUseCurrentLocation} disabled={isFetchingLocation}>
                       <LocateFixed className="mr-2 h-4 w-4"/> {isFetchingLocation ? "Fetching..." : "Use Current GPS Location"}
                   </Button>
                   <div className="space-y-2">
@@ -945,7 +945,7 @@ export default function OrdersPage() {
                               <a href={`https://www.google.com/maps/search/?api=1&query=${pickupLocationInfo.coords.lat},${pickupLocationInfo.coords.lng}`} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3"/>Google Maps</a>
                               <span>|</span>
                               <a href={`http://maps.apple.com/?q=${pickupLocationInfo.coords.lat},${pickupLocationInfo.coords.lng}`} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3"/>Apple Maps</a>
-                              <Button size="icon" variant="ghost" className="h-6 w-6 ml-auto" onClick={() => {
+                              <Button size="icon" variant="ghost" className="h-6 w-6 ml-auto" type="button" onClick={() => {
                                   navigator.clipboard.writeText(`${pickupLocationInfo.coords?.lat}, ${pickupLocationInfo.coords?.lng}`);
                                   toast({title: "Copied to clipboard"});
                               }}>
