@@ -58,7 +58,7 @@ const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
     pickupLatitude: order.pickup_latitude || undefined,
     pickupLongitude: order.pickup_longitude || undefined,
     customerSpecification: order.customer_specification || undefined,
-    deliveryCost: order.delivery_cost || 0,
+    deliveryCost: order.delivery_cost ?? undefined,
   };
 };
 

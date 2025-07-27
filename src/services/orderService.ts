@@ -1,4 +1,3 @@
-
 // src/services/orderService.ts
 import { createClient } from '@/lib/supabase/client';
 import type { OrderStatus } from '@/lib/mockData';
@@ -34,6 +33,7 @@ export interface OrderPayload {
   pickup_latitude?: number | null;
   pickup_longitude?: number | null;
   customer_specification?: string | null;
+  delivery_cost?: number | null;
 }
 
 export interface OrderItemFromSupabase {
@@ -69,11 +69,11 @@ export interface OrderFromSupabase {
   pickup_latitude: number | null;
   pickup_longitude: number | null;
   customer_specification: string | null;
-  delivery_cost: number;
+  delivery_cost: number | null;
   created_at: string;
   updated_at: string;
   order_items: OrderItemFromSupabase[];
-  customers: CustomerFromSupabase | null; // Added customer details
+  customers: CustomerFromSupabase | null; 
 }
 
 // Expected structure from the get_monthly_sales_overview RPC function
@@ -158,6 +158,7 @@ export async function createOrder(
       shipping_longitude: orderData.shipping_longitude ? parseFloat(String(orderData.shipping_longitude)) : null,
       delivery_type: null,
       customer_specification: orderData.customer_specification || null,
+      delivery_cost: orderData.delivery_cost || null,
     })
     .select(commonOrderSelect.replace('order_items (', 'order_items!left (')) 
     .single();

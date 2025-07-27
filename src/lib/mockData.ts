@@ -1,4 +1,3 @@
-
 import type { LucideIcon } from "lucide-react";
 import { PackageCheck, Truck, CheckCircle, XCircle, RefreshCw, PersonStanding } from "lucide-react";
 
@@ -38,7 +37,7 @@ export interface Order {
   id: string;
   customerName: string;
   customerEmail: string;
-  customerPhone?: string; // Added phone number
+  customerPhone?: string; 
   date: string;
   total: number;
   status: OrderStatus;
@@ -56,7 +55,7 @@ export interface Order {
   pickupLatitude?: number;
   pickupLongitude?: number;
   customerSpecification?: string;
-  deliveryCost?: number;
+  deliveryCost?: number | null;
 }
 
 export interface SocialLink {

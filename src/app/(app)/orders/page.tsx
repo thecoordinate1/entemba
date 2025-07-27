@@ -79,6 +79,7 @@ const defaultNewOrderData = {
   shippingLongitude: "",
   status: "Pending" as OrderStatus,
   delivery_type: null,
+  delivery_cost: "",
 };
 
 const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
@@ -498,6 +499,7 @@ export default function OrdersPage() {
       shipping_longitude: newOrderData.shippingLongitude ? parseFloat(String(newOrderData.shippingLongitude)) : null,
       delivery_type: null,
       customer_specification: newOrderData.customerSpecification || null,
+      delivery_cost: newOrderData.delivery_cost ? parseFloat(String(newOrderData.delivery_cost)) : null,
     };
 
     const itemsPayload: OrderItemPayload[] = newOrderItems.map(item => ({
@@ -656,6 +658,10 @@ export default function OrdersPage() {
                         <div className="grid gap-2">
                             <Label htmlFor="paymentMethod">Payment Method</Label>
                             <Input id="paymentMethod" name="paymentMethod" value={newOrderData.paymentMethod} onChange={handleNewOrderInputChange} />
+                        </div>
+                         <div className="grid gap-2">
+                            <Label htmlFor="deliveryCost">Delivery Cost (Optional)</Label>
+                            <Input id="deliveryCost" name="delivery_cost" type="number" step="0.01" value={newOrderData.delivery_cost} onChange={handleNewOrderInputChange} />
                         </div>
                     </CardContent>
                   </Card>
