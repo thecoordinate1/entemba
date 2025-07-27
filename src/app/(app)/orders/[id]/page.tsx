@@ -27,6 +27,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { getOrderById, updateOrderStatus, type OrderFromSupabase, type OrderStatus as OrderStatusFromSupabase } from "@/services/orderService";
 import { createClient } from '@/lib/supabase/client';
 import type { User as AuthUser } from '@supabase/supabase-js';
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
   return {
@@ -75,6 +77,7 @@ export default function OrderDetailPage() {
   const [isLoadingOrder, setIsLoadingOrder] = React.useState(true);
   const [errorLoadingOrder, setErrorLoadingOrder] = React.useState<string | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = React.useState(false);
+  const [isUpdatingDeliveryType, setIsUpdatingDeliveryType] = React.useState(false);
 
   const supabase = createClient();
   const [authUser, setAuthUser] = React.useState<AuthUser | null>(null);
@@ -142,6 +145,30 @@ export default function OrderDetailPage() {
     }
   };
 
+  const handleDeliveryTypeChange = async (newDeliveryType: 'courier' | 'self_delivery') => {
+    if (!order || !storeId || !authUser || order.deliveryType === newDeliveryType) {
+        return;
+    }
+    setIsUpdatingDeliveryType(true);
+    try {
+        const { data: updatedOrderData, error } = await updateOrderStatus(order.id, storeId, order.status as OrderStatusFromSupabase, {
+            deliveryType: newDeliveryType
+        });
+        if (error) {
+            throw error;
+        }
+        if (updatedOrderData) {
+            setOrder(mapOrderFromSupabaseToUI(updatedOrderData));
+            toast({ title: "Delivery Type Updated", description: `Delivery type set to ${newDeliveryType.replace('_', ' ')}.` });
+        }
+    } catch (err: any) {
+        console.error("Error updating delivery type:", err);
+        toast({ variant: "destructive", title: "Update Failed", description: err.message || "Could not update delivery type." });
+    } finally {
+        setIsUpdatingDeliveryType(false);
+    }
+  };
+
   if (isLoadingOrder) {
     return (
       <div className="space-y-6">
@@ -192,6 +219,8 @@ export default function OrderDetailPage() {
   const subtotal = order.detailedItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const shippingCost = order.deliveryCost || 0;
   const tax = 0; // Tax is currently not implemented
+
+  const canChangeDeliveryType = !['Delivered', 'Cancelled'].includes(order.status) && !!order.deliveryType;
 
   return (
     <div className="flex flex-col gap-6">
@@ -298,8 +327,24 @@ export default function OrderDetailPage() {
               <div className="space-y-1">
                   <h4 className="font-semibold flex items-center"><DeliveryIcon className="mr-2 h-5 w-5 text-primary" /> Shipping & Delivery</h4>
                   {order.shippingMethod && <p className="text-sm">Method: {order.shippingMethod}</p>}
-                  {order.deliveryType && <p className="text-sm">Type: <span className="capitalize">{order.deliveryType.replace('_', ' ')}</span></p>}
                   {order.trackingNumber && <p className="text-sm">Tracking #: <span className="font-mono text-primary">{order.trackingNumber}</span></p>}
+                  {order.deliveryType && (
+                     <RadioGroup 
+                        defaultValue={order.deliveryType} 
+                        className="flex items-center gap-4 pt-2"
+                        onValueChange={(value: 'courier' | 'self_delivery') => handleDeliveryTypeChange(value)}
+                        disabled={!canChangeDeliveryType || isUpdatingDeliveryType}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="courier" id="r-courier" />
+                          <Label htmlFor="r-courier" className="cursor-pointer">Courier</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="self_delivery" id="r-self" />
+                          <Label htmlFor="r-self" className="cursor-pointer">Self Delivery</Label>
+                        </div>
+                     </RadioGroup>
+                  )}
               </div>
             )}
           </div>
@@ -398,3 +443,5 @@ export default function OrderDetailPage() {
     </div>
   );
 }
+
+    
