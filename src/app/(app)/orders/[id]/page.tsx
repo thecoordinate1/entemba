@@ -330,7 +330,7 @@ export default function OrderDetailPage() {
                   {order.trackingNumber && <p className="text-sm">Tracking #: <span className="font-mono text-primary">{order.trackingNumber}</span></p>}
                   {order.deliveryType && (
                      <RadioGroup 
-                        defaultValue={order.deliveryType} 
+                        value={order.deliveryType} 
                         className="flex items-center gap-4 pt-2"
                         onValueChange={(value: 'courier' | 'self_delivery') => handleDeliveryTypeChange(value)}
                         disabled={!canChangeDeliveryType || isUpdatingDeliveryType}
@@ -443,5 +443,3 @@ export default function OrderDetailPage() {
     </div>
   );
 }
-
-    
