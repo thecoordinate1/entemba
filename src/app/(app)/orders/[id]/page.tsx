@@ -287,72 +287,19 @@ export default function OrderDetailPage() {
               )}
             </div>
             <div className="space-y-1">
-              <h4 className="font-semibold flex items-center"><MapPin className="mr-2 h-5 w-5 text-primary" /> Shipping Address</h4>
-              <p className="text-sm whitespace-pre-line">{order.shippingAddress}</p>
-              {order.shippingLatitude && order.shippingLongitude && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <LocateFixed className="h-3 w-3" /> 
-                  Lat: {order.shippingLatitude.toFixed(4)}, Lng: {order.shippingLongitude.toFixed(4)}
-                </p>
-              )}
-            </div>
-             <div className="space-y-1">
               <h4 className="font-semibold flex items-center"><CreditCard className="mr-2 h-5 w-5 text-primary" /> Payment</h4>
               <p className="text-sm">{order.paymentMethod || "Not specified"}</p>
               <p className="text-sm font-semibold flex items-center"><DollarSign className="mr-1 h-4 w-4 text-primary" /> Total: ZMW {order.total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
             </div>
           </div>
-
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-            {order.pickupAddress && (
-              <div className="space-y-1">
-                <h4 className="font-semibold flex items-center"><PackageSearch className="mr-2 h-5 w-5 text-primary" /> Pickup Location</h4>
-                <p className="text-sm whitespace-pre-line">{order.pickupAddress}</p>
-                {order.pickupLatitude && order.pickupLongitude && (
-                    <div className="flex items-center gap-2 pt-1">
-                        <a href={`https://www.google.com/maps/search/?api=1&query=${order.pickupLatitude},${order.pickupLongitude}`} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3"/>Google Maps</a>
-                        <span className="text-xs text-muted-foreground">|</span>
-                        <a href={`http://maps.apple.com/?q=${order.pickupLatitude},${order.pickupLongitude}`} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3"/>Apple Maps</a>
-                        <Button size="icon" variant="ghost" className="h-5 w-5 ml-auto" onClick={() => {
-                            navigator.clipboard.writeText(`${order.pickupLatitude}, ${order.pickupLongitude}`);
-                            toast({title: "Copied coordinates to clipboard"});
-                        }}>
-                            <Copy className="h-3 w-3"/>
-                        </Button>
-                    </div>
-                )}
-              </div>
-            )}
-            
-            {(order.shippingMethod || order.deliveryType) && (
-              <div className="space-y-1">
-                  <h4 className="font-semibold flex items-center"><DeliveryIcon className="mr-2 h-5 w-5 text-primary" /> Shipping & Delivery</h4>
-                  {order.shippingMethod && <p className="text-sm">Method: {order.shippingMethod}</p>}
-                  {order.trackingNumber && <p className="text-sm">Tracking #: <span className="font-mono text-primary">{order.trackingNumber}</span></p>}
-                  {order.deliveryType && (
-                     <RadioGroup 
-                        value={order.deliveryType} 
-                        className="flex items-center gap-4 pt-2"
-                        onValueChange={(value: 'courier' | 'self_delivery') => handleDeliveryTypeChange(value)}
-                        disabled={!canChangeDeliveryType || isUpdatingDeliveryType}
-                      >
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="courier" id="r-courier" />
-                          <Label htmlFor="r-courier" className="cursor-pointer">Courier</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="self_delivery" id="r-self" />
-                          <Label htmlFor="r-self" className="cursor-pointer">Self Delivery</Label>
-                        </div>
-                     </RadioGroup>
-                  )}
-              </div>
-            )}
-          </div>
-          
-
-          <Separator className="my-4" />
-          <h3 className="text-xl font-semibold mb-3">Order Items ({order.itemsCount})</h3>
+        </CardContent>
+      </Card>
+      
+      <Card>
+        <CardHeader>
+          <h3 className="text-xl font-semibold">Order Items ({order.itemsCount})</h3>
+        </CardHeader>
+        <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
@@ -412,9 +359,71 @@ export default function OrderDetailPage() {
              </div>
           </div>
         </CardContent>
-        <CardFooter className="text-xs text-muted-foreground border-t pt-4">
-          Order ID: {order.id}
-        </CardFooter>
+      </Card>
+
+      <Card>
+        <CardHeader>
+           <CardTitle className="flex items-center gap-2"><ShippingTruckIcon className="h-6 w-6 text-primary"/> Delivery</CardTitle>
+        </CardHeader>
+        <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                    <div className="space-y-1">
+                        <h4 className="font-semibold flex items-center"><MapPin className="mr-2 h-5 w-5 text-primary" /> Shipping Address</h4>
+                        <p className="text-sm whitespace-pre-line">{order.shippingAddress}</p>
+                        {order.shippingLatitude && order.shippingLongitude && (
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <LocateFixed className="h-3 w-3" /> 
+                            Lat: {order.shippingLatitude.toFixed(4)}, Lng: {order.shippingLongitude.toFixed(4)}
+                            </p>
+                        )}
+                    </div>
+                    {order.pickupAddress && (
+                        <div className="space-y-1">
+                            <h4 className="font-semibold flex items-center"><PackageSearch className="mr-2 h-5 w-5 text-primary" /> Pickup Location</h4>
+                            <p className="text-sm whitespace-pre-line">{order.pickupAddress}</p>
+                            {order.pickupLatitude && order.pickupLongitude && (
+                                <div className="flex items-center gap-2 pt-1">
+                                    <a href={`https://www.google.com/maps/search/?api=1&query=${order.pickupLatitude},${order.pickupLongitude}`} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3"/>Google Maps</a>
+                                    <span className="text-xs text-muted-foreground">|</span>
+                                    <a href={`http://maps.apple.com/?q=${order.pickupLatitude},${order.pickupLongitude}`} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3"/>Apple Maps</a>
+                                    <Button size="icon" variant="ghost" className="h-5 w-5 ml-auto" onClick={() => {
+                                        navigator.clipboard.writeText(`${order.pickupLatitude}, ${order.pickupLongitude}`);
+                                        toast({title: "Copied coordinates to clipboard"});
+                                    }}>
+                                        <Copy className="h-3 w-3"/>
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+                <div className="space-y-4">
+                    <div className="space-y-1">
+                        <h4 className="font-semibold flex items-center"><DeliveryIcon className="mr-2 h-5 w-5 text-primary" /> Shipping & Delivery</h4>
+                        {order.shippingMethod && <p className="text-sm">Method: {order.shippingMethod}</p>}
+                        {order.trackingNumber && <p className="text-sm">Tracking #: <span className="font-mono text-primary">{order.trackingNumber}</span></p>}
+                        {order.deliveryType && (
+                            <RadioGroup 
+                                value={order.deliveryType} 
+                                className="flex items-center gap-4 pt-2"
+                                onValueChange={(value: 'courier' | 'self_delivery') => handleDeliveryTypeChange(value)}
+                                disabled={!canChangeDeliveryType || isUpdatingDeliveryType}
+                            >
+                                <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="courier" id="r-courier" />
+                                <Label htmlFor="r-courier" className="cursor-pointer">Courier</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="self_delivery" id="r-self" />
+                                <Label htmlFor="r-self" className="cursor-pointer">Self Delivery</Label>
+                                </div>
+                            </RadioGroup>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </CardContent>
       </Card>
       
       {order.customerSpecification && (
@@ -440,6 +449,9 @@ export default function OrderDetailPage() {
           <Separator className="my-4"/>
           <p className="text-muted-foreground text-sm">No notes added yet. Timeline of order events will also be displayed here in the future.</p>
         </CardContent>
+        <CardFooter className="text-xs text-muted-foreground border-t pt-4">
+          Order ID: {order.id}
+        </CardFooter>
       </Card>
     </div>
   );
