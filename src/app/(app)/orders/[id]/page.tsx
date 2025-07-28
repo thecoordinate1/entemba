@@ -420,7 +420,7 @@ export default function OrderDetailPage() {
       {order.customerSpecification && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><ClipboardList className="h-6 w-6 text-primary"/> Customer Specification</CardTitle>
+            <CardTitle className="flex items-center gap-2"><ClipboardList className="h-6 w-6 text-primary"/> Customer Specifications</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground whitespace-pre-wrap">
