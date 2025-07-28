@@ -160,7 +160,7 @@ export default function OrderDetailPage() {
         }
         if (updatedOrderData) {
             setOrder(mapOrderFromSupabaseToUI(updatedOrderData));
-            toast({ title: "Delivery Type Updated", description: `Delivery type set to ${newDeliveryType.replace('_', ' ')}.` });
+            toast({ title: "Delivery Type Updated", description: `Delivery type set to ${newDeliveryType === 'courier' ? 'Request Driver' : 'Self Delivery'}.` });
         }
     } catch (err: any) {
         console.error("Error updating delivery type:", err);
@@ -412,7 +412,7 @@ export default function OrderDetailPage() {
                             >
                                 <div className="flex items-center space-x-2">
                                 <RadioGroupItem value="courier" id="r-courier" />
-                                <Label htmlFor="r-courier" className="cursor-pointer">Courier</Label>
+                                <Label htmlFor="r-courier" className="cursor-pointer">Request Driver</Label>
                                 </div>
                                 <div className="flex items-center space-x-2">
                                 <RadioGroupItem value="self_delivery" id="r-self" />
