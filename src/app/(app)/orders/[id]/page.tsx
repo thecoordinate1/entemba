@@ -29,6 +29,7 @@ import { createClient } from '@/lib/supabase/client';
 import type { User as AuthUser } from '@supabase/supabase-js';
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { cn } from "@/lib/utils";
 
 const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
   return {
@@ -264,7 +265,7 @@ export default function OrderDetailPage() {
                 {new Date(order.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
               </CardDescription>
             </div>
-            <Badge variant="outline" className={`${orderStatusColors[order.status]} text-base px-4 py-2 flex items-center gap-2`}>
+            <Badge variant="outline" className={cn(orderStatusColors[order.status], "text-base px-4 py-2 flex items-center gap-2")}>
               <CurrentStatusIcon className="h-5 w-5" />
               {order.status}
             </Badge>
