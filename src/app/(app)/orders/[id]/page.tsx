@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Table, TableBody, TableCell, TableRow, TableHead, TableHeader } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, Printer, MapPin, User, CalendarDays, CreditCard, Truck as ShippingTruckIcon, DollarSign, AlertCircle, LocateFixed, Bike, Package, PackageSearch, Link as LinkIcon, Copy, ClipboardList, Phone } from "lucide-react";
+import { ArrowLeft, Edit, Printer, MapPin, User, CalendarDays, CreditCard, Truck as ShippingTruckIcon, DollarSign, AlertCircle, LocateFixed, Bike, Package, PackageSearch, Link as LinkIcon, Copy, ClipboardList, Phone, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
@@ -22,6 +22,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { getOrderById, updateOrderStatus, type OrderFromSupabase, type OrderStatus as OrderStatusFromSupabase } from "@/services/orderService";
@@ -160,7 +162,7 @@ export default function OrderDetailPage() {
         }
         if (updatedOrderData) {
             setOrder(mapOrderFromSupabaseToUI(updatedOrderData));
-            toast({ title: "Delivery Type Updated", description: `Delivery type set to ${newDeliveryType === 'courier' ? 'Request Driver' : 'Self Delivery'}.` });
+            toast({ title: "Delivery Type Updated", description: `Delivery type set to ${newDeliveryType === 'courier' ? 'Courier' : 'Self Delivery'}.` });
         }
     } catch (err: any) {
         console.error("Error updating delivery type:", err);
@@ -216,7 +218,6 @@ export default function OrderDetailPage() {
   }
 
   const CurrentStatusIcon = orderStatusIcons[order.status];
-  const DeliveryIcon = order.deliveryType === 'courier' ? Bike : order.deliveryType === 'self_delivery' ? Package : ShippingTruckIcon;
   const subtotal = order.detailedItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const shippingCost = order.deliveryCost || 0;
   const tax = 0; // Tax is currently not implemented
@@ -399,11 +400,28 @@ export default function OrderDetailPage() {
                     )}
                 </div>
                 <div className="space-y-4">
-                     <div className="space-y-1">
-                        <p className="font-medium">Delivery Type: <span className="text-muted-foreground capitalize">{order.deliveryType?.replace('_', ' ') || 'Not set'}</span></p>
-                        {order.shippingMethod && <p className="text-sm">Method: {order.shippingMethod}</p>}
-                        {order.trackingNumber && <p className="text-sm">Tracking #: <span className="font-mono text-primary">{order.trackingNumber}</span></p>}
+                    <div className="flex items-center gap-4">
+                        <p className="font-medium">Delivery Type:</p>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" disabled={!canChangeDeliveryType || isUpdatingDeliveryType}>
+                                    {isUpdatingDeliveryType ? "Updating..." : (order.deliveryType ? (order.deliveryType === 'courier' ? 'Courier' : 'Self Delivery') : "Not Set")}
+                                    <ChevronDown className="ml-2 h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                                <DropdownMenuLabel>Change Delivery Type</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuRadioGroup value={order.deliveryType || ""} onValueChange={(value) => handleDeliveryTypeChange(value as 'courier' | 'self_delivery')}>
+                                    <DropdownMenuRadioItem value="courier">Courier</DropdownMenuRadioItem>
+                                    <DropdownMenuRadioItem value="self_delivery">Self Delivery</DropdownMenuRadioItem>
+                                </DropdownMenuRadioGroup>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
+
+                    {order.shippingMethod && <p className="text-sm">Method: {order.shippingMethod}</p>}
+                    {order.trackingNumber && <p className="text-sm">Tracking #: <span className="font-mono text-primary">{order.trackingNumber}</span></p>}
                 </div>
             </div>
         </CardContent>
@@ -439,3 +457,4 @@ export default function OrderDetailPage() {
     </div>
   );
 }
+
