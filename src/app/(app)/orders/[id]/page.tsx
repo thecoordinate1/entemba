@@ -367,38 +367,18 @@ export default function OrderDetailPage() {
            <CardTitle className="flex items-center gap-2"><ShippingTruckIcon className="h-6 w-6 text-primary"/> Delivery</CardTitle>
         </CardHeader>
         <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-8">
                 <div className="space-y-4">
-                    <div className="space-y-1">
-                        <h4 className="font-semibold flex items-center"><MapPin className="mr-2 h-5 w-5 text-primary" /> Shipping Address</h4>
-                        <p className="text-sm whitespace-pre-line">{order.shippingAddress}</p>
-                        {order.shippingLatitude && order.shippingLongitude && (
-                            <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <LocateFixed className="h-3 w-3" /> 
-                            Lat: {order.shippingLatitude.toFixed(4)}, Lng: {order.shippingLongitude.toFixed(4)}
-                            </p>
-                        )}
-                    </div>
-                    {order.pickupAddress && (
-                        <div className="space-y-1">
-                            <h4 className="font-semibold flex items-center"><PackageSearch className="mr-2 h-5 w-5 text-primary" /> Pickup Location</h4>
-                            <p className="text-sm whitespace-pre-line">{order.pickupAddress}</p>
-                            {order.pickupLatitude && order.pickupLongitude && (
-                                <div className="flex items-center gap-2 pt-1">
-                                    <a href={`https://www.google.com/maps/search/?api=1&query=${order.pickupLatitude},${order.pickupLongitude}`} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3"/>Google Maps</a>
-                                    <span className="text-xs text-muted-foreground">|</span>
-                                    <a href={`http://maps.apple.com/?q=${order.pickupLatitude},${order.pickupLongitude}`} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3"/>Apple Maps</a>
-                                    <Button size="icon" variant="ghost" className="h-5 w-5 ml-auto" onClick={() => {
-                                        navigator.clipboard.writeText(`${order.pickupLatitude}, ${order.pickupLongitude}`);
-                                        toast({title: "Copied coordinates to clipboard"});
-                                    }}>
-                                        <Copy className="h-3 w-3"/>
-                                    </Button>
-                                </div>
-                            )}
-                        </div>
+                    <h4 className="font-semibold flex items-center"><MapPin className="mr-2 h-5 w-5 text-primary" /> Shipping Address</h4>
+                    <p className="text-sm whitespace-pre-line">{order.shippingAddress}</p>
+                    {order.shippingLatitude && order.shippingLongitude && (
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <LocateFixed className="h-3 w-3" /> 
+                        Lat: {order.shippingLatitude.toFixed(4)}, Lng: {order.shippingLongitude.toFixed(4)}
+                        </p>
                     )}
                 </div>
+
                 <div className="space-y-4">
                     <div className="flex items-center gap-4">
                         <p className="font-medium">Delivery Type:</p>
@@ -423,6 +403,27 @@ export default function OrderDetailPage() {
                     {order.shippingMethod && <p className="text-sm">Method: {order.shippingMethod}</p>}
                     {order.trackingNumber && <p className="text-sm">Tracking #: <span className="font-mono text-primary">{order.trackingNumber}</span></p>}
                 </div>
+                
+                {order.pickupAddress && (
+                    <div className="space-y-4 md:col-span-2">
+                        <Separator />
+                        <h4 className="font-semibold flex items-center"><PackageSearch className="mr-2 h-5 w-5 text-primary" /> Pickup Location</h4>
+                        <p className="text-sm whitespace-pre-line">{order.pickupAddress}</p>
+                        {order.pickupLatitude && order.pickupLongitude && (
+                            <div className="flex items-center gap-2 pt-1">
+                                <a href={`https://www.google.com/maps/search/?api=1&query=${order.pickupLatitude},${order.pickupLongitude}`} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3"/>Google Maps</a>
+                                <span className="text-xs text-muted-foreground">|</span>
+                                <a href={`http://maps.apple.com/?q=${order.pickupLatitude},${order.pickupLongitude}`} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3"/>Apple Maps</a>
+                                <Button size="icon" variant="ghost" className="h-5 w-5 ml-auto" onClick={() => {
+                                    navigator.clipboard.writeText(`${order.pickupLatitude}, ${order.pickupLongitude}`);
+                                    toast({title: "Copied coordinates to clipboard"});
+                                }}>
+                                    <Copy className="h-3 w-3"/>
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </CardContent>
       </Card>
