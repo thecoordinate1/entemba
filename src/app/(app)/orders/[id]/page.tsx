@@ -399,27 +399,10 @@ export default function OrderDetailPage() {
                     )}
                 </div>
                 <div className="space-y-4">
-                    <div className="space-y-1">
-                        <h4 className="font-semibold flex items-center"><DeliveryIcon className="mr-2 h-5 w-5 text-primary" /> Delivery Type</h4>
+                     <div className="space-y-1">
+                        <p className="font-medium">Delivery Type: <span className="text-muted-foreground capitalize">{order.deliveryType?.replace('_', ' ') || 'Not set'}</span></p>
                         {order.shippingMethod && <p className="text-sm">Method: {order.shippingMethod}</p>}
                         {order.trackingNumber && <p className="text-sm">Tracking #: <span className="font-mono text-primary">{order.trackingNumber}</span></p>}
-                        {order.deliveryType && (
-                            <RadioGroup 
-                                value={order.deliveryType} 
-                                className="flex items-center gap-4 pt-2"
-                                onValueChange={(value: 'courier' | 'self_delivery') => handleDeliveryTypeChange(value)}
-                                disabled={!canChangeDeliveryType || isUpdatingDeliveryType}
-                            >
-                                <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="courier" id="r-courier" />
-                                <Label htmlFor="r-courier" className="cursor-pointer">Request Driver</Label>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="self_delivery" id="r-self" />
-                                <Label htmlFor="r-self" className="cursor-pointer">Self Delivery</Label>
-                                </div>
-                            </RadioGroup>
-                        )}
                     </div>
                 </div>
             </div>
