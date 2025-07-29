@@ -400,7 +400,7 @@ export default function OrderDetailPage() {
                 </div>
                 <div className="space-y-4">
                     <div className="space-y-1">
-                        <h4 className="font-semibold flex items-center"><DeliveryIcon className="mr-2 h-5 w-5 text-primary" /> Shipping & Delivery</h4>
+                        <h4 className="font-semibold flex items-center"><DeliveryIcon className="mr-2 h-5 w-5 text-primary" /> Delivery Type</h4>
                         {order.shippingMethod && <p className="text-sm">Method: {order.shippingMethod}</p>}
                         {order.trackingNumber && <p className="text-sm">Tracking #: <span className="font-mono text-primary">{order.trackingNumber}</span></p>}
                         {order.deliveryType && (
