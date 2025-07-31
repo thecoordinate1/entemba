@@ -55,6 +55,27 @@ export async function getCurrentVendorProfile(userId: string): Promise<{ profile
   
   if (!data) {
     console.log('[userService.getCurrentVendorProfile] No vendor profile found for user ID:', userId);
+    // Fallback for newly created users who may not have a profile record yet
+    const { data: { user } } = await supabase.auth.getUser();
+    if(user && user.id === userId) {
+      console.log('[userService.getCurrentVendorProfile] Falling back to auth user data.');
+      return {
+        profile: {
+          id: user.id,
+          display_name: user.user_metadata.display_name || user.email,
+          email: user.email,
+          avatar_url: user.user_metadata.avatar_url,
+          bank_name: null,
+          bank_account_holder: null,
+          bank_account_number: null,
+          bank_branch_name: null,
+          mobile_money_provider: null,
+          mobile_money_number: null,
+          mobile_money_name: null,
+        } as VendorProfile,
+        error: null,
+      }
+    }
     return { profile: null, error: null };
   }
   console.log("[userService.getCurrentVendorProfile] Profile fetched:", data);
