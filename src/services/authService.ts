@@ -11,7 +11,6 @@ export async function signUpWithEmail(email: string, password: string, displayNa
       emailRedirectTo: `${window.location.origin}/auth/callback`,
       data: {
         display_name: displayName,
-        // email should not be passed here, the trigger on auth.users should handle it.
       }
     },
   });
