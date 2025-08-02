@@ -11,6 +11,7 @@ export async function signUpWithEmail(email: string, password: string, displayNa
       emailRedirectTo: `${window.location.origin}/auth/callback`,
       data: {
         display_name: displayName,
+        role: 'vendor', // <-- Add this role for the vendor dashboard
       }
     },
   });
