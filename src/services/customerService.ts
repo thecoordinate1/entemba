@@ -59,33 +59,68 @@ export async function getCustomers(
   page: number = 1,
   limit: number = 10
 ): Promise<{ data: CustomerFromSupabase[] | null; count: number | null; error: Error | null }> {
-  console.log(`[customerService.getCustomers] Fetching customers with RLS, page: ${page}, limit: ${limit}`);
+  console.log(`[customerService.getCustomers] Fetching customers via explicit join, page: ${page}, limit: ${limit}`);
   
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return { data: [], count: 0, error: new Error("User not authenticated.") };
   }
 
+  // Fetch stores for the current vendor first
+  const { data: stores, error: storesError } = await supabase
+    .from('stores')
+    .select('id')
+    .eq('vendor_id', user.id);
+
+  if (storesError) {
+    console.error('[customerService.getCustomers] Error fetching vendor stores:', storesError.message);
+    return { data: null, count: 0, error: new Error("Could not fetch vendor's stores to determine customer list.") };
+  }
+  
+  if (!stores || stores.length === 0) {
+    console.log('[customerService.getCustomers] Vendor has no stores, returning empty customer list.');
+    return { data: [], count: 0, error: null };
+  }
+
+  const storeIds = stores.map(s => s.id);
+
+  // Fetch unique customer IDs who have ordered from these stores
+  const { data: customerLinks, error: ordersError } = await supabase
+    .from('orders')
+    .select('customer_id')
+    .in('store_id', storeIds)
+    .not('customer_id', 'is', null);
+
+  if (ordersError) {
+     console.error('[customerService.getCustomers] Error fetching customer links from orders:', ordersError.message);
+     return { data: null, count: 0, error: new Error("Could not fetch customer list from orders.") };
+  }
+  
+  const customerIds = [...new Set(customerLinks.map(o => o.customer_id))].filter(id => id !== null) as string[];
+
+  if (customerIds.length === 0) {
+    console.log('[customerService.getCustomers] No customers found for this vendor\'s stores.');
+    return { data: [], count: 0, error: null };
+  }
+
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
-  // Reverted to a standard query. RLS policy will handle the filtering.
+  // Now fetch the actual customer data for the filtered IDs
   const { data, error, count } = await supabase
     .from('customers')
     .select(COMMON_CUSTOMER_SELECT, { count: 'exact' })
+    .in('id', customerIds)
     .order('last_order_date', { ascending: false, nulls: 'last' })
     .range(from, to);
-  
+
   if (error) {
-    let message = error.message || 'Failed to fetch customers.';
-    if (Object.keys(error).length === 0 || !error.message) {
-        message = `Failed to fetch customers. This often indicates an RLS policy issue preventing access. Please ensure the policy from the previous step is active.`;
-    }
+    let message = error.message || 'Failed to fetch filtered customers.';
     console.error('[customerService.getCustomers] Supabase fetch error:', message, 'Original Error:', JSON.stringify(error, null, 2));
     return { data: null, count: null, error: new Error(message) };
   }
 
-  console.log('[customerService.getCustomers] Fetched customers via RLS. Count:', data?.length, 'Total Count:', count);
+  console.log('[customerService.getCustomers] Fetched customers via explicit join. Count:', data?.length, 'Total Count:', count);
   return { data, count, error: null };
 }
 
