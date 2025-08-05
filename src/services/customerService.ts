@@ -66,6 +66,7 @@ export async function getCustomers(
     return { data: [], count: 0, error: new Error("User not authenticated.") };
   }
 
+  // Parameters MUST be in the same order as the function definition in SQL
   const { data: rpcData, error: rpcError } = await supabase.rpc('get_vendor_customers', {
     p_vendor_id: user.id,
     p_page_number: page,
