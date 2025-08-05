@@ -59,34 +59,34 @@ export async function getCustomers(
   page: number = 1,
   limit: number = 10
 ): Promise<{ data: CustomerFromSupabase[] | null; count: number | null; error: Error | null }> {
-  console.log(`[customerService.getCustomers] Fetching customers via RPC, page: ${page}, limit: ${limit}`);
+  console.log(`[customerService.getCustomers] Fetching customers with RLS, page: ${page}, limit: ${limit}`);
   
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return { data: [], count: 0, error: new Error("User not authenticated.") };
   }
 
-  // Parameters MUST be in the same order as the function definition in SQL
-  const { data: rpcData, error: rpcError } = await supabase.rpc('get_vendor_customers', {
-    p_vendor_id: user.id,
-    p_page_number: page,
-    p_page_size: limit,
-  });
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  // Reverted to a standard query. RLS policy will handle the filtering.
+  const { data, error, count } = await supabase
+    .from('customers')
+    .select(COMMON_CUSTOMER_SELECT, { count: 'exact' })
+    .order('last_order_date', { ascending: false, nulls: 'last' })
+    .range(from, to);
   
-  if (rpcError) {
-    let message = rpcError.message || 'Failed to fetch customers via RPC.';
-    if (rpcError.message.includes("function get_vendor_customers") && rpcError.message.includes("does not exist")) {
-        message = `RPC Error: ${rpcError.message}. Ensure the 'get_vendor_customers' function is correctly defined in your Supabase SQL Editor and that the 'authenticated' role has EXECUTE permission on it.`;
+  if (error) {
+    let message = error.message || 'Failed to fetch customers.';
+    if (Object.keys(error).length === 0 || !error.message) {
+        message = `Failed to fetch customers. This often indicates an RLS policy issue preventing access. Please ensure the policy from the previous step is active.`;
     }
-    console.error('[customerService.getCustomers] Supabase RPC error:', message, 'Original Error:', JSON.stringify(rpcError, null, 2));
+    console.error('[customerService.getCustomers] Supabase fetch error:', message, 'Original Error:', JSON.stringify(error, null, 2));
     return { data: null, count: null, error: new Error(message) };
   }
 
-  const customers = rpcData as (CustomerFromSupabase & { total_count: number })[];
-  const totalCount = customers?.[0]?.total_count || 0;
-
-  console.log('[customerService.getCustomers] Fetched customers via RPC. Count:', customers?.length, 'Total Count:', totalCount);
-  return { data: customers, count: totalCount, error: null };
+  console.log('[customerService.getCustomers] Fetched customers via RLS. Count:', data?.length, 'Total Count:', count);
+  return { data, count, error: null };
 }
 
 export async function getCustomerById(customerId: string): Promise<{ data: CustomerFromSupabase | null; error: Error | null }> {
