@@ -86,7 +86,7 @@ const fileToDataUri = (file: File): Promise<string> => {
   });
 };
 
-const socialIconMap: Record<MockSocialLinkType["platform"], React.ElementType> = {
+const socialIconMap: Record<string, React.ElementType> = {
   Instagram: Instagram,
   Facebook: Facebook,
   Twitter: Twitter,

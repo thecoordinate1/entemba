@@ -27,7 +27,7 @@ import { getCurrentVendorProfile, updateCurrentVendorProfile, uploadAvatar, type
 import { getStoreById, updateStore, type StoreFromSupabase, type SocialLinkPayload, type StorePayload } from "@/services/storeService";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const socialIconMap: Record<MockSocialLinkType["platform"], React.ElementType> = {
+const socialIconMap: Record<string, React.ElementType> = {
   Instagram: Instagram,
   Facebook: Facebook,
   Twitter: Twitter,
