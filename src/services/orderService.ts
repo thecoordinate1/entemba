@@ -14,9 +14,8 @@ export interface OrderItemPayload {
   data_ai_hint_snapshot?: string | null;
 }
 
-export interface OrderPayload {
-  store_id: string;
-  customer_id?: string | null;
+// This payload is for the NEW create_order_with_snapshots RPC
+export interface OrderPayloadForRPC {
   customer_name: string;
   customer_email: string;
   total_amount: number;
@@ -25,16 +24,13 @@ export interface OrderPayload {
   billing_address: string;
   shipping_method?: string | null;
   payment_method?: string | null;
-  tracking_number?: string | null;
   shipping_latitude?: number | null;
   shipping_longitude?: number | null;
   delivery_type?: 'self_delivery' | 'courier' | null;
-  pickup_address?: string | null;
-  pickup_latitude?: number | null;
-  pickup_longitude?: number | null;
   customer_specification?: string | null;
   delivery_cost?: number | null;
 }
+
 
 export interface OrderItemFromSupabase {
   id: string;
@@ -43,6 +39,7 @@ export interface OrderItemFromSupabase {
   product_name_snapshot: string;
   quantity: number;
   price_per_unit_snapshot: number;
+  cost_per_unit_snapshot: number; // Added for profit calculation
   product_image_url_snapshot: string | null;
   data_ai_hint_snapshot: string | null;
   created_at: string;
@@ -91,7 +88,7 @@ const commonOrderSelect = `
   customer_specification, delivery_cost,
   created_at, updated_at,
   order_items (
-    id, order_id, product_id, product_name_snapshot, quantity, price_per_unit_snapshot,
+    id, order_id, product_id, product_name_snapshot, quantity, price_per_unit_snapshot, cost_per_unit_snapshot,
     product_image_url_snapshot, data_ai_hint_snapshot, created_at
   ),
   customers ( * )
@@ -134,98 +131,30 @@ export async function getOrdersByStoreId(
   return { data: ordersData as OrderFromSupabase[] | null, count: count, error: null };
 }
 
-
+// UPDATED to use the new RPC function
 export async function createOrder(
-  orderData: OrderPayload,
+  storeId: string,
+  customerId: string,
+  orderData: OrderPayloadForRPC,
   itemsData: OrderItemPayload[]
-): Promise<{ data: OrderFromSupabase | null; error: Error | null }> {
-  console.log('[orderService.createOrder] Attempting to create order for store_id:', orderData.store_id);
+): Promise<{ data: { id: string } | null; error: Error | null }> {
+  console.log('[orderService.createOrder] Calling create_order_with_snapshots RPC for store_id:', storeId);
 
-  const { data: newOrder, error: createOrderError } = await supabase
-    .from('orders')
-    .insert({
-      store_id: orderData.store_id,
-      customer_id: orderData.customer_id,
-      customer_name: orderData.customer_name,
-      customer_email: orderData.customer_email,
-      total_amount: orderData.total_amount,
-      status: orderData.status,
-      shipping_address: orderData.shipping_address,
-      billing_address: orderData.billing_address || orderData.shipping_address,
-      shipping_method: orderData.shipping_method || null,
-      payment_method: orderData.payment_method || null,
-      shipping_latitude: orderData.shipping_latitude ? parseFloat(String(orderData.shipping_latitude)) : null,
-      shipping_longitude: orderData.shipping_longitude ? parseFloat(String(orderData.shipping_longitude)) : null,
-      delivery_type: null,
-      customer_specification: orderData.customer_specification || null,
-      delivery_cost: orderData.delivery_cost || null,
-    })
-    .select(commonOrderSelect.replace('order_items (', 'order_items!left (')) 
-    .single();
+  const { data, error } = await supabase.rpc('create_order_with_snapshots', {
+    p_store_id: storeId,
+    p_customer_id: customerId,
+    p_order_payload: orderData,
+    p_order_items: itemsData,
+  });
 
-  if (createOrderError || !newOrder) {
-    let message = 'Failed to create order record.';
-    let details: any = createOrderError;
-     if (createOrderError) {
-        if (createOrderError.message && typeof createOrderError.message === 'string' && createOrderError.message.trim() !== '') {
-             message = createOrderError.message;
-        } else if (Object.keys(createOrderError).length === 0 && !createOrderError.message) {
-            message = `Failed to create order. This often indicates an RLS policy issue on the 'orders' table preventing the insert or read-back. Original Supabase Error: ${JSON.stringify(createOrderError)}`;
-        } else {
-             message = createOrderError.message || `Supabase error during order insert. Details: ${JSON.stringify(createOrderError)}`;
-        }
-    } else if (!newOrder) {
-        message = 'Failed to retrieve order after insert. This strongly suggests an RLS SELECT policy on the `orders` table is missing or incorrect.';
-    }
-    console.error('[orderService.createOrder] Error creating order. Message:', message, "Original Supabase Error:", JSON.stringify(createOrderError, null, 2) || 'No specific Supabase error object returned.');
-    const errorToReturn = new Error(message);
-    (errorToReturn as any).details = details;
-    return { data: null, error: errorToReturn };
+  if (error) {
+    console.error('[orderService.createOrder] Error calling RPC:', error);
+    return { data: null, error: new Error(error.message || 'Failed to create order via RPC.') };
   }
 
-  const insertedOrderItems: OrderItemFromSupabase[] = [];
-  if (itemsData.length > 0) {
-    const itemsToInsert = itemsData.map(item => ({
-      order_id: newOrder.id,
-      product_id: item.product_id,
-      product_name_snapshot: item.product_name_snapshot,
-      quantity: item.quantity,
-      price_per_unit_snapshot: item.price_per_unit_snapshot,
-      product_image_url_snapshot: item.product_image_url_snapshot,
-      data_ai_hint_snapshot: item.data_ai_hint_snapshot,
-    }));
-
-    const { data: newItems, error: itemsError } = await supabase
-      .from('order_items')
-      .insert(itemsToInsert)
-      .select('*');
-
-    if (itemsError) {
-      let itemErrorMessage = itemsError.message || 'Failed to insert order items.';
-       if (Object.keys(itemsError).length === 0 || !itemsError.message) {
-            itemErrorMessage = `Order ${newOrder.id} created, but failed to insert order items due to a likely RLS issue on 'order_items'. Supabase Error: ${JSON.stringify(itemsError)}`;
-       }
-      console.error('[orderService.createOrder] Error inserting order items:', itemErrorMessage, 'Original Supabase Error:', JSON.stringify(itemsError, null, 2));
-      const orderWithError = { ...newOrder, order_items: [] } as OrderFromSupabase;
-      const errorToReturn = new Error(itemErrorMessage);
-      (errorToReturn as any).details = itemsError;
-      return {
-        data: orderWithError,
-        error: errorToReturn
-      };
-    }
-    if (newItems) {
-      insertedOrderItems.push(...newItems as OrderItemFromSupabase[]);
-    }
-  }
-
-  const finalOrderData: OrderFromSupabase = {
-    ...newOrder,
-    order_items: insertedOrderItems,
-  };
-
-  console.log('[orderService.createOrder] Successfully created order:', finalOrderData.id);
-  return { data: finalOrderData, error: null };
+  console.log('[orderService.createOrder] Successfully called RPC, new order ID:', data);
+  // The RPC returns the new_order_id directly
+  return { data: { id: data as string }, error: null };
 }
 
 export async function getOrderById(orderId: string, storeId: string): Promise<{ data: OrderFromSupabase | null; error: Error | null }> {
@@ -286,6 +215,12 @@ export async function updateOrderStatus(
   if (options?.pickup_address !== undefined) updatePayload.pickup_address = options.pickup_address;
   if (options?.pickup_latitude !== undefined) updatePayload.pickup_latitude = options.pickup_latitude;
   if (options?.pickup_longitude !== undefined) updatePayload.pickup_longitude = options.pickup_longitude;
+  
+  // Special case: if moving to 'Confirmed', this is where stock should be decremented.
+  // This logic is now handled inside the create_order_with_snapshots RPC for better transactional safety.
+  // The 'Process Order' button in the UI should now directly move an order from 'Pending' to 'Confirmed'
+  // and decrement stock via the backend logic associated with that status change if not using the new RPC.
+  // Since we are using the new RPC, stock is handled at creation.
 
   const { data: updatedOrder, error: updateError } = await supabase
     .from('orders')
@@ -424,9 +359,11 @@ export async function getStoreOrderStats(storeId: string): Promise<{ data: Store
   let activeOrdersCount = 0;
 
   orders.forEach(order => {
-    if (order.status === 'Delivered') { 
+    // Total revenue should be calculated from fulfilled orders
+    if (['Shipped', 'Delivered'].includes(order.status)) { 
       totalRevenue += order.total_amount || 0;
     }
+    // Active orders are those that need action
     if (['Pending', 'Confirmed', 'Driver Picking Up', 'Delivering'].includes(order.status)) {
       activeOrdersCount++;
     }

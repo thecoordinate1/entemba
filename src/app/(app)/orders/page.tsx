@@ -50,7 +50,7 @@ import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
-import { getOrdersByStoreId, createOrder, updateOrderStatus, type OrderPayload, type OrderItemPayload, type OrderFromSupabase, getOrdersByStoreIdAndStatus } from "@/services/orderService";
+import { getOrdersByStoreId, createOrder, updateOrderStatus, type OrderPayloadForRPC, type OrderItemPayload, type OrderFromSupabase, getOrdersByStoreIdAndStatus } from "@/services/orderService";
 import { getProductsByStoreId as fetchStoreProducts, getProductsByIds, type ProductFromSupabase } from "@/services/productService";
 import { getStoreById, type StoreFromSupabase } from "@/services/storeService";
 import { getCustomerByEmail, createCustomer as createNewCustomer, type CustomerPayload as NewCustomerPayload } from "@/services/customerService";
@@ -435,8 +435,10 @@ export default function OrdersPage() {
   };
 
   const calculateNewOrderTotal = React.useMemo(() => {
-    return newOrderItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
-  }, [newOrderItems]);
+    const itemsTotal = newOrderItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+    const deliveryCost = parseFloat(String(newOrderData.delivery_cost)) || 0;
+    return itemsTotal + deliveryCost;
+  }, [newOrderItems, newOrderData.delivery_cost]);
 
 
   const handleCreateOrder = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -483,10 +485,13 @@ export default function OrdersPage() {
       return;
     }
 
+    if (!customerIdForOrder) {
+        toast({ variant: "destructive", title: "Customer Error", description: "Could not identify or create a customer for this order." });
+        setIsSubmitting(false);
+        return;
+    }
 
-    const orderPayload: OrderPayload = {
-      store_id: storeIdFromUrl,
-      customer_id: customerIdForOrder,
+    const orderPayload: OrderPayloadForRPC = {
       customer_name: newOrderData.customerName,
       customer_email: newOrderData.customerEmail,
       total_amount: calculateNewOrderTotal,
@@ -511,12 +516,12 @@ export default function OrdersPage() {
       data_ai_hint_snapshot: item.productDataAiHint,
     }));
 
-    const { data: newOrderFromBackend, error } = await createOrder(orderPayload, itemsPayload);
+    const { data: newOrderId, error } = await createOrder(storeIdFromUrl, customerIdForOrder, orderPayload, itemsPayload);
 
-    if (error || !newOrderFromBackend) {
+    if (error || !newOrderId) {
       toast({ variant: "destructive", title: "Error Creating Order", description: error?.message || "Could not create order." });
     } else {
-      toast({ title: "Order Created", description: `Order ${newOrderFromBackend.id} has been successfully created for ${selectedStore?.name || 'the current store'}.` });
+      toast({ title: "Order Created", description: `Order ${newOrderId.id.substring(0,8)}... has been successfully created.` });
       setIsAddOrderDialogOpen(false);
       resetAddOrderForm();
       if (currentPage === 1) { 

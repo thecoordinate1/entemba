@@ -315,7 +315,7 @@ export async function updateProduct(
   return getProductById(productId);
 }
 
-
+// UPDATED to perform a soft delete
 export async function deleteProduct(
   productId: string,
   userId: string,
@@ -323,7 +323,6 @@ export async function deleteProduct(
 ): Promise<{ error: Error | null }> {
   console.log(`[productService.deleteProduct] Soft deleting product ${productId} from store ${storeId}`);
   
-  // Soft delete by changing status to 'Archived'
   const { error: updateError } = await supabase
     .from('products')
     .update({ status: 'Archived', updated_at: new Date().toISOString() })

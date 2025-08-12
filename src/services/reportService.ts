@@ -83,9 +83,6 @@ export async function getRevenueSummaryStats(
   // RPCs returning a single row often wrap it in an array
   if (!data || data.length === 0) {
     console.warn('[reportService.getRevenueSummaryStats] No data returned from RPC for store:', storeId);
-    // It's better to return an empty/default structure than null if the RPC ran but found no data for a valid store
-    // This allows the UI to display 0s instead of erroring out if data is expected.
-    // However, for this summary, if nothing is returned, it might imply an issue.
     return { data: null, error: new Error('No summary data returned from RPC for revenue.') };
   }
   console.log('[reportService.getRevenueSummaryStats] Data from RPC:', data[0]);
@@ -148,15 +145,16 @@ export async function getTopProductsByRevenue(
 // --- Service Functions (Profit) ---
 
 export async function getProfitSummaryStats(
-  storeId: string
+  storeId: string,
+  daysPeriod: number | null = 90 // Default to last 90 days
 ): Promise<{ data: ProfitSummaryStats | null; error: Error | null }> {
-  console.log(`[reportService.getProfitSummaryStats] Fetching for store ${storeId}`);
+  console.log(`[reportService.getProfitSummaryStats] Fetching for store ${storeId}, period ${daysPeriod} days`);
   if (!storeId) {
     return { data: null, error: new Error("Store ID is required for profit summary.") };
   }
 
   const { data, error } = await supabase.rpc('get_profit_summary_stats', {
-    p_store_id: storeId,
+    p_store_id: storeId
   });
 
   if (error) {
@@ -199,7 +197,7 @@ export async function getMonthlyProfitOverview(
 export async function getTopProductsByProfit(
   storeId: string,
   limit: number,
-  daysPeriod: number | null
+  daysPeriod: number | null = 90 // Default to last 90 days
 ): Promise<{ data: ProductProfitData[] | null; error: Error | null }> {
   console.log(`[reportService.getTopProductsByProfit] Fetching top ${limit} products by profit for store ${storeId}, period: ${daysPeriod === null ? 'all time' : daysPeriod + ' days'}.`);
   if (!storeId) {

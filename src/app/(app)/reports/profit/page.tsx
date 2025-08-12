@@ -94,6 +94,8 @@ export default function ProfitReportPage() {
   
   const [isLoadingPage, setIsLoadingPage] = React.useState(true);
   const [errorMessages, setErrorMessages] = React.useState<string[]>([]);
+  
+  const [daysPeriod] = React.useState<number | null>(90); // Default to last 90 days for top products
 
   React.useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setAuthUser(user));
@@ -124,7 +126,7 @@ export default function ProfitReportPage() {
       
       const storePromise = getStoreById(storeIdFromUrl, authUser.id);
       const summaryStatsPromise = getProfitSummaryStats(storeIdFromUrl);
-      const topProductsPromise = getTopProductsByProfit(storeIdFromUrl, 5, 30);
+      const topProductsPromise = getTopProductsByProfit(storeIdFromUrl, 5, daysPeriod);
 
       const results = await Promise.allSettled([
         storePromise,
@@ -172,7 +174,7 @@ export default function ProfitReportPage() {
     };
 
     fetchReportData();
-  }, [storeIdFromUrl, authUser, toast]);
+  }, [storeIdFromUrl, authUser, toast, daysPeriod]);
 
   const storeContextMessage = selectedStore ? ` for ${selectedStore.name}` : storeIdFromUrl ? " for selected store" : "";
   const queryParams = storeIdFromUrl ? `?storeId=${storeIdFromUrl}` : "";
@@ -252,12 +254,10 @@ export default function ProfitReportPage() {
         />
       </div>
 
-      {/* Charts have been removed from here */}
-
       <Card>
         <CardHeader>
           <CardTitle>Top Products by Profit</CardTitle>
-          <CardDescription>Detailed breakdown of profit by products (last 30 days){storeContextMessage}.</CardDescription>
+          <CardDescription>Detailed breakdown of profit by products (last {daysPeriod} days){storeContextMessage}.</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoadingPage ? (
