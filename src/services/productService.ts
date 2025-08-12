@@ -1,4 +1,3 @@
-
 // src/services/productService.ts
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
@@ -163,4 +162,226 @@ export async function getProductsByStoreId(
   }
 
   console.log('[productService.getProductsByStoreId] Fetched products count:', productsData?.length, 'Total count:', count);
-  return { data: productsData as ProductFromSupa
+  return { data: productsData as ProductFromSupabase[], count, error: null };
+}
+
+export async function getProductById(productId: string): Promise<{ data: ProductFromSupabase | null; error: Error | null }> {
+  console.log('[productService.getProductById] Fetching product by ID:', productId);
+
+  const { data: productData, error: productError } = await supabase
+    .from('products')
+    .select(COMMON_PRODUCT_SELECT)
+    .eq('id', productId)
+    .single();
+
+  if (productError) {
+    console.error('[productService.getProductById] Supabase fetch product error:', productError);
+    return { data: null, error: new Error(productError.message || `Failed to fetch product with ID ${productId}.`) };
+  }
+  
+  if (productData && productData.product_images) {
+      productData.product_images.sort((a, b) => a.order - b.order);
+  }
+
+  console.log('[productService.getProductById] Fetched product:', productData?.id);
+  return { data: productData as ProductFromSupabase | null, error: null };
+}
+
+export async function createProduct(
+  userId: string,
+  storeId: string,
+  productData: ProductPayload,
+  images: { file: File; hint: string; order: number }[]
+): Promise<{ data: ProductFromSupabase | null; error: Error | null }> {
+  console.log('[productService.createProduct] Creating product for store_id:', storeId);
+  const { data: newProduct, error: createError } = await supabase
+    .from('products')
+    .insert({
+      store_id: storeId,
+      ...productData,
+    })
+    .select(COMMON_PRODUCT_SELECT)
+    .single();
+
+  if (createError || !newProduct) {
+    console.error('[productService.createProduct] Error creating product record:', createError);
+    return { data: null, error: new Error(createError?.message || 'Failed to create product.') };
+  }
+
+  if (images.length > 0) {
+    console.log(`[productService.createProduct] Uploading ${images.length} images for new product ${newProduct.id}`);
+    const imageUploadPromises = images.map(img => uploadProductImage(storeId, newProduct.id, img.file));
+    const uploadResults = await Promise.all(imageUploadPromises);
+
+    const imageRecordsToInsert: Omit<ProductImageFromSupabase, 'id' | 'created_at'>[] = [];
+    for (let i = 0; i < uploadResults.length; i++) {
+      if (uploadResults[i].publicUrl) {
+        imageRecordsToInsert.push({
+          product_id: newProduct.id,
+          image_url: uploadResults[i].publicUrl!,
+          data_ai_hint: images[i].hint,
+          order: images[i].order,
+        });
+      } else {
+        console.warn(`[productService.createProduct] Failed to upload image ${i}:`, uploadResults[i].error?.message);
+      }
+    }
+
+    if (imageRecordsToInsert.length > 0) {
+      const { error: imageInsertError } = await supabase.from('product_images').insert(imageRecordsToInsert);
+      if (imageInsertError) {
+        console.error('[productService.createProduct] Error inserting image records:', imageInsertError);
+        // Don't fail the whole operation, but warn the user.
+        const productWithError = newProduct as ProductFromSupabase;
+        return { data: productWithError, error: new Error(`Product created, but failed to save images: ${imageInsertError.message}`) };
+      }
+    }
+  }
+
+  // Refetch the product with its images
+  return getProductById(newProduct.id);
+}
+
+export async function updateProduct(
+  productId: string,
+  userId: string,
+  storeId: string,
+  productData: ProductPayload,
+  imagesToUpdate: { id?: string; file?: File; hint: string; existingUrl?: string, order: number }[]
+): Promise<{ data: ProductFromSupabase | null; error: Error | null }> {
+  console.log(`[productService.updateProduct] Updating product ${productId}`);
+  
+  const { data: updatedProduct, error: updateError } = await supabase
+    .from('products')
+    .update({ ...productData, updated_at: new Date().toISOString() })
+    .eq('id', productId)
+    .select(COMMON_PRODUCT_SELECT)
+    .single();
+
+  if (updateError || !updatedProduct) {
+    console.error(`[productService.updateProduct] Error updating product ${productId}:`, updateError);
+    return { data: null, error: new Error(updateError?.message || `Failed to update product.`) };
+  }
+
+  const existingImages = updatedProduct.product_images || [];
+  const imageUrlsToKeep = imagesToUpdate
+    .map(img => img.existingUrl)
+    .filter((url): url is string => !!url);
+    
+  const imagesToDelete = existingImages.filter(img => !imageUrlsToKeep.includes(img.image_url));
+
+  if (imagesToDelete.length > 0) {
+    const imageIdsToDelete = imagesToDelete.map(img => img.id);
+    const imagePathsToDelete = imagesToDelete
+        .map(img => getPathFromStorageUrl(img.image_url, 'product-images'))
+        .filter((path): path is string => !!path);
+    
+    console.log(`[productService.updateProduct] Deleting ${imageIdsToDelete.length} image records and ${imagePathsToDelete.length} files from storage.`);
+    
+    if (imagePathsToDelete.length > 0) {
+        const { error: storageError } = await supabase.storage.from('product-images').remove(imagePathsToDelete);
+        if (storageError) console.error('[productService.updateProduct] Error deleting files from storage:', storageError.message);
+    }
+
+    const { error: dbError } = await supabase.from('product_images').delete().in('id', imageIdsToDelete);
+    if (dbError) console.error('[productService.updateProduct] Error deleting image records from DB:', dbError.message);
+  }
+
+  const imageUpsertPromises = imagesToUpdate.map(async (img) => {
+    if (img.file) { // New file needs upload
+      const { publicUrl, error } = await uploadProductImage(storeId, productId, img.file);
+      if (error) {
+          console.error('[productService.updateProduct] Failed to upload new image:', error.message);
+          return null;
+      }
+      return { product_id: productId, image_url: publicUrl, data_ai_hint: img.hint, order: img.order };
+    } else if (img.id && img.existingUrl) { // Existing image, maybe hint changed
+      return { id: img.id, product_id: productId, image_url: img.existingUrl, data_ai_hint: img.hint, order: img.order };
+    }
+    return null;
+  });
+
+  const upsertData = (await Promise.all(imageUpsertPromises)).filter(d => d !== null);
+
+  if (upsertData.length > 0) {
+      console.log(`[productService.updateProduct] Upserting ${upsertData.length} image records.`);
+      const { error: upsertError } = await supabase.from('product_images').upsert(upsertData, { onConflict: 'id' });
+      if (upsertError) {
+          console.error('[productService.updateProduct] Error upserting image records:', upsertError.message);
+      }
+  }
+
+  // Refetch the product to get all latest data in one consistent object
+  return getProductById(productId);
+}
+
+
+export async function deleteProduct(
+  productId: string,
+  userId: string,
+  storeId: string,
+): Promise<{ error: Error | null }> {
+  console.log(`[productService.deleteProduct] Soft deleting product ${productId} from store ${storeId}`);
+  
+  // Soft delete by changing status to 'Archived'
+  const { error: updateError } = await supabase
+    .from('products')
+    .update({ status: 'Archived', updated_at: new Date().toISOString() })
+    .eq('id', productId)
+    .eq('store_id', storeId);
+
+  if (updateError) {
+    console.error(`[productService.deleteProduct] Error soft-deleting product ${productId}:`, updateError);
+    return { error: new Error(updateError.message || 'Failed to archive product.') };
+  }
+
+  console.log(`[productService.deleteProduct] Product ${productId} successfully archived.`);
+  return { error: null };
+}
+
+// --- Dashboard / Reports Specific Functions ---
+
+export async function getStoreTopSellingProductsRPC(
+  storeId: string,
+  limit: number,
+  daysPeriod: number | null
+): Promise<{ data: TopSellingProductFromRPC[] | null; error: Error | null }> {
+  console.log(`[productService.getStoreTopSellingProductsRPC] Fetching for store ${storeId}, limit ${limit}, period ${daysPeriod} days.`);
+  if (!storeId) {
+    return { data: null, error: new Error("Store ID is required.") };
+  }
+
+  const { data, error } = await supabase.rpc('get_top_selling_products', {
+    p_store_id: storeId,
+    p_limit: limit,
+    p_days_period: daysPeriod,
+  });
+
+  if (error) {
+    console.error('[productService.getStoreTopSellingProductsRPC] Error calling RPC:', JSON.stringify(error, null, 2));
+    return { data: null, error: new Error(error.message || 'Failed to fetch top selling products from RPC.') };
+  }
+
+  console.log('[productService.getStoreTopSellingProductsRPC] Data from RPC:', data);
+  return { data: data as TopSellingProductFromRPC[] | null, error: null };
+}
+
+export async function getProductsByIds(
+  productIds: string[]
+): Promise<{ data: ProductFromSupabase[] | null, error: Error | null }> {
+    if (!productIds || productIds.length === 0) {
+        return { data: [], error: null };
+    }
+
+    const { data, error } = await supabase
+        .from('products')
+        .select(COMMON_PRODUCT_SELECT)
+        .in('id', productIds);
+
+    if (error) {
+        console.error(`[productService.getProductsByIds] Error fetching products:`, error);
+        return { data: null, error };
+    }
+
+    return { data: data as ProductFromSupabase[], error: null };
+}
