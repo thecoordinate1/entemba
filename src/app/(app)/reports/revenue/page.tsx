@@ -280,14 +280,14 @@ export default function RevenueReportPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Revenue (YTD)"
-          value={isLoading ? "Loading..." : (summaryStats?.ytd_revenue !== undefined ? `ZMW ${Number(summaryStats.ytd_revenue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
+          value={isLoading ? "Loading..." : (summaryStats?.ytd_revenue !== undefined && summaryStats !== null ? `ZMW ${Number(summaryStats.ytd_revenue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
           icon={DollarSign}
           description={`Year-to-date gross revenue${storeContextMessage}.`}
           isLoading={isLoading}
         />
         <StatCard
           title="Revenue (This Month)"
-          value={isLoading ? "Loading..." : (summaryStats?.current_month_revenue !== undefined ? `ZMW ${Number(summaryStats.current_month_revenue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
+          value={isLoading ? "Loading..." : (summaryStats?.current_month_revenue !== undefined && summaryStats !== null ? `ZMW ${Number(summaryStats.current_month_revenue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
           icon={DollarSign}
           description={`Gross revenue for current month${storeContextMessage}.`}
           isLoading={isLoading}
@@ -301,7 +301,7 @@ export default function RevenueReportPage() {
         />
         <StatCard
           title="Total Transactions (YTD)"
-          value={isLoading ? "Loading..." : (summaryStats?.ytd_transactions !== undefined ? summaryStats.ytd_transactions.toLocaleString() : "N/A")}
+          value={isLoading ? "Loading..." : (summaryStats?.ytd_transactions !== undefined && summaryStats !== null ? summaryStats.ytd_transactions.toLocaleString() : "N/A")}
           icon={CreditCard}
           description={`Total successful transactions YTD${storeContextMessage}.`}
           isLoading={isLoading}
@@ -317,7 +317,7 @@ export default function RevenueReportPage() {
           <CardContent className="pl-2">
             {isLoading ? (
                 <Skeleton className="h-[300px] w-full" />
-            ) : monthlyRevenue.length > 0 ? (
+            ) : monthlyRevenue && monthlyRevenue.length > 0 ? (
               <ChartContainer config={revenueChartConfig} className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={monthlyRevenue} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
@@ -434,7 +434,7 @@ export default function RevenueReportPage() {
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
             </div>
-          ) : topProducts.length > 0 ? (
+          ) : topProducts && topProducts.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -560,4 +560,3 @@ export default function RevenueReportPage() {
     </div>
   );
 }
-

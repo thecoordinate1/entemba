@@ -266,7 +266,7 @@ export default function ProfitReportPage() {
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
             </div>
-          ) : topProducts.length > 0 ? (
+          ) : topProducts && topProducts.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>

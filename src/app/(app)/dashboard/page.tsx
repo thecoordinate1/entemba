@@ -336,7 +336,7 @@ export default function DashboardPage() {
         />
          <StatCard
           title="Gross Profit (YTD)"
-          value={isLoading ? "Loading..." : (profitStats?.ytd_gross_profit !== undefined ? `ZMW ${profitStats.ytd_gross_profit.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
+          value={isLoading ? "Loading..." : (profitStats?.ytd_gross_profit !== undefined && profitStats !== null ? `ZMW ${profitStats.ytd_gross_profit.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
           icon={LineChart}
           description={`Year-to-date gross profit${storeContextMessage}.`}
           ctaLink={`/reports/profit${queryParams}`}
@@ -456,7 +456,7 @@ export default function DashboardPage() {
               </ul>
             )}
             {!isLoading && topProducts.length === 0 && (
-              <p className="text-sm text-muted-foreground">No top selling products found for this store or period.</p>
+              <p className="text-sm text-muted-foreground text-center py-10">No top selling products found for this store or period.</p>
             )}
             {!isLoading && topProducts.length > 0 && (
               <ul className="space-y-4">

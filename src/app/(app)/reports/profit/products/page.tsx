@@ -134,7 +134,7 @@ export default function AllProductsProfitPage() {
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
             </div>
-          ) : allProductsProfit.length > 0 ? (
+          ) : allProductsProfit && allProductsProfit.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
