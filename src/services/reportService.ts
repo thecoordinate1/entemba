@@ -141,6 +141,28 @@ export async function getTopProductsByRevenue(
   return { data: data as TopProductByRevenue[] | null, error: null };
 }
 
+export async function getAllProductsRevenueForStore(
+  storeId: string,
+  daysPeriod: number | null
+): Promise<{ data: TopProductByRevenue[] | null; error: Error | null }> {
+  console.log(`[reportService.getAllProductsRevenueForStore] Fetching all products revenue for store ${storeId}, period: ${daysPeriod === null ? 'all time' : daysPeriod + ' days'}.`);
+  if (!storeId) {
+    return { data: null, error: new Error("Store ID is required for all products revenue.") };
+  }
+
+  const { data, error } = await supabase.rpc('get_all_products_revenue_for_store', {
+    p_store_id: storeId,
+    p_days_period: daysPeriod,
+  });
+
+  if (error) {
+    console.error('[reportService.getAllProductsRevenueForStore] Error calling RPC:', JSON.stringify(error, null, 2));
+    return { data: null, error: new Error(error.message || 'Failed to fetch all products revenue from RPC.') };
+  }
+  console.log('[reportService.getAllProductsRevenueForStore] Data from RPC:', data);
+  return { data: data as TopProductByRevenue[] | null, error: null };
+}
+
 
 // --- Service Functions (Profit) ---
 
