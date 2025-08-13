@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -37,7 +36,7 @@ import { format, parseISO, isValid } from 'date-fns';
 
 import { getStoreOrderStats, getStoreTotalProductsSold, getMonthlySalesOverviewForStore, type MonthlySalesDataFromRPC } from "@/services/orderService";
 import { getStoreTopSellingProductsRPC, type TopSellingProductFromRPC } from "@/services/productService";
-import { getRecentGlobalCustomersCount } from "@/services/customerService";
+import { getNewCustomersForStoreCount } from "@/services/customerService";
 import { getStoreById, type StoreFromSupabase } from "@/services/storeService";
 import { getProfitSummaryStats, type ProfitSummaryStats } from "@/services/reportService"; // Import profit stats
 
@@ -190,7 +189,7 @@ export default function DashboardPage() {
       const productsSoldPromise = getStoreTotalProductsSold(storeId);
       const topProductsPromise = getStoreTopSellingProductsRPC(storeId, 3, 30);
       const salesChartPromise = getMonthlySalesOverviewForStore(storeId, 6);
-      const newCustomersPromise = getRecentGlobalCustomersCount(30);
+      const newCustomersPromise = getNewCustomersForStoreCount(storeId, 30);
       const profitStatsPromise = getProfitSummaryStats(storeId); // Fetch profit stats
 
       const results = await Promise.allSettled([
@@ -365,7 +364,7 @@ export default function DashboardPage() {
           title="New Customers"
           value={isLoading ? "Loading..." : (newCustomersCount !== null ? newCustomersCount.toLocaleString() : "N/A")}
           icon={Users}
-          description={`Global new sign-ups (last 30d).`}
+          description={`New customers (last 30d)${storeContextMessage}.`}
           ctaLink={`/customers${queryParams}`}
           ctaText="View Customers"
           isLoading={isLoading && newCustomersCount === null}

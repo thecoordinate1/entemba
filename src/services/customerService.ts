@@ -1,4 +1,3 @@
-
 // src/services/customerService.ts
 import { createClient } from '@/lib/supabase/client';
 
@@ -252,23 +251,23 @@ export async function deleteCustomer(customerId: string): Promise<{ error: Error
 
 
 // --- Dashboard Specific Functions ---
-export async function getRecentGlobalCustomersCount(days: number = 30): Promise<{ data: { count: number } | null; error: Error | null }> {
-  console.log(`[customerService.getRecentGlobalCustomersCount] Fetching count of customers joined in the last ${days} days.`);
-  
-  const dateThreshold = new Date();
-  dateThreshold.setDate(dateThreshold.getDate() - days);
-  const dateThresholdString = dateThreshold.toISOString();
+export async function getNewCustomersForStoreCount(storeId: string, days: number = 30): Promise<{ data: { count: number } | null; error: Error | null }> {
+  console.log(`[customerService.getNewCustomersForStoreCount] Fetching count for store ${storeId}, last ${days} days.`);
+  if (!storeId) {
+    return { data: null, error: new Error("Store ID is required to get new customer count.") };
+  }
 
-  const { count, error } = await supabase
-    .from('customers')
-    .select('*', { count: 'exact', head: true })
-    .gte('joined_date', dateThresholdString);
+  const { data, error } = await supabase.rpc('get_new_customers_for_store_count', {
+    p_store_id: storeId,
+    p_days_period: days,
+  });
 
   if (error) {
-    console.error('[customerService.getRecentGlobalCustomersCount] Error fetching recent customers count:', error.message);
+    console.error('[customerService.getNewCustomersForStoreCount] Error calling RPC:', error.message);
     return { data: null, error: new Error(error.message) };
   }
 
-  console.log(`[customerService.getRecentGlobalCustomersCount] Count: ${count ?? 0}`);
-  return { data: { count: count ?? 0 }, error: null };
+  const count = typeof data === 'number' ? data : 0;
+  console.log(`[customerService.getNewCustomersForStoreCount] Count for store ${storeId}: ${count}`);
+  return { data: { count }, error: null };
 }
