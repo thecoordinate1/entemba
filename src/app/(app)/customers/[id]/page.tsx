@@ -65,8 +65,8 @@ const mapCustomerFromSupabaseToUI = (customer: CustomerFromSupabase): CustomerUI
     email: customer.email,
     avatar: customer.avatar_url || "https://placehold.co/96x96.png",
     dataAiHintAvatar: customer.data_ai_hint_avatar || "person",
-    totalSpent: customer.total_spent || 0, // Ensure default value
-    totalOrders: customer.total_orders || 0, // Ensure default value
+    totalSpent: customer.total_spent ?? 0, // Ensure default value
+    totalOrders: customer.total_orders ?? 0, // Ensure default value
     joinedDate: customer.joined_date ? new Date(customer.joined_date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0], // Ensure default
     lastOrderDate: customer.last_order_date ? new Date(customer.last_order_date).toISOString().split("T")[0] : undefined,
     status: customer.status as CustomerStatus,
