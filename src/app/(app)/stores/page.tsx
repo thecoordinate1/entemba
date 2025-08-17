@@ -564,12 +564,12 @@ export default function StoresPage() {
                             <ExternalLink className="mr-2 h-4 w-4" /> View Store Dashboard
                         </Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => prepareFormForEdit(store)}>
-                        <Edit className="mr-2 h-4 w-4" /> Edit Details
+                        <DropdownMenuItem onSelect={() => prepareFormForEdit(store)}>
+                          <Edit className="mr-2 h-4 w-4" /> Edit Details
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => openDeleteDialog(store)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                        <Trash2 className="mr-2 h-4 w-4" /> Delete Store
+                          <Trash2 className="mr-2 h-4 w-4" /> Delete Store
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                     </DropdownMenu>
