@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { resendConfirmationEmail } from "@/services/authService";
 import { Gem, MailCheck } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const resendSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -35,7 +36,7 @@ const resendSchema = z.object({
 
 type ResendFormValues = z.infer<typeof resendSchema>;
 
-export default function ResendConfirmationPage() {
+function ResendConfirmationForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -75,12 +76,7 @@ export default function ResendConfirmationPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-muted/40 p-4">
-      <div className="flex items-center gap-2 mb-8 text-2xl font-semibold text-primary">
-        <Gem className="h-8 w-8" />
-        <span>E-Ntemba</span>
-      </div>
-      <Card className="w-full max-w-md shadow-xl">
+    <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-1 text-center">
           <MailCheck className="mx-auto h-12 w-12 text-primary" />
           <CardTitle className="text-2xl pt-2">Confirm Your Email</CardTitle>
@@ -117,6 +113,46 @@ export default function ResendConfirmationPage() {
           </Link>
         </CardContent>
       </Card>
+  )
+}
+
+function ResendConfirmationSkeleton() {
+  return (
+     <Card className="w-full max-w-md shadow-xl">
+        <CardHeader className="space-y-1 text-center">
+          <MailCheck className="mx-auto h-12 w-12 text-primary" />
+          <CardTitle className="text-2xl pt-2">Confirm Your Email</CardTitle>
+          <CardDescription>
+            Loading...
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+            <Skeleton className="h-10 w-full" />
+          </div>
+        </CardContent>
+        <CardContent className="mt-4 text-center text-sm">
+          <Skeleton className="h-4 w-32 mx-auto" />
+        </CardContent>
+      </Card>
+  )
+}
+
+
+export default function ResendConfirmationPage() {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-muted/40 p-4">
+      <div className="flex items-center gap-2 mb-8 text-2xl font-semibold text-primary">
+        <Gem className="h-8 w-8" />
+        <span>E-Ntemba</span>
+      </div>
+      <React.Suspense fallback={<ResendConfirmationSkeleton />}>
+        <ResendConfirmationForm />
+      </React.Suspense>
     </div>
   );
 }
