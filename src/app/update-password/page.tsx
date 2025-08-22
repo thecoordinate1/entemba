@@ -10,9 +10,10 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import * as React from "react";
 import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
 // import { createClient } from '@/lib/supabase/client'; // Would be needed for actual password update
 
-export default function UpdatePasswordPage() {
+function UpdatePasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -49,11 +50,21 @@ export default function UpdatePasswordPage() {
     }
     setIsLoading(true);
     
-    // Placeholder for actual Supabase password update logic
-    // const { error } = await supabase.auth.updateUser({ password });
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-    const error = { message: "Password update functionality not yet fully implemented in this demo." }; // Placeholder
+    const { data: { session } } = await createClient().auth.getSession();
+    
+    if (!session) {
+        toast({
+            variant: "destructive",
+            title: "Not Authenticated",
+            description: "Your session may have expired. Please try the password reset process again.",
+        });
+        setIsLoading(false);
+        router.push('/login');
+        return;
+    }
 
+    const { error } = await createClient().auth.updateUser({ password });
+    
     setIsLoading(false);
 
     if (error) {
@@ -85,12 +96,7 @@ export default function UpdatePasswordPage() {
 
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-muted/40 p-4">
-      <div className="flex items-center gap-2 mb-8 text-2xl font-semibold text-primary">
-        <Gem className="h-8 w-8" />
-        <span>E-Ntemba</span>
-      </div>
-      <Card className="w-full max-w-md shadow-xl">
+    <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl">Update Your Password</CardTitle>
           <CardDescription>
@@ -135,6 +141,47 @@ export default function UpdatePasswordPage() {
             </Link>
         </CardContent>
       </Card>
-    </div>
   );
+}
+
+
+function UpdatePasswordSkeleton() {
+    return (
+        <Card className="w-full max-w-md shadow-xl">
+            <CardHeader className="space-y-1 text-center">
+                <CardTitle className="text-2xl">Update Your Password</CardTitle>
+                <CardDescription>
+                    Enter your new password below.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="space-y-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-10 w-full" />
+                </div>
+                <div className="space-y-2">
+                    <Skeleton className="h-4 w-36" />
+                    <Skeleton className="h-10 w-full" />
+                </div>
+                <Skeleton className="h-10 w-full" />
+            </CardContent>
+            <CardContent className="mt-4 text-center text-sm">
+                <Skeleton className="h-4 w-48 mx-auto" />
+            </CardContent>
+        </Card>
+    );
+}
+
+export default function UpdatePasswordPage() {
+    return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-muted/40 p-4">
+            <div className="flex items-center gap-2 mb-8 text-2xl font-semibold text-primary">
+                <Gem className="h-8 w-8" />
+                <span>E-Ntemba</span>
+            </div>
+            <React.Suspense fallback={<UpdatePasswordSkeleton />}>
+                <UpdatePasswordForm />
+            </React.Suspense>
+        </div>
+    );
 }
