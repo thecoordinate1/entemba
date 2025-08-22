@@ -11,7 +11,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import * as React from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-// import { createClient } from '@/lib/supabase/client'; // Would be needed for actual password update
+import { createClient } from '@/lib/supabase/client';
 
 function UpdatePasswordForm() {
   const router = useRouter();
@@ -20,15 +20,7 @@ function UpdatePasswordForm() {
   const [password, setPassword] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
-
-  // const supabase = createClient(); // Would be needed for actual password update
-
-  // The access_token and refresh_token are not directly available here for client-side update
-  // Supabase handles setting the session after clicking the link.
-  // If the user is redirected here, they should already have a session that allows password update.
-  // However, typically the email link from Supabase takes the user to a Supabase hosted page
-  // or requires you to handle the recovery token.
-  // For simplicity, this page assumes the user is already in a state where Supabase allows password update.
+  const supabase = createClient();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -50,7 +42,7 @@ function UpdatePasswordForm() {
     }
     setIsLoading(true);
     
-    const { data: { session } } = await createClient().auth.getSession();
+    const { data: { session } } = await supabase.auth.getSession();
     
     if (!session) {
         toast({
@@ -63,7 +55,7 @@ function UpdatePasswordForm() {
         return;
     }
 
-    const { error } = await createClient().auth.updateUser({ password });
+    const { error } = await supabase.auth.updateUser({ password });
     
     setIsLoading(false);
 
@@ -82,7 +74,6 @@ function UpdatePasswordForm() {
     }
   };
   
-  // Check for error from Supabase redirect (e.g. invalid token)
   React.useEffect(() => {
     const errorDescription = searchParams.get('error_description');
     if (errorDescription) {
