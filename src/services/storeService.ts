@@ -13,7 +13,7 @@ export interface SocialLinkPayload { // For creating/updating
 export interface StorePayload { // For creating/updating store data
   name: string;
   description: string;
-  category: string;
+  categories: string[];
   status: 'Active' | 'Inactive' | 'Maintenance';
   location?: string | null;
   pickup_latitude?: number | null;
@@ -31,7 +31,7 @@ export interface StoreFromSupabase {
   logo_url: string | null;
   data_ai_hint: string | null;
   status: 'Active' | 'Inactive' | 'Maintenance';
-  category: string;
+  categories: string[];
   location: string | null;
   pickup_latitude: number | null;
   pickup_longitude: number | null;
@@ -43,7 +43,7 @@ export interface StoreFromSupabase {
   }[];
 }
 
-const STORE_COLUMNS_TO_SELECT = 'id, vendor_id, name, description, logo_url, data_ai_hint, status, category, location, pickup_latitude, pickup_longitude, created_at, updated_at';
+const STORE_COLUMNS_TO_SELECT = 'id, vendor_id, name, description, logo_url, data_ai_hint, status, categories, location, pickup_latitude, pickup_longitude, created_at, updated_at';
 
 
 // Helper to extract path from Supabase Storage URL
@@ -197,7 +197,7 @@ export async function createStore(
     vendor_id: userId,
     name: storeData.name,
     description: storeData.description,
-    category: storeData.category,
+    categories: storeData.categories,
     status: storeData.status,
     location: storeData.location,
     pickup_latitude: storeData.pickup_latitude,
@@ -326,7 +326,7 @@ export async function updateStore(
   const storeUpdates = {
     name: storeData.name,
     description: storeData.description,
-    category: storeData.category,
+    categories: storeData.categories,
     status: storeData.status,
     location: storeData.location,
     pickup_latitude: storeData.pickup_latitude,

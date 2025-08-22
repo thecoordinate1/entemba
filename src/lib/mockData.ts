@@ -69,7 +69,7 @@ export interface Store {
   logo: string;
   dataAiHint: string;
   status: "Active" | "Inactive" | "Maintenance";
-  category: string;
+  categories: string[];
   socialLinks?: SocialLink[];
   location?: string;
   pickupLatitude?: number;
@@ -139,7 +139,7 @@ export const initialStores: Store[] = [
     logo: "https://placehold.co/200x100.png",
     dataAiHint: "storefront boutique",
     status: "Active",
-    category: "Handmade & Craft",
+    categories: ["Handmade & Craft"],
     socialLinks: [
       { platform: "Instagram", url: "https://instagram.com/artisanboutique" },
       { platform: "Facebook", url: "https://facebook.com/artisanboutique" },
@@ -156,7 +156,7 @@ export const initialStores: Store[] = [
     logo: "https://placehold.co/200x100.png",
     dataAiHint: "tech store",
     status: "Active",
-    category: "Electronics",
+    categories: ["Electronics"],
     socialLinks: [
       { platform: "Twitter", url: "https://twitter.com/techgadgethub" },
     ],

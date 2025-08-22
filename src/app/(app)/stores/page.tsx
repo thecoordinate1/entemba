@@ -103,7 +103,7 @@ const mapStoreFromSupabaseToMockStore = (store: StoreFromSupabase): MockStoreTyp
   logo: store.logo_url || "https://placehold.co/200x100.png?text=No+Logo",
   dataAiHint: store.data_ai_hint || "store logo",
   status: store.status as MockStoreType["status"], // Assuming status values are compatible
-  category: store.category,
+  categories: store.categories || [],
   socialLinks: store.social_links.map(sl => ({ platform: sl.platform as MockSocialLinkType["platform"], url: sl.url })),
   location: store.location || undefined,
   pickupLatitude: store.pickup_latitude || undefined,
@@ -127,7 +127,7 @@ export default function StoresPage() {
   const [formLogoSlot, setFormLogoSlot] = React.useState<ImageSlot>(initialLogoSlot());
   const [formStoreName, setFormStoreName] = React.useState("");
   const [formStoreDescription, setFormStoreDescription] = React.useState("");
-  const [formStoreCategory, setFormStoreCategory] = React.useState("");
+  const [formStoreCategories, setFormStoreCategories] = React.useState<string[]>([]);
   const [formStoreLocation, setFormStoreLocation] = React.useState("");
   const [formStorePickupLat, setFormStorePickupLat] = React.useState<number | string>("");
   const [formStorePickupLng, setFormStorePickupLng] = React.useState<number | string>("");
@@ -189,7 +189,7 @@ export default function StoresPage() {
     setSelectedStore(store);
     setFormStoreName(store.name);
     setFormStoreDescription(store.description);
-    setFormStoreCategory(store.category);
+    setFormStoreCategories(store.categories || []);
     setFormStoreLocation(store.location || "");
     setFormStorePickupLat(store.pickupLatitude || "");
     setFormStorePickupLng(store.pickupLongitude || "");
@@ -207,7 +207,7 @@ export default function StoresPage() {
   const resetFormFields = () => {
     setFormStoreName("");
     setFormStoreDescription("");
-    setFormStoreCategory("");
+    setFormStoreCategories([]);
     setFormStoreLocation("");
     setFormStorePickupLat("");
     setFormStorePickupLng("");
@@ -217,19 +217,17 @@ export default function StoresPage() {
   };
 
   const processAndValidateFormData = (): StorePayload | null => {
-    if (!formStoreName || !formStoreDescription || !formStoreCategory) {
-        toast({variant: "destructive", title: "Missing Fields", description: "Name, Description, and Category are required."});
+    if (!formStoreName || !formStoreDescription || formStoreCategories.length === 0) {
+        toast({variant: "destructive", title: "Missing Fields", description: "Name, Description, and at least one Category are required."});
         return null;
     }
 
-    // Note: logo_url for payload will be handled by the service if a new file is uploaded.
-    // If editing and no new file, existing logo_url will be used.
     return {
       name: formStoreName,
       description: formStoreDescription,
-      logo_url: formLogoSlot.dataUri, // Pass current data URI (could be old URL or null)
+      logo_url: formLogoSlot.dataUri, 
       data_ai_hint: formLogoSlot.hint,
-      category: formStoreCategory,
+      categories: formStoreCategories,
       status: formStoreStatus,
       location: formStoreLocation || null,
       pickup_latitude: formStorePickupLat ? parseFloat(String(formStorePickupLat)) : null,
@@ -297,12 +295,9 @@ export default function StoresPage() {
             return;
         }
         
-        // If no new logo file is selected, but a logo URL was already there, pass it along.
-        // The service function handles this. If formLogoSlot.file is null, it means user didn't pick a new file.
-        // If formLogoSlot.dataUri is the original URL, it's passed. If it's null (user cleared it), it's null.
         const payloadForUpdate: StorePayload = {
             ...storePayload,
-            logo_url: formLogoSlot.file ? undefined : formLogoSlot.dataUri, // Let service handle if new file
+            logo_url: formLogoSlot.file ? undefined : formLogoSlot.dataUri,
         };
 
         const { data: updatedStoreFromBackend, error } = await updateStore(selectedStore.id, authUser.id, payloadForUpdate, formLogoSlot.file);
@@ -435,8 +430,15 @@ export default function StoresPage() {
         </div>
          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="grid gap-2">
-                <Label htmlFor="category">Category</Label>
-                <Input id="category" name="category" value={formStoreCategory} onChange={e => setFormStoreCategory(e.target.value)} placeholder="e.g., Fashion, Electronics" required />
+                <Label htmlFor="categories">Categories (comma-separated)</Label>
+                <Input 
+                  id="categories" 
+                  name="categories" 
+                  value={formStoreCategories.join(", ")} 
+                  onChange={e => setFormStoreCategories(e.target.value.split(',').map(c => c.trim()).filter(c => c))} 
+                  placeholder="e.g., Fashion, Electronics" 
+                  required 
+                />
             </div>
             <div className="grid gap-2">
                 <Label htmlFor="location">Default Pickup Address</Label>
@@ -583,10 +585,10 @@ export default function StoresPage() {
                     </Badge>
                     <span>· Created {new Date(store.createdAt).toLocaleDateString()}</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
                     <Tag className="mr-1 h-4 w-4" />
-                    <span>{store.category}</span>
-                    </div>
+                    {store.categories.map(cat => <Badge variant="secondary" key={cat}>{cat}</Badge>)}
+                </div>
                 {store.location && (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <MapPin className="mr-1 h-4 w-4" />
@@ -653,7 +655,7 @@ export default function StoresPage() {
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete the store "{selectedStore?.name}" and all its associated data (products, orders, etc.).
-            </AlertDialogDescription>
+            </DialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setSelectedStore(null)} disabled={isSubmitting}>Cancel</AlertDialogCancel>
