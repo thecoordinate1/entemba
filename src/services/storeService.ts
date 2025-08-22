@@ -511,5 +511,3 @@ export async function deleteStore(storeId: string, userId: string): Promise<{ er
     return { error: new Error('An unexpected error occurred during store deletion.') };
   }
 }
-
-      

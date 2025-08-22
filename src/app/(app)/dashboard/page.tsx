@@ -1,7 +1,8 @@
+
 "use client";
 
 import * as React from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
   DollarSign,
@@ -14,7 +15,8 @@ import {
   Activity,
   LineChart,
   FileText,
-  AlertCircle
+  AlertCircle,
+  Store,
 } from "lucide-react";
 import {
   ChartContainer,
@@ -37,8 +39,8 @@ import { format, parseISO, isValid } from 'date-fns';
 import { getStoreOrderStats, getStoreTotalProductsSold, getMonthlySalesOverviewForStore, type MonthlySalesDataFromRPC } from "@/services/orderService";
 import { getStoreTopSellingProductsRPC, type TopSellingProductFromRPC } from "@/services/productService";
 import { getNewCustomersForStoreCount } from "@/services/customerService";
-import { getStoreById, type StoreFromSupabase } from "@/services/storeService";
-import { getProfitSummaryStats, type ProfitSummaryStats } from "@/services/reportService"; // Import profit stats
+import { getStoreById, getStoresByUserId, type StoreFromSupabase } from "@/services/storeService";
+import { getProfitSummaryStats, getEscrowBalance, type ProfitSummaryStats } from "@/services/reportService";
 
 
 const chartConfig = {
@@ -142,19 +144,22 @@ const mapRpcTopProductToDashboardUI = (rpcProduct: TopSellingProductFromRPC): Da
 
 export default function DashboardPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const storeId = searchParams.get("storeId");
   const { toast } = useToast();
   const supabase = createClient();
 
   const [authUser, setAuthUser] = React.useState<AuthUser | null>(null);
+  const [hasStores, setHasStores] = React.useState<boolean | null>(null);
   const [selectedStore, setSelectedStore] = React.useState<StoreFromSupabase | null>(null);
 
   const [totalRevenue, setTotalRevenue] = React.useState<number | null>(null);
+  const [escrowBalance, setEscrowBalance] = React.useState<number | null>(null);
   const [activeOrdersCount, setActiveOrdersCount] = React.useState<number | null>(null);
   const [productsSoldCount, setProductsSoldCount] = React.useState<number | null>(null);
   const [newCustomersCount, setNewCustomersCount] = React.useState<number | null>(null);
   const [topProducts, setTopProducts] = React.useState<DashboardTopProduct[]>([]);
-  const [profitStats, setProfitStats] = React.useState<ProfitSummaryStats | null>(null); // State for profit stats
+  const [profitStats, setProfitStats] = React.useState<ProfitSummaryStats | null>(null);
 
   const [salesChartData, setSalesChartData] = React.useState<SalesChartDataItem[]>([]);
 
@@ -168,129 +173,123 @@ export default function DashboardPage() {
     });
   }, [supabase]);
 
+  // Effect to check if user has stores
+  React.useEffect(() => {
+    const checkUserStores = async () => {
+        if (authUser) {
+            const { data, error } = await getStoresByUserId(authUser.id);
+            if (error) {
+                // This error is handled by the main data fetcher, so we just log it here
+                console.error("Error checking for stores:", error.message);
+                setHasStores(false);
+            } else {
+                setHasStores(data ? data.length > 0 : false);
+            }
+        } else {
+            setHasStores(null);
+        }
+    };
+    checkUserStores();
+  }, [authUser]);
+
   React.useEffect(() => {
     const fetchDashboardData = async () => {
-      if (!storeId || !authUser) {
+      if (!authUser || hasStores === null) {
+        if (!authUser) setIsLoading(false);
+        return;
+      }
+      
+      if (!storeId) {
         setIsLoading(false);
-        setTotalRevenue(null); setActiveOrdersCount(null); setProductsSoldCount(null); setNewCustomersCount(null);
-        setTopProducts([]); setSelectedStore(null); setSalesChartData([]); setProfitStats(null);
-        if (!storeId && authUser) setErrorMessages(["Please select a store to view dashboard analytics."]);
-        else if (!authUser) setErrorMessages(["Please sign in to view dashboard analytics."]);
+        if (hasStores) {
+          setErrorMessages(["Please select a store to view dashboard analytics."]);
+        }
+        // If no stores, we show the welcome message, so no error is needed.
         return;
       }
 
       setIsLoading(true);
       setErrorMessages([]);
-
       let currentErrorMessages: string[] = [];
 
       const storePromise = getStoreById(storeId, authUser.id);
       const orderStatsPromise = getStoreOrderStats(storeId);
+      const escrowBalancePromise = getEscrowBalance(storeId);
       const productsSoldPromise = getStoreTotalProductsSold(storeId);
       const topProductsPromise = getStoreTopSellingProductsRPC(storeId, 3, 30);
       const salesChartPromise = getMonthlySalesOverviewForStore(storeId, 6);
       const newCustomersPromise = getNewCustomersForStoreCount(storeId, 30);
-      const profitStatsPromise = getProfitSummaryStats(storeId); // Fetch profit stats
+      const profitStatsPromise = getProfitSummaryStats(storeId);
 
       const results = await Promise.allSettled([
         storePromise,
         orderStatsPromise,
+        escrowBalancePromise,
         productsSoldPromise,
         topProductsPromise,
         salesChartPromise,
         newCustomersPromise,
-        profitStatsPromise // Add promise to results
+        profitStatsPromise
       ]);
 
       const [
         storeResult,
         orderStatsResult,
+        escrowBalanceResult,
         productsSoldResult,
         topProductsResult,
         salesChartResult,
         newCustomersResult,
-        profitStatsResult // Get result for profit stats
+        profitStatsResult
       ] = results;
 
-      // Process Store
       if (storeResult.status === 'fulfilled') {
         const { data, error } = storeResult.value;
         if (error) currentErrorMessages.push(`Store: ${error.message}`);
         setSelectedStore(data);
-      } else {
-        currentErrorMessages.push(`Store: ${(storeResult.reason as Error).message}`);
-        setSelectedStore(null);
-      }
+      } else { currentErrorMessages.push(`Store: ${(storeResult.reason as Error).message}`); setSelectedStore(null); }
 
-      // Process Order Stats
       if (orderStatsResult.status === 'fulfilled') {
         const { data, error } = orderStatsResult.value;
         if (error) currentErrorMessages.push(`Order Stats: ${error.message}`);
-        if (data) { setTotalRevenue(data.totalRevenue); setActiveOrdersCount(data.activeOrdersCount); }
-      } else {
-        currentErrorMessages.push(`Order Stats: ${(orderStatsResult.reason as Error).message}`);
-        setTotalRevenue(null); setActiveOrdersCount(null);
-      }
+        setTotalRevenue(data?.totalRevenue ?? null); setActiveOrdersCount(data?.activeOrdersCount ?? null);
+      } else { currentErrorMessages.push(`Order Stats: ${(orderStatsResult.reason as Error).message}`); setTotalRevenue(null); setActiveOrdersCount(null); }
 
-      // Process Products Sold
+      if (escrowBalanceResult.status === 'fulfilled') {
+        const { data, error } = escrowBalanceResult.value;
+        if (error) currentErrorMessages.push(`Escrow Balance: ${error.message}`);
+        setEscrowBalance(data?.balance ?? null);
+      } else { currentErrorMessages.push(`Escrow Balance: ${(escrowBalanceResult.reason as Error).message}`); setEscrowBalance(null); }
+
       if (productsSoldResult.status === 'fulfilled') {
         const { data, error } = productsSoldResult.value;
         if (error) currentErrorMessages.push(`Products Sold: ${error.message}`);
-        if (data !== null) setProductsSoldCount(data);
-      } else {
-        currentErrorMessages.push(`Products Sold: ${(productsSoldResult.reason as Error).message}`);
-        setProductsSoldCount(null);
-      }
+        setProductsSoldCount(data);
+      } else { currentErrorMessages.push(`Products Sold: ${(productsSoldResult.reason as Error).message}`); setProductsSoldCount(null); }
 
-      // Process Top Products
       if (topProductsResult.status === 'fulfilled') {
         const { data, error } = topProductsResult.value;
         if (error) currentErrorMessages.push(`Top Products: ${error.message}`);
-        if (data) setTopProducts(data.map(mapRpcTopProductToDashboardUI));
-        else setTopProducts([]);
-      } else {
-        currentErrorMessages.push(`Top Products: ${(topProductsResult.reason as Error).message}`);
-        setTopProducts([]);
-      }
+        setTopProducts(data ? data.map(mapRpcTopProductToDashboardUI) : []);
+      } else { currentErrorMessages.push(`Top Products: ${(topProductsResult.reason as Error).message}`); setTopProducts([]); }
 
-      // Process Sales Chart Data
       if (salesChartResult.status === 'fulfilled') {
-        const { data: rpcData, error: rpcError } = salesChartResult.value;
-        if (rpcError) currentErrorMessages.push(`Sales Overview: ${rpcError.message}`);
-        if (rpcData) {
-          const formattedChartData = rpcData.map(item => ({
-            month: isValid(parseISO(item.period_start_date)) ? format(parseISO(item.period_start_date), 'MMMM') : 'Unknown',
-            sales: item.total_sales || 0,
-            orders: item.order_count || 0,
-          })).reverse();
-          setSalesChartData(formattedChartData);
-        } else {
-          setSalesChartData([]);
-        }
-      } else {
-        currentErrorMessages.push(`Sales Overview: ${(salesChartResult.reason as Error).message}`);
-        setSalesChartData([]);
-      }
+        const { data, error } = salesChartResult.value;
+        if (error) currentErrorMessages.push(`Sales Overview: ${error.message}`);
+        setSalesChartData(data ? data.map(item => ({ month: isValid(parseISO(item.period_start_date)) ? format(parseISO(item.period_start_date), 'MMMM') : 'Unknown', sales: item.total_sales || 0, orders: item.order_count || 0 })).reverse() : []);
+      } else { currentErrorMessages.push(`Sales Overview: ${(salesChartResult.reason as Error).message}`); setSalesChartData([]); }
 
-      // Process New Customers
       if (newCustomersResult.status === 'fulfilled') {
         const { data, error } = newCustomersResult.value;
         if (error) currentErrorMessages.push(`New Customers: ${error.message}`);
-        if (data) setNewCustomersCount(data.count);
-      } else {
-        currentErrorMessages.push(`New Customers: ${(newCustomersResult.reason as Error).message}`);
-        setNewCustomersCount(null);
-      }
+        setNewCustomersCount(data?.count ?? null);
+      } else { currentErrorMessages.push(`New Customers: ${(newCustomersResult.reason as Error).message}`); setNewCustomersCount(null); }
 
-      // Process Profit Stats
       if (profitStatsResult.status === 'fulfilled') {
         const { data, error } = profitStatsResult.value;
         if (error) currentErrorMessages.push(`Profit Stats: ${error.message}`);
-        setProfitStats(data); // Can be null if RPC returns {data:null} or error
-      } else {
-        currentErrorMessages.push(`Profit Stats: ${(profitStatsResult.reason as Error).message}`);
-        setProfitStats(null);
-      }
+        setProfitStats(data);
+      } else { currentErrorMessages.push(`Profit Stats: ${(profitStatsResult.reason as Error).message}`); setProfitStats(null); }
 
       if(currentErrorMessages.length > 0) {
         setErrorMessages(currentErrorMessages);
@@ -300,10 +299,24 @@ export default function DashboardPage() {
     };
 
     fetchDashboardData();
-  }, [storeId, authUser, toast]);
+  }, [storeId, authUser, hasStores, toast]);
 
   const storeContextMessage = selectedStore ? ` for ${selectedStore.name}` : storeId ? " for selected store" : "";
   const queryParams = storeId ? `?storeId=${storeId}` : "";
+
+  if (isLoading || hasStores === null) {
+      return (
+          <div className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+                  {[...Array(5)].map((_, i) => <StatCard isLoading key={`skel-stat-${i}`} title="" value="" icon={Activity} description="" />)}
+              </div>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+                  <Skeleton className="lg:col-span-4 h-[350px]" />
+                  <Skeleton className="lg:col-span-3 h-[350px]" />
+              </div>
+          </div>
+      );
+  }
 
   if (errorMessages.length > 0 && !isLoading) {
     return (
@@ -320,10 +333,25 @@ export default function DashboardPage() {
     );
   }
 
+  if (!storeId && !hasStores) {
+    return (
+        <div className="flex flex-col items-center justify-center h-full text-center p-4">
+            <div className="mb-6">
+                <Store className="w-20 h-20 text-primary" />
+            </div>
+            <h2 className="text-2xl font-bold mb-2">Welcome to E-Ntemba!</h2>
+            <p className="text-muted-foreground mb-6 max-w-md">It looks like you're new here. To get started, you need to create your first store.</p>
+            <Button size="lg" onClick={() => router.push('/stores')}>
+                <ArrowRight className="mr-2 h-5 w-5" />
+                Create Your First Store
+            </Button>
+        </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
         <StatCard
           title="Total Revenue"
           value={isLoading ? "Loading..." : (totalRevenue !== null ? `ZMW ${totalRevenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
@@ -340,6 +368,15 @@ export default function DashboardPage() {
           description={`Year-to-date gross profit${storeContextMessage}.`}
           ctaLink={`/reports/profit${queryParams}`}
           ctaText="View Profit Details"
+          isLoading={isLoading}
+        />
+        <StatCard
+          title="Amount in Escrow"
+          value={isLoading ? "Loading..." : (escrowBalance !== null ? `ZMW ${escrowBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
+          icon={FileText}
+          description={`Funds for pending orders${storeContextMessage}.`}
+          ctaLink={`/orders${queryParams}`}
+          ctaText="View Pending Orders"
           isLoading={isLoading}
         />
         <StatCard
