@@ -50,12 +50,21 @@ const STORE_COLUMNS_TO_SELECT = 'id, vendor_id, name, description, logo_url, dat
 function getPathFromStorageUrl(url: string, bucketName: string): string | null {
   try {
     const urlObj = new URL(url);
-    const pathPrefix = `/storage/v1/object/public/${bucketName}/`;
-    if (urlObj.pathname.startsWith(pathPrefix)) {
-      return urlObj.pathname.substring(pathPrefix.length);
+    const publicPathPrefix = `/storage/v1/object/public/${bucketName}/`;
+    const signedPathPrefix = `/storage/v1/object/sign/${bucketName}/`; 
+
+    let pathWithinBucket: string | undefined;
+
+    if (urlObj.pathname.startsWith(publicPathPrefix)) {
+      pathWithinBucket = urlObj.pathname.substring(publicPathPrefix.length);
+    } else if (urlObj.pathname.startsWith(signedPathPrefix)) {
+      pathWithinBucket = urlObj.pathname.substring(signedPathPrefix.length).split('?')[0];
+    } else {
+      console.warn(`[storeService.getPathFromStorageUrl] URL does not match expected prefix for bucket ${bucketName}: ${url}`);
+      return null;
     }
-    console.warn(`[storeService.getPathFromStorageUrl] URL does not match expected prefix for bucket ${bucketName}: ${url}`);
-    return null;
+    return pathWithinBucket;
+
   } catch (e) {
     console.error(`[storeService.getPathFromStorageUrl] Invalid URL: ${url}`, e);
     return null;
@@ -122,6 +131,13 @@ export async function getStoresByUserId(userId: string): Promise<{ data: StoreFr
   // Fetch social links separately for each store
   const storesWithSocialLinks = await Promise.all(
     storesData.map(async (store) => {
+      // **FIX:** Ensure categories is an array. If it's a string, split it.
+      const categoriesArray = Array.isArray(store.categories) 
+        ? store.categories 
+        : typeof store.categories === 'string' && store.categories.length > 0
+          ? store.categories.split(',').map(c => c.trim())
+          : [];
+
       const { data: socialLinksData, error: socialLinksError } = await supabase
         .from('social_links')
         .select('platform, url')
@@ -129,9 +145,9 @@ export async function getStoresByUserId(userId: string): Promise<{ data: StoreFr
 
       if (socialLinksError) {
         console.warn(`[storeService.getStoresByUserId] Error fetching social links for store ${store.id}:`, socialLinksError.message);
-        return { ...store, social_links: [] };
+        return { ...store, categories: categoriesArray, social_links: [] };
       }
-      return { ...store, social_links: socialLinksData || [] };
+      return { ...store, categories: categoriesArray, social_links: socialLinksData || [] };
     })
   );
 
@@ -169,6 +185,13 @@ export async function getStoreById(storeId: string, userId: string): Promise<{ d
     console.warn(`[storeService.getStoreById] No store data returned for store ${storeId} and user ${userId}, despite no explicit Supabase error. This is highly indicative of an RLS SELECT policy issue on the 'stores' table, or the store does not exist / not owned by user.`);
     return { data: null, error: new Error('Store not found or access denied. Please verify RLS SELECT policies on the "stores" table and ensure the store exists and is owned by the user.') };
   }
+  
+  // **FIX:** Ensure categories is an array here as well.
+  const categoriesArray = Array.isArray(storeData.categories) 
+    ? storeData.categories 
+    : typeof storeData.categories === 'string' && storeData.categories.length > 0
+      ? storeData.categories.split(',').map(c => c.trim())
+      : [];
 
   // Fetch social links separately
   const { data: socialLinksData, error: socialLinksError } = await supabase
@@ -179,10 +202,10 @@ export async function getStoreById(storeId: string, userId: string): Promise<{ d
   if (socialLinksError) {
     console.warn(`[storeService.getStoreById] Error fetching social links for store ${storeId}:`, socialLinksError.message);
      // Return store data even if social links fail, but log the warning.
-     return { data: { ...storeData, social_links: [] } as StoreFromSupabase, error: null };
+     return { data: { ...storeData, categories: categoriesArray, social_links: [] } as StoreFromSupabase, error: null };
   }
 
-  return { data: { ...storeData, social_links: socialLinksData || [] } as StoreFromSupabase, error: null };
+  return { data: { ...storeData, categories: categoriesArray, social_links: socialLinksData || [] } as StoreFromSupabase, error: null };
 }
 
 
@@ -197,7 +220,7 @@ export async function createStore(
     vendor_id: userId,
     name: storeData.name,
     description: storeData.description,
-    categories: storeData.categories,
+    categories: storeData.categories, // DB expects text[] or text, Prisma/Supabase client handles array->string if needed for text
     status: storeData.status,
     location: storeData.location,
     pickup_latitude: storeData.pickup_latitude,
