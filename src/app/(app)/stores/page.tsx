@@ -127,7 +127,7 @@ export default function StoresPage() {
   const [formLogoSlot, setFormLogoSlot] = React.useState<ImageSlot>(initialLogoSlot());
   const [formStoreName, setFormStoreName] = React.useState("");
   const [formStoreDescription, setFormStoreDescription] = React.useState("");
-  const [formStoreCategories, setFormStoreCategories] = React.useState<string[]>([]);
+  const [formStoreCategories, setFormStoreCategories] = React.useState<string>("");
   const [formStoreLocation, setFormStoreLocation] = React.useState("");
   const [formStorePickupLat, setFormStorePickupLat] = React.useState<number | string>("");
   const [formStorePickupLng, setFormStorePickupLng] = React.useState<number | string>("");
@@ -189,7 +189,7 @@ export default function StoresPage() {
     setSelectedStore(store);
     setFormStoreName(store.name);
     setFormStoreDescription(store.description);
-    setFormStoreCategories(store.categories || []);
+    setFormStoreCategories(store.categories.join(", "));
     setFormStoreLocation(store.location || "");
     setFormStorePickupLat(store.pickupLatitude || "");
     setFormStorePickupLng(store.pickupLongitude || "");
@@ -207,7 +207,7 @@ export default function StoresPage() {
   const resetFormFields = () => {
     setFormStoreName("");
     setFormStoreDescription("");
-    setFormStoreCategories([]);
+    setFormStoreCategories("");
     setFormStoreLocation("");
     setFormStorePickupLat("");
     setFormStorePickupLng("");
@@ -217,7 +217,9 @@ export default function StoresPage() {
   };
 
   const processAndValidateFormData = (): StorePayload | null => {
-    if (!formStoreName || !formStoreDescription || formStoreCategories.length === 0) {
+    const categoriesArray = formStoreCategories.split(',').map(c => c.trim()).filter(Boolean);
+
+    if (!formStoreName || !formStoreDescription || categoriesArray.length === 0) {
         toast({variant: "destructive", title: "Missing Fields", description: "Name, Description, and at least one Category are required."});
         return null;
     }
@@ -227,7 +229,7 @@ export default function StoresPage() {
       description: formStoreDescription,
       logo_url: formLogoSlot.dataUri, 
       data_ai_hint: formLogoSlot.hint,
-      categories: formStoreCategories,
+      categories: categoriesArray,
       status: formStoreStatus,
       location: formStoreLocation || null,
       pickup_latitude: formStorePickupLat ? parseFloat(String(formStorePickupLat)) : null,
@@ -433,8 +435,8 @@ export default function StoresPage() {
                 <Input 
                   id="categories" 
                   name="categories" 
-                  value={formStoreCategories.join(", ")} 
-                  onChange={e => setFormStoreCategories(e.target.value.split(',').map(c => c.trim()).filter(c => c))} 
+                  value={formStoreCategories}
+                  onChange={e => setFormStoreCategories(e.target.value)} 
                   placeholder="e.g., Fashion, Electronics" 
                   required 
                 />
