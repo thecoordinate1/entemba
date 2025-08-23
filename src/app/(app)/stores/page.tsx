@@ -654,7 +654,7 @@ export default function StoresPage() {
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete the store "{selectedStore?.name}" and all its associated data (products, orders, etc.).
-            </DialogDescription>
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setSelectedStore(null)} disabled={isSubmitting}>Cancel</AlertDialogCancel>
