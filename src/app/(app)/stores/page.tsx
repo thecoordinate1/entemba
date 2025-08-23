@@ -391,7 +391,7 @@ export default function StoresPage() {
             className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
           />
         </div>
-        {formLogoSlot.previewUrl && (
+        {formLogoSlot.previewUrl ? (
           <div className="mt-2 flex justify-center">
             <Image
               src={formLogoSlot.previewUrl}
@@ -403,8 +403,7 @@ export default function StoresPage() {
               unoptimized={formLogoSlot.previewUrl?.startsWith('blob:')}
             />
           </div>
-        )}
-        {!formLogoSlot.previewUrl && (
+        ) : (
           <div className="mt-2 flex justify-center h-32 w-32 rounded-md border bg-muted items-center">
               <UploadCloud className="h-12 w-12 text-muted-foreground" />
           </div>
