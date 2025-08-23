@@ -40,8 +40,7 @@ import { getStoreOrderStats, getStoreTotalProductsSold, getMonthlySalesOverviewF
 import { getStoreTopSellingProductsRPC, type TopSellingProductFromRPC } from "@/services/productService";
 import { getNewCustomersForStoreCount } from "@/services/customerService";
 import { getStoreById, getStoresByUserId, type StoreFromSupabase } from "@/services/storeService";
-import { getProfitSummaryStats, getEscrowBalance, type ProfitSummaryStats } from "@/services/reportService";
-
+import { getProfitSummaryStats, type ProfitSummaryStats } from "@/services/reportService";
 
 const chartConfig = {
   sales: {
@@ -154,7 +153,6 @@ export default function DashboardPage() {
   const [selectedStore, setSelectedStore] = React.useState<StoreFromSupabase | null>(null);
 
   const [totalRevenue, setTotalRevenue] = React.useState<number | null>(null);
-  const [escrowBalance, setEscrowBalance] = React.useState<number | null>(null);
   const [activeOrdersCount, setActiveOrdersCount] = React.useState<number | null>(null);
   const [productsSoldCount, setProductsSoldCount] = React.useState<number | null>(null);
   const [newCustomersCount, setNewCustomersCount] = React.useState<number | null>(null);
@@ -214,7 +212,6 @@ export default function DashboardPage() {
 
       const storePromise = getStoreById(storeId, authUser.id);
       const orderStatsPromise = getStoreOrderStats(storeId);
-      const escrowBalancePromise = getEscrowBalance(storeId);
       const productsSoldPromise = getStoreTotalProductsSold(storeId);
       const topProductsPromise = getStoreTopSellingProductsRPC(storeId, 3, 30);
       const salesChartPromise = getMonthlySalesOverviewForStore(storeId, 6);
@@ -224,7 +221,6 @@ export default function DashboardPage() {
       const results = await Promise.allSettled([
         storePromise,
         orderStatsPromise,
-        escrowBalancePromise,
         productsSoldPromise,
         topProductsPromise,
         salesChartPromise,
@@ -235,7 +231,6 @@ export default function DashboardPage() {
       const [
         storeResult,
         orderStatsResult,
-        escrowBalanceResult,
         productsSoldResult,
         topProductsResult,
         salesChartResult,
@@ -254,12 +249,6 @@ export default function DashboardPage() {
         if (error) currentErrorMessages.push(`Order Stats: ${error.message}`);
         setTotalRevenue(data?.totalRevenue ?? null); setActiveOrdersCount(data?.activeOrdersCount ?? null);
       } else { currentErrorMessages.push(`Order Stats: ${(orderStatsResult.reason as Error).message}`); setTotalRevenue(null); setActiveOrdersCount(null); }
-
-      if (escrowBalanceResult.status === 'fulfilled') {
-        const { data, error } = escrowBalanceResult.value;
-        if (error) currentErrorMessages.push(`Escrow Balance: ${error.message}`);
-        setEscrowBalance(data?.balance ?? null);
-      } else { currentErrorMessages.push(`Escrow Balance: ${(escrowBalanceResult.reason as Error).message}`); setEscrowBalance(null); }
 
       if (productsSoldResult.status === 'fulfilled') {
         const { data, error } = productsSoldResult.value;
@@ -368,15 +357,6 @@ export default function DashboardPage() {
           description={`Year-to-date gross profit${storeContextMessage}.`}
           ctaLink={`/reports/profit${queryParams}`}
           ctaText="View Profit Details"
-          isLoading={isLoading}
-        />
-        <StatCard
-          title="Amount in Escrow"
-          value={isLoading ? "Loading..." : (escrowBalance !== null ? `ZMW ${escrowBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
-          icon={FileText}
-          description={`Funds for pending orders${storeContextMessage}.`}
-          ctaLink={`/orders${queryParams}`}
-          ctaText="View Pending Orders"
           isLoading={isLoading}
         />
         <StatCard

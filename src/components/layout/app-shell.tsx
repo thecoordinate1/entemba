@@ -211,16 +211,30 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
   
   React.useEffect(() => {
     const storeIdFromUrl = searchParams.get("storeId");
-    if (storeIdFromUrl) {
-      setSelectedStoreId(storeIdFromUrl);
-    } else if (availableStores.length > 0) {
-      const firstStoreId = availableStores[0].id;
-      setSelectedStoreId(firstStoreId);
-      const newParams = new URLSearchParams(searchParams.toString());
-      newParams.set("storeId", firstStoreId);
-      router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
+
+    // Once stores are loaded, handle redirects and selections
+    if (!isLoadingStores) {
+      // If user has stores, select the one from URL or the first one as default
+      if (availableStores.length > 0) {
+        if (storeIdFromUrl && availableStores.some(s => s.id === storeIdFromUrl)) {
+          setSelectedStoreId(storeIdFromUrl);
+        } else {
+          const firstStoreId = availableStores[0].id;
+          setSelectedStoreId(firstStoreId);
+          const newParams = new URLSearchParams(searchParams.toString());
+          newParams.set("storeId", firstStoreId);
+          router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
+        }
+      } else {
+        // User has no stores. If they are on the dashboard, redirect them to /stores.
+        if (pathname === '/dashboard') {
+          router.replace('/stores');
+        }
+        setSelectedStoreId(null);
+      }
     }
-  }, [searchParams, availableStores, pathname, router]);
+  }, [searchParams, availableStores, pathname, router, isLoadingStores]);
+
 
   React.useEffect(() => {
     const currentNavItem = navItems.find(item => pathname.startsWith(item.href));
