@@ -373,7 +373,13 @@ export default function SettingsPage() {
         toast({ title: "Location Captured", description: `Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}` });
       },
       (error) => {
-        toast({ variant: "destructive", title: "Geolocation Failed", description: error.message });
+        let errorMessage = "Could not get location.";
+        if (error.code === error.PERMISSION_DENIED) {
+            errorMessage = "Location access was denied. Please enable location permissions for this site in your browser settings.";
+        } else if (error.message) {
+            errorMessage = error.message;
+        }
+        toast({ variant: "destructive", title: "Geolocation Failed", description: errorMessage });
         setIsFetchingLocation(false);
       }
     );
