@@ -12,8 +12,6 @@ import {
   ShoppingCart,
   CreditCard,
   ArrowLeft,
-  Percent,
-  Banknote,
   AlertCircle
 } from "lucide-react";
 import {
@@ -23,16 +21,11 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Separator } from "@/components/ui/separator";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, parseISO, isValid } from 'date-fns';
 import { createClient } from '@/lib/supabase/client';
@@ -52,13 +45,6 @@ interface RevenueChartDataItem {
   revenue: number;
   transactions: number;
 }
-
-const revenueSourceDataStatic = [
-    { name: 'Online Store', value: 120500, color: 'hsl(var(--chart-1))' },
-    { name: 'Marketplace A', value: 45300, color: 'hsl(var(--chart-2))' },
-    { name: 'Manual Orders', value: 15750, color: 'hsl(var(--chart-3))' },
-    { name: 'Other', value: 8600, color: 'hsl(var(--chart-4))' },
-];
 
 const revenueChartConfig = {
   revenue: { label: "Revenue (ZMW)", color: "hsl(var(--chart-1))" },
@@ -131,10 +117,6 @@ export default function RevenueReportPage() {
 
   const [isLoading, setIsLoading] = React.useState(true);
   const [errorMessages, setErrorMessages] = React.useState<string[]>([]);
-
-  const [defaultCurrency, setDefaultCurrency] = React.useState("ZMW");
-  const [taxRate, setTaxRate] = React.useState("10"); 
-  const [pricesIncludeTax, setPricesIncludeTax] = React.useState(false);
 
   React.useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setAuthUser(user));
@@ -239,14 +221,6 @@ export default function RevenueReportPage() {
   const storeContextMessage = selectedStore ? ` for ${selectedStore.name}` : storeIdFromUrl ? " for selected store" : "";
   const queryParams = storeIdFromUrl ? `?storeId=${storeIdFromUrl}` : "";
 
-  const handleSaveRevenueSettings = (e: React.FormEvent) => {
-    e.preventDefault();
-    toast({
-      title: "Settings Saved (Placeholder)",
-      description: "Revenue settings save functionality is not yet fully implemented.",
-    });
-  };
-
   const avgOrderValue = (summaryStats?.current_month_transactions && summaryStats?.current_month_revenue && summaryStats.current_month_transactions > 0)
     ? (summaryStats.current_month_revenue / summaryStats.current_month_transactions) 
     : 0;
@@ -308,120 +282,64 @@ export default function RevenueReportPage() {
         />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <CardTitle>Monthly Revenue Trend</CardTitle>
-            <CardDescription>Track your gross revenue and transaction volume month over month{storeContextMessage}.</CardDescription>
-          </CardHeader>
-          <CardContent className="pl-2">
-            {isLoading ? (
-                <Skeleton className="h-[300px] w-full" />
-            ) : monthlyRevenue && monthlyRevenue.length > 0 ? (
-              <ChartContainer config={revenueChartConfig} className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={monthlyRevenue} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis
-                      dataKey="month"
-                      tickLine={false}
-                      tickMargin={10}
-                      axisLine={false}
-                      stroke="hsl(var(--muted-foreground))"
-                      fontSize={12}
-                    />
+      <Card>
+        <CardHeader>
+          <CardTitle>Monthly Revenue Trend</CardTitle>
+          <CardDescription>Track your gross revenue and transaction volume month over month{storeContextMessage}.</CardDescription>
+        </CardHeader>
+        <CardContent className="pl-2">
+          {isLoading ? (
+              <Skeleton className="h-[300px] w-full" />
+          ) : monthlyRevenue && monthlyRevenue.length > 0 ? (
+            <ChartContainer config={revenueChartConfig} className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={monthlyRevenue} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="month"
+                    tickLine={false}
+                    tickMargin={10}
+                    axisLine={false}
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={12}
+                  />
+                  <YAxis
+                    yAxisId="left"
+                    stroke="hsl(var(--chart-1))"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={10}
+                    tickFormatter={(value) => `ZMW ${Number(value / 1000).toFixed(0)}k`}
+                  />
                     <YAxis
-                      yAxisId="left"
-                      stroke="hsl(var(--chart-1))"
-                      fontSize={12}
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={10}
-                      tickFormatter={(value) => `ZMW ${Number(value / 1000).toFixed(0)}k`}
-                    />
-                     <YAxis
-                      yAxisId="right"
-                      orientation="right"
-                      stroke="hsl(var(--chart-2))"
-                      fontSize={12}
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={10}
-                      tickFormatter={(value) => `${value}`}
-                    />
-                    <ChartTooltip
-                      cursor={false}
-                      content={<ChartTooltipContent indicator="dashed" 
-                        formatter={(value, name) => name === "revenue" ? `ZMW ${Number(value).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : Number(value).toLocaleString() } 
-                      />}
-                    />
-                    <ChartLegend content={<ChartLegendContent />} />
-                    <Bar yAxisId="left" dataKey="revenue" fill="var(--color-revenue)" radius={4} />
-                    <Bar yAxisId="right" dataKey="transactions" fill="var(--color-transactions)" radius={4} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            ) : (
-                <p className="text-sm text-muted-foreground h-[300px] flex items-center justify-center">No monthly revenue data available for this period{storeContextMessage}.</p>
-            )}
-          </CardContent>
-        </Card>
-        
-        <Card className="lg:col-span-2">
-            <CardHeader>
-                <CardTitle>Revenue by Source (Static)</CardTitle>
-                <CardDescription>Distribution of revenue across different channels{storeContextMessage}. (This chart uses static data as order source is not tracked).</CardDescription>
-            </CardHeader>
-            <CardContent className="flex justify-center items-center h-[300px]">
-                 <ChartContainer config={{}} className="h-full w-full max-h-[250px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                        <ChartTooltip
-                            cursor={false}
-                            content={<ChartTooltipContent hideLabel formatter={(value, name, props) => (
-                                <div className="flex flex-col">
-                                    <span className="font-medium">{props.payload?.name}</span>
-                                    <span>ZMW {Number(value).toLocaleString()} ({(props.payload?.percent * 100).toFixed(1)}%)</span>
-                                </div>
-                            )} />}
-                        />
-                        <Pie
-                            data={revenueSourceDataStatic}
-                            dataKey="value"
-                            nameKey="name"
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={80}
-                            labelLine={false}
-                            label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name }) => {
-                                const RADIAN = Math.PI / 180;
-                                const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                                let x = cx + (radius + 15) * Math.cos(-midAngle * RADIAN);
-                                let y = cy + (radius + 15) * Math.sin(-midAngle * RADIAN);
-                                if (name === 'Marketplace A' && (percent * 100) < 30) { 
-                                   x = cx + (outerRadius + 20) * Math.cos(-midAngle * RADIAN);
-                                   y = cy + (outerRadius + 20) * Math.sin(-midAngle * RADIAN);
-                                }
-
-                                return (
-                                <text x={x} y={y} fill="hsl(var(--foreground))" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" className="text-xs">
-                                    {`${name} (${(percent * 100).toFixed(0)}%)`}
-                                </text>
-                                );
-                            }}
-                        >
-                            {revenueSourceDataStatic.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                        </Pie>
-                        <ChartLegend content={<ChartLegendContent nameKey="name" />} />
-                        </PieChart>
-                    </ResponsiveContainer>
-                </ChartContainer>
-            </CardContent>
-        </Card>
-      </div>
-
+                    yAxisId="right"
+                    orientation="right"
+                    stroke="hsl(var(--chart-2))"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={10}
+                    tickFormatter={(value) => `${value}`}
+                  />
+                  <ChartTooltip
+                    cursor={false}
+                    content={<ChartTooltipContent indicator="dashed" 
+                      formatter={(value, name) => name === "revenue" ? `ZMW ${Number(value).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : Number(value).toLocaleString() } 
+                    />}
+                  />
+                  <ChartLegend content={<ChartLegendContent />} />
+                  <Bar yAxisId="left" dataKey="revenue" fill="var(--color-revenue)" radius={4} />
+                  <Bar yAxisId="right" dataKey="transactions" fill="var(--color-transactions)" radius={4} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          ) : (
+              <p className="text-sm text-muted-foreground h-[300px] flex items-center justify-center">No monthly revenue data available for this period{storeContextMessage}.</p>
+          )}
+        </CardContent>
+      </Card>
+      
       <Card>
         <CardHeader>
           <CardTitle>Top Products by Revenue</CardTitle>
@@ -488,74 +406,6 @@ export default function RevenueReportPage() {
               <Link href={`/reports/revenue/products${queryParams}`}>View All Products Revenue</Link>
             </Button>
         </CardFooter>
-      </Card>
-      
-      <Card>
-        <CardHeader>
-            <CardTitle>Revenue Settings</CardTitle>
-            <CardDescription>Configure currency, tax, and payment gateway options{storeContextMessage}. (These settings are UI placeholders)</CardDescription>
-        </CardHeader>
-        <CardContent>
-            <form onSubmit={handleSaveRevenueSettings} className="space-y-6">
-              <div className="grid gap-3">
-                <Label htmlFor="defaultCurrency">Default Currency</Label>
-                <div className="relative">
-                    <Banknote className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Select value={defaultCurrency} onValueChange={setDefaultCurrency}>
-                        <SelectTrigger id="defaultCurrency" className="pl-8">
-                            <SelectValue placeholder="Select currency" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="ZMW">ZMW - Zambian Kwacha</SelectItem>
-                            <SelectItem value="USD">USD - United States Dollar</SelectItem>
-                            <SelectItem value="EUR">EUR - Euro</SelectItem>
-                            <SelectItem value="GBP">GBP - British Pound</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-              </div>
-
-              <Separator />
-              <h4 className="text-md font-medium">Tax Settings</h4>
-              <div className="grid gap-3">
-                <Label htmlFor="taxRate">Default Tax Rate (%)</Label>
-                 <div className="relative">
-                    <Percent className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                        id="taxRate"
-                        type="number"
-                        value={taxRate}
-                        onChange={(e) => setTaxRate(e.target.value)}
-                        placeholder="e.g., 10"
-                        className="pl-8"
-                    />
-                 </div>
-              </div>
-              <div className="flex items-center space-x-2 pt-2">
-                <Switch 
-                    id="pricesIncludeTax"
-                    checked={pricesIncludeTax}
-                    onCheckedChange={setPricesIncludeTax}
-                />
-                <Label htmlFor="pricesIncludeTax" className="text-sm font-normal">Product prices already include tax</Label>
-              </div>
-
-              <Separator />
-              <h4 className="text-md font-medium">Payment Gateways (Placeholder)</h4>
-              <p className="text-sm text-muted-foreground">
-                Connect payment gateways. (This section is a UI placeholder for future integration).
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" disabled>Connect MoMo</Button>
-                <Button type="button" variant="outline" disabled>Connect Airtel Money</Button>
-                <Button type="button" variant="outline" disabled>Connect Zamtel Money</Button>
-              </div>
-
-              <CardFooter className="px-0 pt-6">
-                <Button type="submit">Save Revenue Settings</Button>
-              </CardFooter>
-            </form>
-        </CardContent>
       </Card>
     </div>
   );
