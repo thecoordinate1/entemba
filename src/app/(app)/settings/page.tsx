@@ -464,11 +464,11 @@ export default function SettingsPage() {
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="name">Display Name</Label>
-                    <Input id="name" value={userName} onChange={(e) => setUserName(e.target.value)} />
+                    <Input id="name" value={userName || ''} onChange={(e) => setUserName(e.target.value)} />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="email">Email</Label>
-                    <Input id="email" type="email" value={userEmail} onChange={(e) => setUserEmail(e.target.value)} />
+                    <Input id="email" type="email" value={userEmail || ''} onChange={(e) => setUserEmail(e.target.value)} />
                   </div>
                   <Button type="submit" disabled={isLoadingProfile}> {isLoadingProfile ? "Updating..." : "Update Profile"} </Button>
                 </form>
@@ -513,26 +513,26 @@ export default function SettingsPage() {
                     </div>
                     <div className="grid w-full max-w-sm items-center gap-1.5">
                         <Label htmlFor="storeDataAiHint">Logo AI Hint</Label>
-                        <Input id="storeDataAiHint" value={storeDataAiHint} onChange={(e) => setStoreDataAiHint(e.target.value)} placeholder="e.g. 'modern shop'"/>
+                        <Input id="storeDataAiHint" value={storeDataAiHint || ''} onChange={(e) => setStoreDataAiHint(e.target.value)} placeholder="e.g. 'modern shop'"/>
                     </div>
                   </div>
 
                   <div className="grid gap-2">
                     <Label htmlFor="storeName">Store Name</Label>
-                    <Input id="storeName" value={storeName} onChange={(e) => setStoreName(e.target.value)} />
+                    <Input id="storeName" value={storeName || ''} onChange={(e) => setStoreName(e.target.value)} />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="storeDescription">Description</Label>
-                    <Textarea id="storeDescription" value={storeDescription} onChange={(e) => setStoreDescription(e.target.value)} />
+                    <Textarea id="storeDescription" value={storeDescription || ''} onChange={(e) => setStoreDescription(e.target.value)} />
                   </div>
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="grid gap-2">
                         <Label htmlFor="storeCategory">Category</Label>
-                        <Input id="storeCategory" value={storeCategory} onChange={(e) => setStoreCategory(e.target.value)} />
+                        <Input id="storeCategory" value={storeCategory || ''} onChange={(e) => setStoreCategory(e.target.value)} />
                     </div>
                      <div className="grid gap-2">
                         <Label htmlFor="storeLocation">Store Location / Address</Label>
-                        <Input id="storeLocation" value={storeLocation} onChange={(e) => setStoreLocation(e.target.value)} />
+                        <Input id="storeLocation" value={storeLocation || ''} onChange={(e) => setStoreLocation(e.target.value)} />
                     </div>
                    </div>
                    
@@ -736,21 +736,21 @@ export default function SettingsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label htmlFor="bankName">Bank Name</Label>
-                      <Input id="bankName" value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="e.g., Zanaco" />
+                      <Input id="bankName" value={bankName || ''} onChange={(e) => setBankName(e.target.value)} placeholder="e.g., Zanaco" />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="accountHolder">Account Holder Name</Label>
-                      <Input id="accountHolder" value={accountHolder} onChange={(e) => setAccountHolder(e.target.value)} placeholder="e.g., John Doe" />
+                      <Input id="accountHolder" value={accountHolder || ''} onChange={(e) => setAccountHolder(e.target.value)} placeholder="e.g., John Doe" />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label htmlFor="accountNumber">Account Number</Label>
-                      <Input id="accountNumber" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder="e.g., 1234567890" />
+                      <Input id="accountNumber" value={accountNumber || ''} onChange={(e) => setAccountNumber(e.target.value)} placeholder="e.g., 1234567890" />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="branchName">Branch Name</Label>
-                      <Input id="branchName" value={branchName} onChange={(e) => setBranchName(e.target.value)} placeholder="e.g., Manda Hill" />
+                      <Input id="branchName" value={branchName || ''} onChange={(e) => setBranchName(e.target.value)} placeholder="e.g., Manda Hill" />
                     </div>
                   </div>
                 </div>
@@ -763,7 +763,7 @@ export default function SettingsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label htmlFor="momoProvider">Provider</Label>
-                      <Select value={momoProvider} onValueChange={setMomoProvider}>
+                      <Select value={momoProvider || ''} onValueChange={setMomoProvider}>
                         <SelectTrigger id="momoProvider">
                           <SelectValue placeholder="Select a provider" />
                         </SelectTrigger>
@@ -776,12 +776,12 @@ export default function SettingsPage() {
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="momoNumber">Mobile Number</Label>
-                      <Input id="momoNumber" value={momoNumber} onChange={(e) => setMomoNumber(e.target.value)} placeholder="e.g., 0966123456" />
+                      <Input id="momoNumber" value={momoNumber || ''} onChange={(e) => setMomoNumber(e.target.value)} placeholder="e.g., 0966123456" />
                     </div>
                   </div>
                    <div className="grid gap-2">
                       <Label htmlFor="momoName">Registered Name</Label>
-                      <Input id="momoName" value={momoName} onChange={(e) => setMomoName(e.target.value)} placeholder="e.g., John Doe" />
+                      <Input id="momoName" value={momoName || ''} onChange={(e) => setMomoName(e.target.value)} placeholder="e.g., John Doe" />
                     </div>
                 </div>
                 
