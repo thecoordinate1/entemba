@@ -49,7 +49,6 @@ const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
       quantity: item.quantity,
       price: item.price_per_unit_snapshot,
       image: item.product_image_url_snapshot || "https://placehold.co/50x50.png",
-      dataAiHint: item.data_ai_hint_snapshot || "product",
     })),
     shippingAddress: order.shipping_address,
     billingAddress: order.billing_address,
@@ -322,7 +321,6 @@ export default function OrderDetailPage() {
                       width={50}
                       height={50}
                       className="rounded-md object-cover"
-                      data-ai-hint={item.dataAiHint}
                     />
                   </TableCell>
                   <TableCell className="font-medium">

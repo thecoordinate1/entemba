@@ -1,3 +1,4 @@
+
 // src/services/productService.ts
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
@@ -32,7 +33,6 @@ function getPathFromStorageUrl(url: string, bucketName: string): string | null {
 
 export interface ProductImagePayload { 
   image_url: string;
-  data_ai_hint?: string | null;
   order: number;
 }
 
@@ -55,7 +55,6 @@ export interface ProductImageFromSupabase {
   id: string;
   product_id: string;
   image_url: string;
-  data_ai_hint: string | null;
   order: number;
   created_at: string;
 }
@@ -86,7 +85,6 @@ export interface TopSellingProductFromRPC {
   product_name: string;
   product_category: string;
   primary_image_url: string | null;
-  primary_image_data_ai_hint: string | null;
   total_quantity_sold: number; // Ensure this is part of the interface
   total_revenue_generated?: number; 
 }
@@ -191,7 +189,7 @@ export async function createProduct(
   userId: string,
   storeId: string,
   productData: ProductPayload,
-  images: { file: File; hint: string; order: number }[]
+  images: { file: File; order: number }[]
 ): Promise<{ data: ProductFromSupabase | null; error: Error | null }> {
   console.log('[productService.createProduct] Creating product for store_id:', storeId);
   const { data: newProduct, error: createError } = await supabase
@@ -219,7 +217,6 @@ export async function createProduct(
         imageRecordsToInsert.push({
           product_id: newProduct.id,
           image_url: uploadResults[i].publicUrl!,
-          data_ai_hint: images[i].hint,
           order: images[i].order,
         });
       } else {
@@ -247,7 +244,7 @@ export async function updateProduct(
   userId: string,
   storeId: string,
   productData: ProductPayload,
-  imagesToUpdate: { id?: string; file?: File; hint: string; existingUrl?: string, order: number }[]
+  imagesToUpdate: { id?: string; file?: File; existingUrl?: string, order: number }[]
 ): Promise<{ data: ProductFromSupabase | null; error: Error | null }> {
   console.log(`[productService.updateProduct] Updating product ${productId}`);
   
@@ -294,9 +291,9 @@ export async function updateProduct(
           console.error('[productService.updateProduct] Failed to upload new image:', error.message);
           return null;
       }
-      return { product_id: productId, image_url: publicUrl, data_ai_hint: img.hint, order: img.order };
+      return { product_id: productId, image_url: publicUrl, order: img.order };
     } else if (img.id && img.existingUrl) { // Existing image, maybe hint changed
-      return { id: img.id, product_id: productId, image_url: img.existingUrl, data_ai_hint: img.hint, order: img.order };
+      return { id: img.id, product_id: productId, image_url: img.existingUrl, order: img.order };
     }
     return null;
   });

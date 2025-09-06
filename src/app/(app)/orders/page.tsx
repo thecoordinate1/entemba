@@ -62,7 +62,6 @@ interface NewOrderItemEntry {
   productId: string;
   productName: string;
   productImage: string;
-  productDataAiHint: string;
   unitPrice: number;
   quantity: number;
 }
@@ -97,7 +96,6 @@ const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
       quantity: item.quantity,
       price: item.price_per_unit_snapshot,
       image: item.product_image_url_snapshot || "https://placehold.co/50x50.png",
-      dataAiHint: item.data_ai_hint_snapshot || "product",
     })),
     shippingAddress: order.shipping_address,
     billingAddress: order.billing_address,
@@ -120,7 +118,6 @@ const mapProductFromSupabaseToProductUIType = (product: ProductFromSupabase): Pr
     id: product.id,
     name: product.name,
     images: product.product_images.sort((a,b) => a.order - b.order).map(img => img.image_url),
-    dataAiHints: product.product_images.sort((a,b) => a.order - b.order).map(img => img.data_ai_hint || ''),
     category: product.category,
     price: product.price,
     orderPrice: product.order_price ?? undefined,
@@ -411,7 +408,6 @@ export default function OrdersPage() {
           productId: product.id,
           productName: product.name,
           productImage: product.images[0] || "https://placehold.co/50x50.png",
-          productDataAiHint: product.dataAiHints[0] || "product",
           unitPrice: product.orderPrice !== undefined ? product.orderPrice : product.price,
           quantity: quantityToAdd,
         }
@@ -513,7 +509,6 @@ export default function OrdersPage() {
       quantity: item.quantity,
       price_per_unit_snapshot: item.unitPrice,
       product_image_url_snapshot: item.productImage,
-      data_ai_hint_snapshot: item.productDataAiHint,
     }));
 
     const { data: newOrderId, error } = await createOrder(storeIdFromUrl, customerIdForOrder, orderPayload, itemsPayload);
@@ -684,7 +679,7 @@ export default function OrdersPage() {
                             <SelectContent>
                               {storeProducts.map(product => (
                                 <SelectItem key={product.id} value={product.id}>
-                                  {product.name} (ZMW {product.orderPrice !== undefined ? product.orderPrice.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : product.price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})})
+                                  {product.name} (ZMW {product.price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})})
                                 </SelectItem>
                               ))}
                               {storeProducts.length === 0 && !isLoadingStoreProducts && <SelectItem value="no-prods" disabled>No active products</SelectItem>}
@@ -716,7 +711,7 @@ export default function OrdersPage() {
                               {newOrderItems.map(item => (
                                 <TableRow key={item.productId}>
                                   <TableCell className="hidden sm:table-cell">
-                                    <Image src={item.productImage} alt={item.productName} width={40} height={40} className="rounded-md object-cover" data-ai-hint={item.productDataAiHint}/>
+                                    <Image src={item.productImage} alt={item.productName} width={40} height={40} className="rounded-md object-cover"/>
                                   </TableCell>
                                   <TableCell className="font-medium">{item.productName}</TableCell>
                                   <TableCell className="text-right">{item.quantity}</TableCell>

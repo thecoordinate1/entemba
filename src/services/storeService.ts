@@ -19,7 +19,6 @@ export interface StorePayload { // For creating/updating store data
   pickup_latitude?: number | null;
   pickup_longitude?: number | null;
   logo_url?: string | null;
-  data_ai_hint?: string | null;
   social_links?: SocialLinkPayload[];
 }
 
@@ -29,7 +28,6 @@ export interface StoreFromSupabase {
   name: string;
   description: string;
   logo_url: string | null;
-  data_ai_hint: string | null;
   status: 'Active' | 'Inactive' | 'Maintenance';
   categories: string[];
   location: string | null;
@@ -43,7 +41,7 @@ export interface StoreFromSupabase {
   }[];
 }
 
-const STORE_COLUMNS_TO_SELECT = 'id, vendor_id, name, description, logo_url, data_ai_hint, status, categories, location, pickup_latitude, pickup_longitude, created_at, updated_at';
+const STORE_COLUMNS_TO_SELECT = 'id, vendor_id, name, description, logo_url, status, categories, location, pickup_latitude, pickup_longitude, created_at, updated_at';
 
 
 // Helper to extract path from Supabase Storage URL
@@ -226,7 +224,6 @@ export async function createStore(
     pickup_latitude: storeData.pickup_latitude,
     pickup_longitude: storeData.pickup_longitude,
     logo_url: null, 
-    data_ai_hint: storeData.data_ai_hint,
   };
 
   const { data: newStore, error: createStoreError } = await supabase
@@ -262,7 +259,6 @@ export async function createStore(
 
   let currentStoreData = { ...newStore, social_links: [] } as StoreFromSupabase;
   let logoUrlToSave = newStore.logo_url;
-  let finalDataAiHint = storeData.data_ai_hint || newStore.data_ai_hint;
 
   if (logoFile) {
     console.log(`[storeService.createStore] Uploading logo for new store ID: ${newStore.id}`);
@@ -282,17 +278,17 @@ export async function createStore(
   }
 
 
-  if (logoUrlToSave !== newStore.logo_url || finalDataAiHint !== newStore.data_ai_hint ) {
-    console.log(`[storeService.createStore] Updating store ${newStore.id} with logo_url: ${logoUrlToSave} and hint: ${finalDataAiHint}`);
+  if (logoUrlToSave !== newStore.logo_url) {
+    console.log(`[storeService.createStore] Updating store ${newStore.id} with logo_url: ${logoUrlToSave}`);
     const { data: updatedStoreWithLogo, error: updateLogoError } = await supabase
       .from('stores')
-      .update({ logo_url: logoUrlToSave, data_ai_hint: finalDataAiHint })
+      .update({ logo_url: logoUrlToSave })
       .eq('id', newStore.id)
       .select(STORE_COLUMNS_TO_SELECT)
       .single();
 
     if (updateLogoError || !updatedStoreWithLogo) {
-      console.warn('[storeService.createStore] Error updating store with logo URL and hint:', updateLogoError?.message || 'No error message. Could be RLS on update or select.');
+      console.warn('[storeService.createStore] Error updating store with logo URL:', updateLogoError?.message || 'No error message. Could be RLS on update or select.');
     } else {
       console.log(`[storeService.createStore] Store ${newStore.id} successfully updated with logo info.`);
       currentStoreData = { ...updatedStoreWithLogo, social_links: currentStoreData.social_links };
@@ -332,7 +328,6 @@ export async function updateStore(
   console.log(`[storeService.updateStore] Attempting to update store ID: ${storeId} for vendor ID: ${userId}`, { storeData, hasLogoFile: !!logoFile });
 
   let newLogoUrl = storeData.logo_url; 
-  let newAiHint = storeData.data_ai_hint;
 
   if (logoFile) {
     console.log(`[storeService.updateStore] New logo file provided for store ${storeId}, attempting to upload.`);
@@ -342,7 +337,6 @@ export async function updateStore(
       return { data: null, error: new Error(`Logo upload failed: ${uploadError.message}`) };
     }
     newLogoUrl = publicUrl; // Will be null if upload failed but no error thrown somehow, or actual URL.
-    newAiHint = storeData.data_ai_hint || ''; 
   }
 
 
@@ -355,7 +349,6 @@ export async function updateStore(
     pickup_latitude: storeData.pickup_latitude,
     pickup_longitude: storeData.pickup_longitude,
     logo_url: newLogoUrl, // This could be the newly uploaded URL, existing one, or null if cleared & no new upload
-    data_ai_hint: newAiHint,
     updated_at: new Date().toISOString(),
   };
 

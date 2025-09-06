@@ -24,7 +24,6 @@ export interface TopProductByRevenue {
   product_name: string;
   product_category: string;
   primary_image_url: string | null;
-  primary_image_data_ai_hint: string | null;
   total_revenue_generated: number;
   units_sold: number;
 }
@@ -51,7 +50,6 @@ export interface ProductProfitData { // Used for both top products and all produ
   product_name: string;
   product_category: string;
   primary_image_url: string | null;
-  primary_image_data_ai_hint: string | null;
   total_profit_generated: number;
   units_sold: number;
 }
