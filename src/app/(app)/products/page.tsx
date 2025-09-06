@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -72,7 +71,6 @@ interface FormImageSlot {
   id?: string; 
   file: File | null;
   previewUrl: string | null; 
-  hint: string;
   order: number;
   originalUrl?: string; 
 }
@@ -80,7 +78,6 @@ interface FormImageSlot {
 const initialImageSlots = (): FormImageSlot[] => Array(MAX_IMAGES).fill(null).map((_, i) => ({
   file: null,
   previewUrl: null,
-  hint: "",
   order: i,
 }));
 
@@ -90,7 +87,6 @@ const mapProductFromSupabaseToUI = (product: ProductFromSupabase): ProductUIType
     id: product.id,
     name: product.name,
     images: product.product_images.sort((a,b) => a.order - b.order).map(img => img.image_url),
-    dataAiHints: product.product_images.sort((a,b) => a.order - b.order).map(img => img.data_ai_hint || ''),
     category: product.category,
     price: product.price,
     orderPrice: product.order_price ?? undefined,
@@ -235,14 +231,6 @@ export default function ProductsPage() {
       return newSlots;
     });
   };
-  
-  const handleImageHintChange = (index: number, hint: string) => {
-    setFormImageSlots(prevSlots => {
-      const newSlots = [...prevSlots];
-      newSlots[index] = { ...newSlots[index], hint: hint };
-      return newSlots;
-    });
-  };
 
   const preparePayload = (): ProductPayload | null => {
     if (!formProductName || !formCategory || formPrice === "" || formStock === "") {
@@ -307,12 +295,12 @@ export default function ProductsPage() {
       return;
     }
 
-    const imageFilesWithHints = formImageSlots
+    const imageFiles = formImageSlots
       .filter(slot => slot.file)
-      .map(slot => ({ file: slot.file!, hint: slot.hint, order: slot.order }));
+      .map(slot => ({ file: slot.file!, order: slot.order }));
 
     try {
-      const { data: newProductFromBackend, error } = await createProduct(authUser.id, storeIdFromUrl, productPayload, imageFilesWithHints);
+      const { data: newProductFromBackend, error } = await createProduct(authUser.id, storeIdFromUrl, productPayload, imageFiles);
       if (error || !newProductFromBackend) {
         toast({ variant: "destructive", title: "Error Adding Product", description: error?.message || "Could not add product." });
       } else {
@@ -372,7 +360,6 @@ export default function ProductsPage() {
                 file: null,
                 previewUrl: imgUrl,
                 originalUrl: imgUrl,
-                hint: product.dataAiHints[index] || "",
                 order: index,
             };
         }
@@ -401,7 +388,6 @@ export default function ProductsPage() {
         .map((slot, index) => ({
             id: slot.id, 
             file: slot.file || undefined,
-            hint: slot.hint,
             existingUrl: slot.file ? undefined : slot.originalUrl || undefined, 
             order: index, 
         }));
@@ -570,7 +556,7 @@ export default function ProductsPage() {
       <Separator className="my-4"/>
       <h4 className="font-medium text-md col-span-full">Product Images (up to {MAX_IMAGES})</h4>
       {formImageSlots.map((slot, index) => (
-        <div key={`image-form-${index}`} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-4 items-center border-b pb-3 mb-1">
+        <div key={`image-form-${index}`} className="grid grid-cols-1 md:grid-cols-[2fr_auto] gap-4 items-center border-b pb-3 mb-1">
           <div className="grid gap-2">
             <Label htmlFor={`image_file_${index}`}>Image {index + 1}</Label>
             <Input 
@@ -582,16 +568,6 @@ export default function ProductsPage() {
               className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
             />
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor={`image_hint_${index}`}>AI Hint {index + 1}</Label>
-            <Input 
-              id={`image_hint_${index}`} 
-              name={`image_hint_${index}`} 
-              value={slot.hint}
-              onChange={(e) => handleImageHintChange(index, e.target.value)}
-              placeholder="e.g., 'red car'"
-            />
-          </div>
           {slot.previewUrl && (
             <div className="mt-2 md:mt-0 md:self-end">
               <NextImage
@@ -600,7 +576,6 @@ export default function ProductsPage() {
                 width={64}
                 height={64}
                 className="rounded-md object-cover h-16 w-16 border"
-                data-ai-hint={slot.hint || `preview ${index + 1}`}
                 unoptimized={slot.previewUrl.startsWith('blob:')} 
               />
             </div>
@@ -710,7 +685,6 @@ export default function ProductsPage() {
                             height="64"
                             src={product.images[0]} 
                             width="64"
-                            data-ai-hint={product.dataAiHints[0] || 'product image'}
                             unoptimized={product.images[0]?.startsWith('blob:')}
                         />
                     ) : (
@@ -860,4 +834,3 @@ export default function ProductsPage() {
     </div>
   );
 }
-

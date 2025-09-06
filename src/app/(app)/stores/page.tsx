@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -67,14 +66,12 @@ interface ImageSlot {
   file: File | null;
   previewUrl: string | null;
   dataUri: string | null; 
-  hint: string;
 }
 
 const initialLogoSlot = (): ImageSlot => ({
   file: null,
   previewUrl: null,
   dataUri: null,
-  hint: "",
 });
 
 const fileToDataUri = (file: File): Promise<string> => {
@@ -101,7 +98,6 @@ const mapStoreFromSupabaseToMockStore = (store: StoreFromSupabase): MockStoreTyp
   name: store.name,
   description: store.description,
   logo: store.logo_url || "https://placehold.co/200x100.png?text=No+Logo",
-  dataAiHint: store.data_ai_hint || "store logo",
   status: store.status as MockStoreType["status"], // Assuming status values are compatible
   categories: store.categories || [],
   socialLinks: store.social_links.map(sl => ({ platform: sl.platform as MockSocialLinkType["platform"], url: sl.url })),
@@ -180,10 +176,6 @@ export default function StoresPage() {
       return newSlot;
     });
   };
-  
-  const handleLogoHintChange = (hint: string) => {
-    setFormLogoSlot(prevSlot => ({ ...prevSlot, hint }));
-  };
 
   const prepareFormForEdit = (store: MockStoreType) => {
     setSelectedStore(store);
@@ -199,7 +191,6 @@ export default function StoresPage() {
       file: null,
       previewUrl: store.logo,
       dataUri: store.logo, // Keep original URL if no new file
-      hint: store.dataAiHint || "",
     });
     setIsEditDialogOpen(true);
   };
@@ -228,7 +219,6 @@ export default function StoresPage() {
       name: formStoreName,
       description: formStoreDescription,
       logo_url: formLogoSlot.dataUri, 
-      data_ai_hint: formLogoSlot.hint,
       categories: categoriesArray,
       status: formStoreStatus,
       location: formStoreLocation || null,
@@ -401,7 +391,6 @@ export default function StoresPage() {
               width={128}
               height={128}
               className="rounded-md object-contain h-32 w-32 border"
-              data-ai-hint={formLogoSlot.hint || "store logo"}
               unoptimized={formLogoSlot.previewUrl?.startsWith('blob:')}
             />
           </div>
@@ -410,16 +399,6 @@ export default function StoresPage() {
               <UploadCloud className="h-12 w-12 text-muted-foreground" />
           </div>
         )}
-        <div className="grid gap-2">
-            <Label htmlFor="logoAiHint">Logo AI Hint</Label>
-            <Input 
-                id="logoAiHint" 
-                name="logoAiHint" 
-                value={formLogoSlot.hint}
-                onChange={(e) => handleLogoHintChange(e.target.value)}
-                placeholder="e.g., 'modern shop'"
-            />
-        </div>
         <Separator className="my-2" />
         <div className="grid gap-2">
           <Label htmlFor="name">Store Name</Label>
@@ -548,7 +527,6 @@ export default function StoresPage() {
                     height={100}
                     src={store.logo || "https://placehold.co/200x100.png?text=No+Logo"}
                     width={200}
-                    data-ai-hint={store.dataAiHint || "store logo"}
                     unoptimized={store.logo?.startsWith('blob:')} 
                 />
                 <div className="pt-4 flex items-center justify-between">

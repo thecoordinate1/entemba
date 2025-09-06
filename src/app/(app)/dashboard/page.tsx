@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -76,7 +75,6 @@ interface DashboardTopProduct {
   name: string;
   category: string;
   image: string | null;
-  dataAiHint: string | null;
   unitsSold: number;
 }
 
@@ -136,7 +134,6 @@ const mapRpcTopProductToDashboardUI = (rpcProduct: TopSellingProductFromRPC): Da
     name: rpcProduct.product_name,
     category: rpcProduct.product_category,
     image: rpcProduct.primary_image_url,
-    dataAiHint: rpcProduct.primary_image_data_ai_hint,
     unitsSold: rpcProduct.total_quantity_sold || 0,
   };
 };
@@ -247,14 +244,15 @@ export default function DashboardPage() {
       if (orderStatsResult.status === 'fulfilled') {
         const { data, error } = orderStatsResult.value;
         if (error) currentErrorMessages.push(`Order Stats: ${error.message}`);
-        setTotalRevenue(data?.totalRevenue ?? null); setActiveOrdersCount(data?.activeOrdersCount ?? null);
-      } else { currentErrorMessages.push(`Order Stats: ${(orderStatsResult.reason as Error).message}`); setTotalRevenue(null); setActiveOrdersCount(null); }
-
-      if (productsSoldResult.status === 'fulfilled') {
-        const { data, error } = productsSoldResult.value;
-        if (error) currentErrorMessages.push(`Products Sold: ${error.message}`);
-        setProductsSoldCount(data);
-      } else { currentErrorMessages.push(`Products Sold: ${(productsSoldResult.reason as Error).message}`); setProductsSoldCount(null); }
+        setTotalRevenue(data?.totalRevenue ?? null); 
+        setActiveOrdersCount(data?.activeOrdersCount ?? null);
+        setProductsSoldCount(data?.productsSoldCount ?? null);
+      } else { 
+        currentErrorMessages.push(`Order Stats: ${(orderStatsResult.reason as Error).message}`); 
+        setTotalRevenue(null); 
+        setActiveOrdersCount(null);
+        setProductsSoldCount(null);
+      }
 
       if (topProductsResult.status === 'fulfilled') {
         const { data, error } = topProductsResult.value;
@@ -484,7 +482,6 @@ export default function DashboardPage() {
                       width={48}
                       height={48}
                       className="h-12 w-12 rounded-md object-cover border"
-                      data-ai-hint={product.dataAiHint || "product image"}
                     />
                     <div className="flex-1">
                       <p className="text-sm font-medium leading-none">{product.name}</p>

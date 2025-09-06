@@ -246,11 +246,18 @@ export default function DashboardPage() {
         if (error) currentErrorMessages.push(`Order Stats: ${error.message}`);
         setTotalRevenue(data?.totalRevenue ?? null); 
         setActiveOrdersCount(data?.activeOrdersCount ?? null);
-        setProductsSoldCount(data?.productsSoldCount ?? null);
       } else { 
         currentErrorMessages.push(`Order Stats: ${(orderStatsResult.reason as Error).message}`); 
         setTotalRevenue(null); 
         setActiveOrdersCount(null);
+      }
+      
+      if(productsSoldResult.status === 'fulfilled') {
+        const {data, error} = productsSoldResult.value;
+        if(error) currentErrorMessages.push(`Products Sold: ${error.message}`);
+        setProductsSoldCount(data);
+      } else {
+        currentErrorMessages.push(`Products Sold: ${(productsSoldResult.reason as Error).message}`);
         setProductsSoldCount(null);
       }
 

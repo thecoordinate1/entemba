@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -78,7 +77,6 @@ interface CustomerFormData {
   country?: string;
   tags?: string[];
   avatar_url?: string;
-  data_ai_hint_avatar?: string;
 }
 
 const defaultEditCustomerFormData: CustomerFormData = {
@@ -93,7 +91,6 @@ const defaultEditCustomerFormData: CustomerFormData = {
   country: "",
   tags: [],
   avatar_url: "https://placehold.co/40x40.png",
-  data_ai_hint_avatar: "person",
 };
 
 
@@ -103,7 +100,6 @@ const mapCustomerFromSupabaseToUI = (customer: CustomerFromSupabase): CustomerUI
     name: customer.name,
     email: customer.email,
     avatar: customer.avatar_url || "https://placehold.co/40x40.png",
-    dataAiHintAvatar: customer.data_ai_hint_avatar || "person",
     totalSpent: customer.total_spent,
     totalOrders: customer.total_orders,
     joinedDate: new Date(customer.joined_date).toISOString().split("T")[0],
@@ -186,7 +182,6 @@ export default function CustomersPage() {
       email: data.email,
       phone: data.phone || null,
       avatar_url: data.avatar_url,
-      data_ai_hint_avatar: data.data_ai_hint_avatar,
       status: data.status,
       tags: data.tags && data.tags.length > 0 ? data.tags : null,
       street_address: data.street_address || null,
@@ -258,7 +253,6 @@ export default function CustomersPage() {
       country: customer.address?.country || "",
       tags: customer.tags || [],
       avatar_url: customer.avatar,
-      data_ai_hint_avatar: customer.dataAiHintAvatar,
     });
     setIsEditDialogOpen(true);
   };
@@ -408,7 +402,7 @@ export default function CustomersPage() {
                     <TableRow key={customer.id}>
                       <TableCell className="hidden sm:table-cell">
                         <Avatar className="h-10 w-10">
-                          <AvatarImage src={customer.avatar} alt={customer.name} data-ai-hint={customer.dataAiHintAvatar} />
+                          <AvatarImage src={customer.avatar} alt={customer.name} />
                           <AvatarFallback>{customer.name.substring(0, 2).toUpperCase()}</AvatarFallback>
                         </Avatar>
                       </TableCell>
@@ -543,4 +537,3 @@ export default function CustomersPage() {
     </div>
   );
 }
-

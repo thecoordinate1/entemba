@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -45,7 +44,6 @@ interface FormImageSlot {
   id?: string; // ID of existing product_image record, if applicable
   file: File | null;
   previewUrl: string | null; 
-  hint: string;
   order: number;
   originalUrl?: string; // The URL from Supabase, if it's an existing image
 }
@@ -53,7 +51,6 @@ interface FormImageSlot {
 const initialImageSlots = (): FormImageSlot[] => Array(MAX_IMAGES).fill(null).map((_, i) => ({
   file: null,
   previewUrl: null,
-  hint: "",
   order: i,
 }));
 
@@ -64,7 +61,6 @@ const mapProductFromSupabaseToUI = (product: ProductFromSupabase): ProductUIType
     id: product.id,
     name: product.name,
     images: product.product_images.sort((a,b) => a.order - b.order).map(img => img.image_url),
-    dataAiHints: product.product_images.sort((a,b) => a.order - b.order).map(img => img.data_ai_hint || ''),
     category: product.category,
     price: product.price,
     orderPrice: product.order_price ?? undefined,
@@ -169,7 +165,6 @@ export default function ProductDetailPage() {
                         file: null,
                         previewUrl: imgUrl,
                         originalUrl: imgUrl, 
-                        hint: uiProduct.dataAiHints[index] || "",
                         order: index,
                     };
                 }
@@ -209,14 +204,6 @@ export default function ProductDetailPage() {
     });
   };
   
-  const handleImageHintChange = (index: number, hint: string) => {
-    setFormImageSlots(prevSlots => {
-      const newSlots = [...prevSlots];
-      newSlots[index] = { ...newSlots[index], hint: hint };
-      return newSlots;
-    });
-  };
-
   const openEditDialog = () => {
     if (!product) return;
     // Form state should already be set by useEffect when product loads or changes
@@ -300,7 +287,6 @@ export default function ProductDetailPage() {
         .map((slot, index) => ({
             id: slot.id, 
             file: slot.file || undefined,
-            hint: slot.hint,
             existingUrl: slot.file ? undefined : slot.previewUrl || undefined, 
             order: index, 
         }));
@@ -417,7 +403,6 @@ export default function ProductDetailPage() {
     ""; 
 
   const currentImage = product.images[selectedImageIndex] || "https://placehold.co/600x450.png";
-  const currentDataAiHint = product.dataAiHints[selectedImageIndex] || "product image";
 
   return (
     <div className="flex flex-col gap-6">
@@ -525,7 +510,7 @@ export default function ProductDetailPage() {
                   <Separator className="my-4"/>
                   <h4 className="font-medium text-md col-span-full">Product Images (up to {MAX_IMAGES})</h4>
                   {formImageSlots.map((slot, index) => (
-                    <div key={`image-edit-${index}`} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-4 items-center border-b pb-3 mb-1">
+                    <div key={`image-edit-${index}`} className="grid grid-cols-1 md:grid-cols-[2fr_auto] gap-4 items-center border-b pb-3 mb-1">
                       <div className="grid gap-2">
                         <Label htmlFor={`edit-image_file_${index}`}>Image {index + 1}</Label>
                         <Input 
@@ -537,16 +522,6 @@ export default function ProductDetailPage() {
                           className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
                         />
                       </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor={`edit-image_hint_${index}`}>AI Hint {index + 1}</Label>
-                        <Input 
-                          id={`edit-image_hint_${index}`} 
-                          name={`edit-image_hint_${index}`} 
-                          value={slot.hint}
-                          onChange={(e) => handleImageHintChange(index, e.target.value)}
-                          placeholder="e.g., 'red car'"
-                        />
-                      </div>
                       {slot.previewUrl && (
                         <div className="mt-2 md:mt-0 md:self-end">
                           <NextImage
@@ -555,7 +530,6 @@ export default function ProductDetailPage() {
                             width={64}
                             height={64}
                             className="rounded-md object-cover h-16 w-16 border"
-                            data-ai-hint={slot.hint || `preview ${index + 1}`}
                             unoptimized={slot.previewUrl.startsWith('blob:')}
                           />
                         </div>
@@ -589,7 +563,6 @@ export default function ProductDetailPage() {
                   width={600}
                   height={450}
                   className="rounded-lg object-cover aspect-[4/3] w-full border"
-                  data-ai-hint={currentDataAiHint}
                   priority={selectedImageIndex === 0} 
                   unoptimized={currentImage?.startsWith('blob:')}
                 />
@@ -617,7 +590,6 @@ export default function ProductDetailPage() {
                           width={100}
                           height={75}
                           className="object-cover aspect-[4/3] w-full h-full"
-                          data-ai-hint={product.dataAiHints[index] || `thumbnail ${index + 1}`}
                           unoptimized={imgUrl?.startsWith('blob:')}
                         />
                       </button>
@@ -777,4 +749,3 @@ export default function ProductDetailPage() {
     </div>
   );
 }
-

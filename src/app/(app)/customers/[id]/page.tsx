@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -55,7 +54,6 @@ interface CustomerFormData {
   country?: string;
   tags?: string[];
   avatar_url?: string;
-  data_ai_hint_avatar?: string;
 }
 
 const mapCustomerFromSupabaseToUI = (customer: CustomerFromSupabase): CustomerUIType => {
@@ -64,7 +62,6 @@ const mapCustomerFromSupabaseToUI = (customer: CustomerFromSupabase): CustomerUI
     name: customer.name,
     email: customer.email,
     avatar: customer.avatar_url || "https://placehold.co/96x96.png",
-    dataAiHintAvatar: customer.data_ai_hint_avatar || "person",
     totalSpent: customer.total_spent ?? 0, // Ensure default value
     totalOrders: customer.total_orders ?? 0, // Ensure default value
     joinedDate: customer.joined_date ? new Date(customer.joined_date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0], // Ensure default
@@ -97,7 +94,6 @@ const mapOrderFromSupabaseToUI_CustomerOrders = (order: OrderFromSupabase): Orde
       quantity: item.quantity,
       price: item.price_per_unit_snapshot,
       image: item.product_image_url_snapshot || "https://placehold.co/50x50.png",
-      dataAiHint: item.data_ai_hint_snapshot || "product",
     })) || [], // Default to empty array
     shippingAddress: order.shipping_address,
     billingAddress: order.billing_address,
@@ -174,7 +170,6 @@ export default function CustomerDetailPage() {
             country: uiCustomer.address?.country || "",
             tags: uiCustomer.tags || [],
             avatar_url: uiCustomer.avatar,
-            data_ai_hint_avatar: uiCustomer.dataAiHintAvatar,
           });
 
           if (storeId) {
@@ -224,7 +219,6 @@ export default function CustomerDetailPage() {
       email: data.email,
       phone: data.phone || null,
       avatar_url: data.avatar_url,
-      data_ai_hint_avatar: data.data_ai_hint_avatar,
       status: data.status,
       tags: data.tags && data.tags.length > 0 ? data.tags : null,
       street_address: data.street_address || null,
@@ -372,7 +366,7 @@ export default function CustomerDetailPage() {
                 street_address: customer.address?.street || "", city: customer.address?.city || "",
                 state_province: customer.address?.state || "", zip_postal_code: customer.address?.zip || "",
                 country: customer.address?.country || "", tags: customer.tags || [],
-                avatar_url: customer.avatar, data_ai_hint_avatar: customer.dataAiHintAvatar,
+                avatar_url: customer.avatar,
             });
         }}}>
             <DialogTrigger asChild>
@@ -403,7 +397,7 @@ export default function CustomerDetailPage() {
       <Card>
         <CardHeader className="flex flex-col md:flex-row items-center gap-6">
           <Avatar className="h-24 w-24">
-            <AvatarImage src={customer.avatar} alt={customer.name} data-ai-hint={customer.dataAiHintAvatar} />
+            <AvatarImage src={customer.avatar} alt={customer.name} />
             <AvatarFallback>{customer.name.substring(0, 2).toUpperCase()}</AvatarFallback>
           </Avatar>
           <div className="flex-1">

@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -85,7 +84,6 @@ export default function SettingsPage() {
   const [storeLogo, setStoreLogo] = React.useState<string | null>(null); 
   const [logoFile, setLogoFile] = React.useState<File | null>(null);
   const [logoPreview, setLogoPreview] = React.useState<string | null>(null);
-  const [storeDataAiHint, setStoreDataAiHint] = React.useState<string>("");
 
   // Location state
   const [storePickupLat, setStorePickupLat] = React.useState<number | string>("");
@@ -158,7 +156,7 @@ export default function SettingsPage() {
           setStoreName(""); setStoreDescription(""); setStoreCategory(""); setStoreLocation(""); 
           setStorePickupLat(""); setStorePickupLng("");
           setStoreStatus("Inactive"); setStoreSocialLinks([]); setStoreLogo(null); 
-          setLogoPreview(null); setStoreDataAiHint("");
+          setLogoPreview(null);
         } else if (storeDetails) {
           setSelectedStore(storeDetails);
           setStoreName(storeDetails.name);
@@ -171,7 +169,6 @@ export default function SettingsPage() {
           setStoreSocialLinks(storeDetails.social_links || []);
           setStoreLogo(storeDetails.logo_url);
           setLogoPreview(storeDetails.logo_url);
-          setStoreDataAiHint(storeDetails.data_ai_hint || "store logo");
         }
         setIsLoadingStore(false);
       } else {
@@ -180,7 +177,7 @@ export default function SettingsPage() {
          setStoreName(""); setStoreDescription(""); setStoreCategory(""); setStoreLocation(""); 
          setStorePickupLat(""); setStorePickupLng("");
          setStoreStatus("Inactive"); setStoreSocialLinks([]); setStoreLogo(null); 
-         setLogoPreview(null); setStoreDataAiHint("");
+         setLogoPreview(null);
       }
     };
     fetchStoreDetails();
@@ -294,7 +291,6 @@ export default function SettingsPage() {
         status: storeStatus,
         social_links: storeSocialLinks.filter(link => link.url.trim() !== ''),
         logo_url: logoPreview, // Pass current preview; service handles if it's old or new data URI
-        data_ai_hint: storeDataAiHint,
     };
     
     const { data: updatedStore, error } = await updateStore(selectedStore.id, authUser.id, payload, logoFile);
@@ -454,7 +450,7 @@ export default function SettingsPage() {
                 <form onSubmit={handleProfileUpdate} className="space-y-6">
                   <div className="flex flex-col items-center space-y-4">
                     <Avatar className="h-32 w-32">
-                      <AvatarImage src={avatarPreview || undefined} alt={userName || "User"} data-ai-hint="person portrait" />
+                      <AvatarImage src={avatarPreview || undefined} alt={userName || "User"} />
                       <AvatarFallback>{userName ? userName.substring(0, 2).toUpperCase() : "U"}</AvatarFallback>
                     </Avatar>
                      <div className="grid w-full max-w-sm items-center gap-1.5">
@@ -501,7 +497,7 @@ export default function SettingsPage() {
                 <form onSubmit={handleStoreSettingsUpdate} className="space-y-6">
                   <div className="flex flex-col items-center space-y-4">
                      {logoPreview ? (
-                        <NextImage src={logoPreview} alt={`${storeName} logo preview`} width={128} height={128} className="rounded-md object-contain h-32 w-32 border" data-ai-hint={storeDataAiHint || "store logo"} unoptimized={logoPreview?.startsWith('blob:')} />
+                        <NextImage src={logoPreview} alt={`${storeName} logo preview`} width={128} height={128} className="rounded-md object-contain h-32 w-32 border" unoptimized={logoPreview?.startsWith('blob:')} />
                       ) : (
                         <div className="h-32 w-32 rounded-md border bg-muted flex items-center justify-center">
                           <UploadCloud className="h-12 w-12 text-muted-foreground" />
@@ -510,10 +506,6 @@ export default function SettingsPage() {
                     <div className="grid w-full max-w-sm items-center gap-1.5">
                         <Label htmlFor="storeLogoFile">Upload Store Logo</Label>
                         <Input id="storeLogoFile" type="file" accept="image/*" onChange={handleLogoFileChange} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"/>
-                    </div>
-                    <div className="grid w-full max-w-sm items-center gap-1.5">
-                        <Label htmlFor="storeDataAiHint">Logo AI Hint</Label>
-                        <Input id="storeDataAiHint" value={storeDataAiHint || ''} onChange={(e) => setStoreDataAiHint(e.target.value)} placeholder="e.g. 'modern shop'"/>
                     </div>
                   </div>
 

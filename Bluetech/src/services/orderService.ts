@@ -342,7 +342,7 @@ export async function getStoreOrderStats(storeId: string): Promise<{ data: Store
 
   const { data: orders, error: fetchError } = await supabase
     .from('orders')
-    .select('total_amount, status, order_items(quantity)')
+    .select('total_amount, status')
     .eq('store_id', storeId);
 
   if (fetchError) {
@@ -356,22 +356,25 @@ export async function getStoreOrderStats(storeId: string): Promise<{ data: Store
 
   let totalRevenue = 0;
   let activeOrdersCount = 0;
-  let productsSoldCount = 0;
 
   orders.forEach(order => {
     // Total revenue should be calculated from fulfilled orders
     if (['Shipped', 'Delivered'].includes(order.status)) { 
       totalRevenue += order.total_amount || 0;
-      productsSoldCount += order.order_items.reduce((sum, item) => sum + item.quantity, 0);
     }
     // Active orders are those that need action
     if (['Pending', 'Confirmed', 'Driver Picking Up', 'Delivering'].includes(order.status)) {
       activeOrdersCount++;
     }
   });
+
+  const { data: productsSoldCount, error: productsSoldError } = await getStoreTotalProductsSold(storeId);
+  if(productsSoldError) {
+    console.error('[orderService.getStoreOrderStats] Error fetching products sold count:', productsSoldError.message);
+  }
   
   console.log(`[orderService.getStoreOrderStats] Stats for store ${storeId}:`, { totalRevenue, activeOrdersCount, productsSoldCount });
-  return { data: { totalRevenue, activeOrdersCount, productsSoldCount }, error: null };
+  return { data: { totalRevenue, activeOrdersCount, productsSoldCount: productsSoldCount ?? 0 }, error: null };
 }
 
 
