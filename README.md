@@ -51,7 +51,7 @@ To get a local copy up and running, follow these simple steps.
     ```
 
 4.  **Set up the Supabase database:**
-    Log in to your Supabase account, navigate to the "SQL Editor", and run the SQL scripts located in the `supabase/` directory of this project. This will create the necessary tables and functions.
+    Log in to your Supabase account, navigate to the "SQL Editor", and run the SQL scripts located in the `supabase/` directory of this project. You will also need to run the functions listed in the **Database Functions** section below.
 
 5.  **Run the development server:**
     ```bash
@@ -59,6 +59,161 @@ To get a local copy up and running, follow these simple steps.
     ```
 
 Open [http://localhost:9002](http://localhost:9002) with your browser to see the result.
+
+## Database Functions
+
+You must run the following SQL functions in your Supabase SQL Editor for all application features to work correctly.
+
+### `get_total_products_sold_for_store`
+
+This function is required for the "Products Sold" card on the main dashboard.
+
+```sql
+-- Calculates the total number of individual product units sold for a given store.
+-- It only counts items from orders that are marked as 'Shipped' or 'Delivered'.
+--
+-- Parameters:
+--   p_store_id: The UUID of the store to calculate the total products sold for.
+--
+-- Returns:
+--   An integer representing the total quantity of items sold.
+
+CREATE OR REPLACE FUNCTION get_total_products_sold_for_store(p_store_id UUID)
+RETURNS INTEGER AS $$
+DECLARE
+    total_products_sold INTEGER;
+BEGIN
+    SELECT COALESCE(SUM(oi.quantity), 0)
+    INTO total_products_sold
+    FROM order_items oi
+    JOIN orders o ON oi.order_id = o.id
+    WHERE o.store_id = p_store_id
+      AND o.status IN ('Shipped', 'Delivered');
+
+    RETURN total_products_sold;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Grant execution permission to the 'authenticated' role
+GRANT EXECUTE ON FUNCTION get_total_products_sold_for_store(UUID) TO authenticated;
+```
+
+### `create_order_with_snapshots`
+
+This function is required for creating new orders from the "Add Order" dialog. It ensures that product and pricing data are captured correctly at the time of sale.
+
+```sql
+-- Creates a new order and its associated items with price and cost snapshots.
+-- This function is designed to be called via RPC from the application.
+-- It ensures that historical order data is accurate even if product prices change later.
+--
+-- Parameters:
+--   p_store_id: The UUID of the store the order belongs to.
+--   p_customer_id: The UUID of the customer placing the order.
+--   p_order_payload: A JSON object containing the main order details.
+--   p_order_items: A JSON array of objects, each representing an item in the order.
+
+CREATE OR REPLACE FUNCTION create_order_with_snapshots(
+    p_store_id UUID,
+    p_customer_id UUID,
+    p_order_payload JSONB,
+    p_order_items JSONB
+)
+RETURNS UUID AS $$
+DECLARE
+    new_order_id UUID;
+    item RECORD;
+    product_info RECORD;
+BEGIN
+    -- Insert the main order record
+    INSERT INTO orders (
+        store_id,
+        customer_id,
+        customer_name,
+        customer_email,
+        total_amount,
+        status,
+        shipping_address,
+        billing_address,
+        shipping_method,
+        payment_method,
+        shipping_latitude,
+        shipping_longitude,
+        delivery_type,
+        customer_specification,
+        delivery_cost
+    )
+    VALUES (
+        p_store_id,
+        p_customer_id,
+        p_order_payload->>'customer_name',
+        p_order_payload->>'customer_email',
+        (p_order_payload->>'total_amount')::DECIMAL,
+        (p_order_payload->>'status')::TEXT,
+        p_order_payload->>'shipping_address',
+        p_order_payload->>'billing_address',
+        p_order_payload->>'shipping_method',
+        p_order_payload->>'payment_method',
+        (p_order_payload->>'shipping_latitude')::FLOAT,
+        (p_order_payload->>'shipping_longitude')::FLOAT,
+        (p_order_payload->>'delivery_type')::TEXT,
+        p_order_payload->>'customer_specification',
+        (p_order_payload->>'delivery_cost')::DECIMAL
+    )
+    RETURNING id INTO new_order_id;
+
+    -- Loop through the items in the JSON array and insert them
+    FOR item IN SELECT * FROM jsonb_to_recordset(p_order_items) AS x(
+        product_id UUID,
+        quantity INTEGER
+        -- Other fields like name/price are taken directly from products table
+    )
+    LOOP
+        -- Get the current product details to create snapshots
+        SELECT
+            p.name,
+            p.price,
+            p.order_price,
+            pi.image_url AS primary_image_url
+        INTO product_info
+        FROM products p
+        LEFT JOIN (
+            SELECT product_id, image_url
+            FROM product_images
+            WHERE "order" = 0
+        ) AS pi ON pi.product_id = p.id
+        WHERE p.id = item.product_id;
+
+        -- Insert the order item with snapshots
+        INSERT INTO order_items (
+            order_id,
+            product_id,
+            quantity,
+            product_name_snapshot,
+            price_per_unit_snapshot,
+            cost_per_unit_snapshot,
+            product_image_url_snapshot
+        )
+        VALUES (
+            new_order_id,
+            item.product_id,
+            item.quantity,
+            product_info.name,
+            product_info.price, -- This is the sale price
+            COALESCE(product_info.order_price, product_info.price), -- This is the Cost of Goods Sold
+            product_info.primary_image_url
+        );
+    END LOOP;
+
+    RETURN new_order_id;
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- Grant execution permission to the 'authenticated' role
+GRANT EXECUTE ON FUNCTION create_order_with_snapshots(UUID, UUID, JSONB, JSONB) TO authenticated;
+```
+
 
 ## Next Steps
 

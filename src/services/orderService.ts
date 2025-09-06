@@ -11,7 +11,6 @@ export interface OrderItemPayload {
   quantity: number;
   price_per_unit_snapshot: number;
   product_image_url_snapshot?: string | null;
-  data_ai_hint_snapshot?: string | null;
 }
 
 // This payload is for the NEW create_order_with_snapshots RPC
@@ -41,7 +40,6 @@ export interface OrderItemFromSupabase {
   price_per_unit_snapshot: number;
   cost_per_unit_snapshot: number; // Added for profit calculation
   product_image_url_snapshot: string | null;
-  data_ai_hint_snapshot: string | null;
   created_at: string;
 }
 
@@ -89,7 +87,7 @@ const commonOrderSelect = `
   created_at, updated_at,
   order_items (
     id, order_id, product_id, product_name_snapshot, quantity, price_per_unit_snapshot, cost_per_unit_snapshot,
-    product_image_url_snapshot, data_ai_hint_snapshot, created_at
+    product_image_url_snapshot, created_at
   ),
   customers ( * )
 `;
@@ -335,6 +333,7 @@ export async function getOrdersByCustomerAndStore(
 export interface StoreOrderStats {
   totalRevenue: number;
   activeOrdersCount: number;
+  productsSoldCount: number;
 }
 
 export async function getStoreOrderStats(storeId: string): Promise<{ data: StoreOrderStats | null; error: Error | null }> {
@@ -352,7 +351,7 @@ export async function getStoreOrderStats(storeId: string): Promise<{ data: Store
   }
 
   if (!orders) {
-    return { data: { totalRevenue: 0, activeOrdersCount: 0 }, error: null };
+    return { data: { totalRevenue: 0, activeOrdersCount: 0, productsSoldCount: 0 }, error: null };
   }
 
   let totalRevenue = 0;
@@ -368,9 +367,14 @@ export async function getStoreOrderStats(storeId: string): Promise<{ data: Store
       activeOrdersCount++;
     }
   });
+
+  const { data: productsSoldCount, error: productsSoldError } = await getStoreTotalProductsSold(storeId);
+  if(productsSoldError) {
+    console.error('[orderService.getStoreOrderStats] Error fetching products sold count:', productsSoldError.message);
+  }
   
-  console.log(`[orderService.getStoreOrderStats] Stats for store ${storeId}:`, { totalRevenue, activeOrdersCount });
-  return { data: { totalRevenue, activeOrdersCount }, error: null };
+  console.log(`[orderService.getStoreOrderStats] Stats for store ${storeId}:`, { totalRevenue, activeOrdersCount, productsSoldCount });
+  return { data: { totalRevenue, activeOrdersCount, productsSoldCount: productsSoldCount ?? 0 }, error: null };
 }
 
 
