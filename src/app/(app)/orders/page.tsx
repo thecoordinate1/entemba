@@ -732,7 +732,7 @@ export default function OrdersPage() {
                       <div className="flex justify-end items-center gap-4">
                             <Label className="text-lg font-semibold">Order Total:</Label>
                             <div className="text-xl font-bold flex items-center">
-                                <DollarSign className="h-5 w-5 mr-1 text-primary"/> {calculateNewOrderTotal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}
+                                ZMW {calculateNewOrderTotal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}
                             </div>
                       </div>
                     </CardContent>
