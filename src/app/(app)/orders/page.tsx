@@ -408,7 +408,7 @@ export default function OrdersPage() {
           productId: product.id,
           productName: product.name,
           productImage: product.images[0] || "https://placehold.co/50x50.png",
-          unitPrice: product.orderPrice !== undefined ? product.orderPrice : product.price,
+          unitPrice: product.price,
           quantity: quantityToAdd,
         }
       ]);
@@ -1007,3 +1007,5 @@ export default function OrdersPage() {
     </div>
   );
 }
+
+    
