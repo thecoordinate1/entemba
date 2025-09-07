@@ -71,7 +71,6 @@ interface FormImageSlot {
   id?: string; 
   file: File | null;
   previewUrl: string | null; 
-  order: number;
   originalUrl?: string; 
 }
 
@@ -676,7 +675,7 @@ export default function ProductsPage() {
             </TableHeader>
             <TableBody>
                 {filteredProducts.map((product) => (
-                <TableRow key={product.id}>
+                <TableRow key={product.id} className="cursor-pointer" onClick={() => router.push(`/products/${product.id}?${searchParams.toString()}`)}>
                     <TableCell className="hidden sm:table-cell">
                     {product.images && product.images.length > 0 ? (
                         <NextImage
@@ -718,7 +717,7 @@ export default function ProductsPage() {
                     )}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">{product.createdAt ? new Date(product.createdAt).toLocaleDateString() : '-'}</TableCell>
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                         <Button aria-haspopup="true" size="icon" variant="ghost">

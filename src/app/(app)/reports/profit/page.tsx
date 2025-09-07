@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -26,6 +25,7 @@ import {
   type ProductProfitData,
 } from "@/services/reportService";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { subDays, startOfDay, endOfDay } from 'date-fns';
 
 interface StatCardProps {
   title: string;
@@ -86,67 +86,49 @@ export default function ProfitReportPage() {
   const [topProducts, setTopProducts] = React.useState<ProductProfitData[]>([]);
   
   const [isLoadingPage, setIsLoadingPage] = React.useState(true);
+  const [isLoadingTopProducts, setIsLoadingTopProducts] = React.useState(true);
   const [errorMessages, setErrorMessages] = React.useState<string[]>([]);
   
   const [timePeriod, setTimePeriod] = React.useState("30");
 
   React.useEffect(() => {
-    const fetchReportData = async () => {
-      setIsLoadingPage(true);
-      setErrorMessages([]);
-      setSummaryStats(null); 
-      setTopProducts([]);
-
-      let currentErrorMessages: string[] = [];
-
+    const fetchSummaryData = async () => {
       if (!storeIdFromUrl) {
-        currentErrorMessages.push("No store selected. Please select a store to view reports.");
+        setErrorMessages(prev => [...prev, "No store selected. Please select a store to view reports."]);
         setIsLoadingPage(false);
-        setErrorMessages(currentErrorMessages);
         return;
       }
-      
-      const summaryStatsPromise = getProfitSummaryStats(storeIdFromUrl);
-      const topProductsPromise = getTopProductsByProfit(storeIdFromUrl, 5, parseInt(timePeriod, 10));
-
-      const results = await Promise.allSettled([
-        summaryStatsPromise,
-        topProductsPromise,
-      ]);
-
-      const [summaryResult, topProductsResult] = results;
-
-      if (summaryResult.status === 'fulfilled') {
-        const { data, error } = summaryResult.value;
-        if (error) {
-            currentErrorMessages.push(`Summary Stats: ${error.message || 'Failed to fetch.'}`);
-            setSummaryStats(null);
-        } else {
-            setSummaryStats(data); 
-        }
-      } else {
-        currentErrorMessages.push(`Summary Stats: ${(summaryResult.reason as Error).message || 'Failed to fetch.'}`);
+      setIsLoadingPage(true);
+      const { data, error } = await getProfitSummaryStats(storeIdFromUrl);
+      if (error) {
+        setErrorMessages(prev => [...prev, `Summary Stats: ${error.message || 'Failed to fetch.'}`]);
         setSummaryStats(null);
-      }
-      
-      if (topProductsResult.status === 'fulfilled') {
-        const { data, error } = topProductsResult.value;
-        if (error) currentErrorMessages.push(`Top Products by Profit: ${error.message || 'Failed to fetch.'}`);
-        setTopProducts(data || []);
       } else {
-        currentErrorMessages.push(`Top Products by Profit: ${(topProductsResult.reason as Error).message || 'Failed to fetch.'}`);
-        setTopProducts([]);
-      }
-
-      if (currentErrorMessages.length > 0) {
-        setErrorMessages(currentErrorMessages);
-        currentErrorMessages.forEach(msg => toast({ variant: "destructive", title: "Data Fetch Error", description: msg, duration: 7000 }));
+        setSummaryStats(data);
       }
       setIsLoadingPage(false);
     };
+    fetchSummaryData();
+  }, [storeIdFromUrl]);
 
-    fetchReportData();
-  }, [storeIdFromUrl, toast, timePeriod]);
+  React.useEffect(() => {
+    const fetchTopProducts = async () => {
+      if (!storeIdFromUrl) return;
+
+      setIsLoadingTopProducts(true);
+      const days = parseInt(timePeriod, 10);
+      const { data, error } = await getTopProductsByProfit(storeIdFromUrl, 5, days);
+
+      if (error) {
+        toast({ variant: "destructive", title: "Error fetching top products", description: error.message });
+        setTopProducts([]);
+      } else {
+        setTopProducts(data || []);
+      }
+      setIsLoadingTopProducts(false);
+    };
+    fetchTopProducts();
+  }, [storeIdFromUrl, timePeriod, toast]);
 
   const queryParams = storeIdFromUrl ? `?storeId=${storeIdFromUrl}` : "";
 
@@ -247,7 +229,7 @@ export default function ProfitReportPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoadingPage ? (
+          {isLoadingTopProducts ? (
             <div className="space-y-3">
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
@@ -267,7 +249,7 @@ export default function ProfitReportPage() {
               </TableHeader>
               <TableBody>
                 {topProducts.map((product) => (
-                  <TableRow key={product.product_id}>
+                  <TableRow key={product.product_id} className="cursor-pointer" onClick={() => router.push(`/products/${product.product_id}${queryParams}`)}>
                     <TableCell className="hidden sm:table-cell">
                       <Image
                         src={product.primary_image_url || "https://placehold.co/40x40.png"}
@@ -279,9 +261,9 @@ export default function ProfitReportPage() {
                       />
                     </TableCell>
                     <TableCell>
-                      <Link href={`/products/${product.product_id}${queryParams}`} className="font-medium hover:underline">
+                      <p className="font-medium hover:underline">
                         {product.product_name}
-                      </Link>
+                      </p>
                       <div className="text-xs text-muted-foreground">{product.product_category}</div>
                     </TableCell>
                     <TableCell className="text-right">ZMW {Number(product.total_profit_generated).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
@@ -290,9 +272,7 @@ export default function ProfitReportPage() {
                       {Number(product.units_sold) > 0 ? `ZMW ${(Number(product.total_profit_generated) / Number(product.units_sold)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "ZMW 0.00"}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={`/products/${product.product_id}${queryParams}`}>View</Link>
-                      </Button>
+                      <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); router.push(`/products/${product.product_id}${queryParams}`); }}>View</Button>
                     </TableCell>
                   </TableRow>
                 ))}

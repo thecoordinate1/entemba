@@ -489,7 +489,7 @@ export default function CustomerDetailPage() {
                 {customerOrders.map((order) => {
                    const OrderStatusIcon = orderStatusIcons[order.status];
                    return (
-                    <TableRow key={order.id}>
+                    <TableRow key={order.id} className="cursor-pointer" onClick={() => router.push(`/orders/${order.id}?${searchParamsHook.toString()}`)}>
                       <TableCell className="font-medium">{order.id.substring(0,8)}...</TableCell>
                       <TableCell>{new Date(order.date).toLocaleDateString()}</TableCell>
                       <TableCell className="text-right">ZMW {order.total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
@@ -500,10 +500,8 @@ export default function CustomerDetailPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="outline" size="sm" asChild>
-                          <Link href={`/orders/${order.id}?${searchParamsHook.toString()}`}>
+                        <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); router.push(`/orders/${order.id}?${searchParamsHook.toString()}`); }}>
                             <Eye className="mr-1 h-4 w-4" /> View
-                          </Link>
                         </Button>
                       </TableCell>
                     </TableRow>

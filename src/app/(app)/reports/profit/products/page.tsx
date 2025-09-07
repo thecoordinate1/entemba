@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -149,7 +148,7 @@ export default function AllProductsProfitPage() {
               </TableHeader>
               <TableBody>
                 {allProductsProfit.map((product) => (
-                  <TableRow key={product.product_id}>
+                  <TableRow key={product.product_id} className="cursor-pointer" onClick={() => router.push(`/products/${product.product_id}${queryParams}`)}>
                     <TableCell className="hidden sm:table-cell">
                       <Image
                         src={product.primary_image_url || "https://placehold.co/40x40.png"}
@@ -161,9 +160,9 @@ export default function AllProductsProfitPage() {
                       />
                     </TableCell>
                     <TableCell>
-                      <Link href={`/products/${product.product_id}${queryParams}`} className="font-medium hover:underline">
+                      <p className="font-medium hover:underline">
                         {product.product_name}
-                      </Link>
+                      </p>
                     </TableCell>
                     <TableCell>{product.product_category}</TableCell>
                     <TableCell className="text-right">ZMW {Number(product.total_profit_generated).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
@@ -172,9 +171,7 @@ export default function AllProductsProfitPage() {
                       {product.units_sold > 0 ? `ZMW ${(Number(product.total_profit_generated) / product.units_sold).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "ZMW 0.00"}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={`/products/${product.product_id}${queryParams}`}>View</Link>
-                      </Button>
+                      <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); router.push(`/products/${product.product_id}${queryParams}`); }}>View</Button>
                     </TableCell>
                   </TableRow>
                 ))}

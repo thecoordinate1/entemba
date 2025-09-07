@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Table,
@@ -120,6 +120,7 @@ const mapCustomerFromSupabaseToUI = (customer: CustomerFromSupabase): CustomerUI
 
 export default function CustomersPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const storeId = searchParams.get("storeId"); 
 
   const [customers, setCustomers] = React.useState<CustomerUIType[]>([]);
@@ -399,7 +400,7 @@ export default function CustomersPage() {
                 {filteredCustomers.map((customer) => {
                   const StatusIcon = customer.status === 'Active' ? ShieldCheck : customer.status === 'Blocked' ? ShieldX : User;
                   return (
-                    <TableRow key={customer.id}>
+                    <TableRow key={customer.id} className="cursor-pointer" onClick={() => router.push(`/customers/${customer.id}?${searchParams.toString()}`)}>
                       <TableCell className="hidden sm:table-cell">
                         <Avatar className="h-10 w-10">
                           <AvatarImage src={customer.avatar} alt={customer.name} />
@@ -417,7 +418,7 @@ export default function CustomersPage() {
                           {customer.status}
                         </Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button aria-haspopup="true" size="icon" variant="ghost">

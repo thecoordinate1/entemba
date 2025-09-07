@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import type { Order as OrderUIType, OrderStatus, Product as ProductUIType } from "@/lib/mockData"; // Using mockData types for UI consistency
@@ -47,7 +48,7 @@ import { DollarSign, Eye, Filter, MoreHorizontal, PlusCircle, Printer, Search, S
 import Image from "next/image";
 import Link from "next/link";
 import * as React from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import { getOrdersByStoreId, createOrder, updateOrderStatus, type OrderPayloadForRPC, type OrderItemPayload, type OrderFromSupabase, getOrdersByStoreIdAndStatus } from "@/services/orderService";
@@ -140,6 +141,7 @@ const mapProductFromSupabaseToProductUIType = (product: ProductFromSupabase): Pr
 
 export default function OrdersPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const storeIdFromUrl = searchParams.get("storeId");
   const [selectedStore, setSelectedStore] = React.useState<StoreFromSupabase | null>(null);
 
@@ -796,7 +798,7 @@ export default function OrdersPage() {
                 {filteredOrders.map((order) => {
                   const Icon = orderStatusIcons[order.status];
                   return (
-                    <TableRow key={order.id}>
+                    <TableRow key={order.id} className="cursor-pointer" onClick={() => router.push(`/orders/${order.id}?${searchParams.toString()}`)}>
                       <TableCell className="font-medium">{order.id.substring(0,8)}...</TableCell>
                       <TableCell>
                         <div>{order.customerName}</div>
@@ -810,7 +812,7 @@ export default function OrdersPage() {
                           {order.status}
                         </Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button aria-haspopup="true" size="icon" variant="ghost">
@@ -1007,5 +1009,3 @@ export default function OrdersPage() {
     </div>
   );
 }
-
-    
