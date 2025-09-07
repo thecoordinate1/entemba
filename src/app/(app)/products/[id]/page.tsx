@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -623,12 +624,6 @@ export default function ProductDetailPage() {
                 </span>
               </div>
              
-              <div className="flex items-center gap-1">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className={`h-5 w-5 ${i < 4 ? "text-yellow-400 fill-current" : "text-muted-foreground"}`} />
-                ))}
-                <span className="text-sm text-muted-foreground ml-1">(123 Reviews)</span>
-              </div>
               {product.sku && (
                 <div className="text-sm text-muted-foreground">SKU: {product.sku}</div>
               )}
@@ -738,14 +733,6 @@ export default function ProductDetailPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Customer Reviews</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">Customer reviews will be displayed here. (Functionality to be implemented).</p>
-        </CardContent>
-      </Card>
     </div>
   );
 }
