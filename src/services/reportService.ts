@@ -1,6 +1,7 @@
 
 // src/services/reportService.ts
 import { createClient } from '@/lib/supabase/client';
+import { subDays, startOfDay, endOfDay } from 'date-fns';
 
 const supabase = createClient();
 
@@ -119,19 +120,25 @@ export async function getMonthlyRevenueOverview(
 export async function getTopProductsByRevenue(
   storeId: string,
   limit: number,
-  startDate?: string,
-  endDate?: string
+  daysPeriod: number // 0 for all time
 ): Promise<{ data: TopProductByRevenue[] | null; error: Error | null }> {
   console.log(`[reportService.getTopProductsByRevenue] Fetching top ${limit} products by revenue for store ${storeId}.`);
   if (!storeId) {
     return { data: null, error: new Error("Store ID is required.") };
   }
 
+  let startDate: string | undefined = undefined;
+  if (daysPeriod > 0) {
+    startDate = startOfDay(subDays(new Date(), daysPeriod -1)).toISOString();
+  }
+  const endDate = endOfDay(new Date()).toISOString();
+
+
   const { data, error } = await supabase.rpc('get_top_products_by_revenue', {
     p_store_id: storeId,
     p_limit: limit,
-    p_start_date: startDate,
-    p_end_date: endDate,
+    p_start_date: daysPeriod === 0 ? null : startDate,
+    p_end_date: daysPeriod === 0 ? null : endDate,
   });
 
   if (error) {
@@ -220,19 +227,24 @@ export async function getMonthlyProfitOverview(
 export async function getTopProductsByProfit(
   storeId: string,
   limit: number,
-  startDate?: string,
-  endDate?: string
+  daysPeriod: number // 0 for all time
 ): Promise<{ data: ProductProfitData[] | null; error: Error | null }> {
   console.log(`[reportService.getTopProductsByProfit] Fetching top ${limit} products by profit for store ${storeId}.`);
   if (!storeId) {
     return { data: null, error: new Error("Store ID is required for top products by profit.") };
   }
 
+  let startDate: string | undefined = undefined;
+  if (daysPeriod > 0) {
+    startDate = startOfDay(subDays(new Date(), daysPeriod - 1)).toISOString();
+  }
+  const endDate = endOfDay(new Date()).toISOString();
+
   const { data, error } = await supabase.rpc('get_top_products_by_profit', {
     p_store_id: storeId,
     p_limit: limit,
-    p_start_date: startDate,
-    p_end_date: endDate,
+    p_start_date: daysPeriod === 0 ? null : startDate,
+    p_end_date: daysPeriod === 0 ? null : endDate,
   });
 
   if (error) {

@@ -27,10 +27,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, parseISO, isValid, subDays } from 'date-fns';
-import { createClient } from '@/lib/supabase/client';
-import type { User as AuthUser } from '@supabase/supabase-js';
-import { getStoreById, type StoreFromSupabase } from "@/services/storeService";
+import { format, parseISO, isValid } from 'date-fns';
 import {
   getRevenueSummaryStats,
   getMonthlyRevenueOverview,
@@ -39,8 +36,7 @@ import {
   type MonthlyRevenueData,
   type TopProductByRevenue,
 } from "@/services/reportService";
-import { DateRangePicker } from "@/components/ui/date-range-picker";
-import type { DateRange } from "react-day-picker";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface RevenueChartDataItem {
   month: string;
@@ -109,10 +105,6 @@ export default function RevenueReportPage() {
   const searchParams = useSearchParams();
   const storeIdFromUrl = searchParams.get("storeId");
   
-  const supabase = createClient();
-  const [authUser, setAuthUser] = React.useState<AuthUser | null>(null);
-  const [selectedStore, setSelectedStore] = React.useState<StoreFromSupabase | null>(null);
-
   const [summaryStats, setSummaryStats] = React.useState<RevenueSummaryStats | null>(null);
   const [monthlyRevenue, setMonthlyRevenue] = React.useState<RevenueChartDataItem[]>([]);
   const [topProducts, setTopProducts] = React.useState<TopProductByRevenue[]>([]);
@@ -120,66 +112,34 @@ export default function RevenueReportPage() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [errorMessages, setErrorMessages] = React.useState<string[]>([]);
   
-  const [dateRange, setDateRange] = React.useState<DateRange | undefined>({
-    from: subDays(new Date(), 29),
-    to: new Date(),
-  });
-
-  React.useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setAuthUser(user));
-  }, [supabase]);
+  const [timePeriod, setTimePeriod] = React.useState("30");
 
   React.useEffect(() => {
     const fetchReportData = async () => {
       setIsLoading(true);
       setErrorMessages([]);
-      let currentErrorMessages: string[] = [];
-
+      
       if (!storeIdFromUrl) {
-        currentErrorMessages.push("No store selected. Please select a store to view reports.");
+        setErrorMessages(["No store selected. Please select a store to view reports."]);
         setIsLoading(false);
-        setSummaryStats(null); setMonthlyRevenue([]); setTopProducts([]); setSelectedStore(null);
-        setErrorMessages(currentErrorMessages);
-        return;
-      }
-      if (!authUser) {
-        currentErrorMessages.push("Authentication issue. Please ensure you are logged in.");
-        setIsLoading(false);
-        setSummaryStats(null); setMonthlyRevenue([]); setTopProducts([]); setSelectedStore(null);
-        setErrorMessages(currentErrorMessages);
+        setSummaryStats(null); setMonthlyRevenue([]); setTopProducts([]);
         return;
       }
       
-      const storePromise = getStoreById(storeIdFromUrl, authUser.id);
+      let currentErrorMessages: string[] = [];
+      
       const summaryStatsPromise = getRevenueSummaryStats(storeIdFromUrl);
       const monthlyRevenuePromise = getMonthlyRevenueOverview(storeIdFromUrl, 6);
-      const topProductsPromise = getTopProductsByRevenue(
-        storeIdFromUrl,
-        5,
-        dateRange?.from?.toISOString(),
-        dateRange?.to?.toISOString()
-      );
+      const topProductsPromise = getTopProductsByRevenue(storeIdFromUrl, 5, parseInt(timePeriod));
 
       const results = await Promise.allSettled([
-        storePromise,
         summaryStatsPromise,
         monthlyRevenuePromise,
         topProductsPromise
       ]);
 
-      const [storeResult, summaryResult, monthlyResult, topProductsResult] = results;
+      const [summaryResult, monthlyResult, topProductsResult] = results;
 
-      // Process Store Info
-      if (storeResult.status === 'fulfilled') {
-        const { data, error } = storeResult.value;
-        if (error) currentErrorMessages.push(`Store Details: ${error.message || 'Failed to fetch.'}`);
-        setSelectedStore(data);
-      } else {
-        currentErrorMessages.push(`Store Details: ${(storeResult.reason as Error).message || 'Failed to fetch.'}`);
-        setSelectedStore(null);
-      }
-
-      // Process Summary Stats
       if (summaryResult.status === 'fulfilled') {
         const { data, error } = summaryResult.value;
         if (error) currentErrorMessages.push(`Summary Stats: ${error.message || 'Failed to fetch.'}`);
@@ -189,7 +149,6 @@ export default function RevenueReportPage() {
         setSummaryStats(null);
       }
 
-      // Process Monthly Revenue
       if (monthlyResult.status === 'fulfilled') {
         const { data, error } = monthlyResult.value;
         if (error) currentErrorMessages.push(`Monthly Overview: ${error.message || 'Failed to fetch.'}`);
@@ -210,7 +169,6 @@ export default function RevenueReportPage() {
         setMonthlyRevenue([]);
       }
       
-      // Process Top Products
       if (topProductsResult.status === 'fulfilled') {
         const { data, error } = topProductsResult.value;
         if (error) currentErrorMessages.push(`Top Products: ${error.message || 'Failed to fetch.'}`);
@@ -228,9 +186,8 @@ export default function RevenueReportPage() {
     };
 
     fetchReportData();
-  }, [storeIdFromUrl, authUser, toast, dateRange]);
+  }, [storeIdFromUrl, toast, timePeriod]);
 
-  const storeContextMessage = selectedStore ? ` for ${selectedStore.name}` : storeIdFromUrl ? " for selected store" : "";
   const queryParams = storeIdFromUrl ? `?storeId=${storeIdFromUrl}` : "";
 
   const avgOrderValue = (summaryStats?.current_month_transactions && summaryStats?.current_month_revenue && summaryStats.current_month_transactions > 0)
@@ -257,9 +214,20 @@ export default function RevenueReportPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <h1 className="text-3xl font-bold">Revenue Report{isLoading && !selectedStore ? <Skeleton className="h-8 w-40 inline-block ml-2" /> : storeContextMessage}</h1>
+        <h1 className="text-3xl font-bold">Revenue Report</h1>
         <div className="flex items-center gap-2">
-            <DateRangePicker date={dateRange} onDateChange={setDateRange} />
+            <Select value={timePeriod} onValueChange={setTimePeriod}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select period" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">Last 7 days</SelectItem>
+                <SelectItem value="30">Last 30 days</SelectItem>
+                <SelectItem value="90">Last 90 days</SelectItem>
+                <SelectItem value="365">Last 365 days</SelectItem>
+                <SelectItem value="0">All Time</SelectItem>
+              </SelectContent>
+            </Select>
             <Button variant="outline" onClick={() => router.back()}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
@@ -271,28 +239,28 @@ export default function RevenueReportPage() {
           title="Total Revenue (YTD)"
           value={isLoading ? "Loading..." : (summaryStats?.ytd_revenue !== undefined && summaryStats !== null ? `ZMW ${Number(summaryStats.ytd_revenue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
           icon={DollarSign}
-          description={`Year-to-date gross revenue${storeContextMessage}.`}
+          description="Year-to-date gross revenue."
           isLoading={isLoading}
         />
         <StatCard
           title="Revenue (This Month)"
           value={isLoading ? "Loading..." : (summaryStats?.current_month_revenue !== undefined && summaryStats !== null ? `ZMW ${Number(summaryStats.current_month_revenue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
           icon={DollarSign}
-          description={`Gross revenue for current month${storeContextMessage}.`}
+          description="Gross revenue for current month."
           isLoading={isLoading}
         />
         <StatCard
           title="Average Order Value"
           value={isLoading ? "Loading..." : (summaryStats && avgOrderValue !== undefined ? `ZMW ${Number(avgOrderValue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "N/A")}
           icon={ShoppingCart}
-          description={`Avg. amount per order (current month)${storeContextMessage}.`}
+          description="Avg. amount per order (current month)."
           isLoading={isLoading}
         />
         <StatCard
           title="Total Transactions (YTD)"
           value={isLoading ? "Loading..." : (summaryStats?.ytd_transactions !== undefined && summaryStats !== null ? summaryStats.ytd_transactions.toLocaleString() : "N/A")}
           icon={CreditCard}
-          description={`Total successful transactions YTD${storeContextMessage}.`}
+          description="Total successful transactions YTD."
           isLoading={isLoading}
         />
       </div>
@@ -300,7 +268,7 @@ export default function RevenueReportPage() {
       <Card>
         <CardHeader>
           <CardTitle>Monthly Revenue Trend</CardTitle>
-          <CardDescription>Track your gross revenue and transaction volume month over month{storeContextMessage}.</CardDescription>
+          <CardDescription>Track your gross revenue and transaction volume month over month.</CardDescription>
         </CardHeader>
         <CardContent className="pl-2">
           {isLoading ? (
@@ -350,7 +318,7 @@ export default function RevenueReportPage() {
               </ResponsiveContainer>
             </ChartContainer>
           ) : (
-              <p className="text-sm text-muted-foreground h-[300px] flex items-center justify-center">No monthly revenue data available for this period{storeContextMessage}.</p>
+              <p className="text-sm text-muted-foreground h-[300px] flex items-center justify-center">No monthly revenue data available for this period.</p>
           )}
         </CardContent>
       </Card>
@@ -359,10 +327,7 @@ export default function RevenueReportPage() {
         <CardHeader>
           <CardTitle>Top Products by Revenue</CardTitle>
           <CardDescription>
-            {dateRange?.from && dateRange.to
-              ? `Showing top products from ${format(dateRange.from, "PPP")} to ${format(dateRange.to, "PPP")}`
-              : "Top products by revenue in the selected date range"}
-            {storeContextMessage}.
+            {timePeriod === "0" ? "Showing top products for all time." : `Showing top products from the last ${timePeriod} days.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -418,7 +383,7 @@ export default function RevenueReportPage() {
               </TableBody>
             </Table>
           ) : (
-             <p className="text-sm text-muted-foreground text-center py-4">No top product data available for this period{storeContextMessage}.</p>
+             <p className="text-sm text-muted-foreground text-center py-4">No top product data available for this period.</p>
           )}
         </CardContent>
         <CardFooter className="justify-center border-t pt-4">

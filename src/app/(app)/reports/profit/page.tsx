@@ -19,19 +19,13 @@ import Link from "next/link";
 import Image from "next/image";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, subDays } from 'date-fns';
-import type { DateRange } from "react-day-picker";
-
-import { createClient } from '@/lib/supabase/client';
-import type { User as AuthUser } from '@supabase/supabase-js';
-import { getStoreById, type StoreFromSupabase } from "@/services/storeService";
 import {
   getProfitSummaryStats,
   getTopProductsByProfit,
   type ProfitSummaryStats,
   type ProductProfitData,
 } from "@/services/reportService";
-import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface StatCardProps {
   title: string;
@@ -88,24 +82,13 @@ export default function ProfitReportPage() {
   const searchParams = useSearchParams();
   const storeIdFromUrl = searchParams.get("storeId");
   
-  const supabase = createClient();
-  const [authUser, setAuthUser] = React.useState<AuthUser | null>(null);
-  const [selectedStore, setSelectedStore] = React.useState<StoreFromSupabase | null>(null);
-
   const [summaryStats, setSummaryStats] = React.useState<ProfitSummaryStats | null>(null);
   const [topProducts, setTopProducts] = React.useState<ProductProfitData[]>([]);
   
   const [isLoadingPage, setIsLoadingPage] = React.useState(true);
   const [errorMessages, setErrorMessages] = React.useState<string[]>([]);
   
-  const [dateRange, setDateRange] = React.useState<DateRange | undefined>({
-    from: subDays(new Date(), 29),
-    to: new Date(),
-  });
-
-  React.useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setAuthUser(user));
-  }, [supabase]);
+  const [timePeriod, setTimePeriod] = React.useState("30");
 
   React.useEffect(() => {
     const fetchReportData = async () => {
@@ -113,7 +96,6 @@ export default function ProfitReportPage() {
       setErrorMessages([]);
       setSummaryStats(null); 
       setTopProducts([]);
-      setSelectedStore(null);
 
       let currentErrorMessages: string[] = [];
 
@@ -123,37 +105,16 @@ export default function ProfitReportPage() {
         setErrorMessages(currentErrorMessages);
         return;
       }
-      if (!authUser) {
-        currentErrorMessages.push("Authentication issue. Please ensure you are logged in.");
-        setIsLoadingPage(false);
-        setErrorMessages(currentErrorMessages);
-        return;
-      }
       
-      const storePromise = getStoreById(storeIdFromUrl, authUser.id);
       const summaryStatsPromise = getProfitSummaryStats(storeIdFromUrl);
-      const topProductsPromise = getTopProductsByProfit(
-        storeIdFromUrl,
-        5,
-        dateRange?.from?.toISOString(),
-        dateRange?.to?.toISOString()
-      );
+      const topProductsPromise = getTopProductsByProfit(storeIdFromUrl, 5, parseInt(timePeriod));
 
       const results = await Promise.allSettled([
-        storePromise,
         summaryStatsPromise,
         topProductsPromise,
       ]);
 
-      const [storeResult, summaryResult, topProductsResult] = results;
-
-      if (storeResult.status === 'fulfilled') {
-        const { data, error } = storeResult.value;
-        if (error) currentErrorMessages.push(`Store Details: ${error.message || 'Failed to fetch.'}`);
-        setSelectedStore(data);
-      } else {
-        currentErrorMessages.push(`Store Details: ${(storeResult.reason as Error).message || 'Failed to fetch.'}`);
-      }
+      const [summaryResult, topProductsResult] = results;
 
       if (summaryResult.status === 'fulfilled') {
         const { data, error } = summaryResult.value;
@@ -185,9 +146,8 @@ export default function ProfitReportPage() {
     };
 
     fetchReportData();
-  }, [storeIdFromUrl, authUser, toast, dateRange]);
+  }, [storeIdFromUrl, toast, timePeriod]);
 
-  const storeContextMessage = selectedStore ? ` for ${selectedStore.name}` : storeIdFromUrl ? " for selected store" : "";
   const queryParams = storeIdFromUrl ? `?storeId=${storeIdFromUrl}` : "";
 
   const ytdGrossProfit = summaryStats?.ytd_gross_profit ?? 0;
@@ -228,9 +188,20 @@ export default function ProfitReportPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <h1 className="text-3xl font-bold">Profit Report{isLoadingPage && !selectedStore ? <Skeleton className="h-8 w-40 inline-block ml-2" /> : storeContextMessage}</h1>
+        <h1 className="text-3xl font-bold">Profit Report</h1>
         <div className="flex items-center gap-2">
-            <DateRangePicker date={dateRange} onDateChange={setDateRange} />
+            <Select value={timePeriod} onValueChange={setTimePeriod}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select period" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">Last 7 days</SelectItem>
+                <SelectItem value="30">Last 30 days</SelectItem>
+                <SelectItem value="90">Last 90 days</SelectItem>
+                <SelectItem value="365">Last 365 days</SelectItem>
+                <SelectItem value="0">All Time</SelectItem>
+              </SelectContent>
+            </Select>
             <Button variant="outline" onClick={() => router.back()}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
@@ -242,28 +213,28 @@ export default function ProfitReportPage() {
           title="Gross Profit (YTD)"
           value={cardValue(summaryStats !== null, ytdGrossProfit)}
           icon={DollarSign}
-          description={`Total revenue minus COGS${storeContextMessage}.`}
+          description="Year-to-date gross profit."
           isLoading={isLoadingPage}
         />
         <StatCard
           title="COGS (YTD)"
           value={cardValue(summaryStats !== null, ytdCogs)}
           icon={Receipt}
-          description={`Direct costs of producing goods${storeContextMessage}.`}
+          description="Year-to-date cost of goods sold."
           isLoading={isLoadingPage}
         />
         <StatCard
           title="Gross Profit Margin (YTD)"
           value={cardValue(summaryStats !== null, ytdProfitMargin, false)}
           icon={Percent}
-          description={`Gross profit as % of revenue${storeContextMessage}.`}
+          description="YTD gross profit as % of revenue."
           isLoading={isLoadingPage}
         />
          <StatCard
           title="Net Profit (Est. YTD)"
           value={cardValue(summaryStats !== null, netProfitEstYTD)}
           icon={Landmark} 
-          description={`YTD Gross Profit (Est. Net Profit)${storeContextMessage}. True Net Profit calculation requires other operational expenses.`}
+          description="Est. YTD Net Profit (before ops costs)."
           isLoading={isLoadingPage}
         />
       </div>
@@ -272,10 +243,7 @@ export default function ProfitReportPage() {
         <CardHeader>
           <CardTitle>Top Products by Profit</CardTitle>
           <CardDescription>
-            {dateRange?.from && dateRange.to
-              ? `Showing top products from ${format(dateRange.from, "PPP")} to ${format(dateRange.to, "PPP")}`
-              : "Top products by profit in the selected date range"}
-            {storeContextMessage}.
+            {timePeriod === "0" ? "Showing top products for all time." : `Showing top products from the last ${timePeriod} days.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -331,7 +299,7 @@ export default function ProfitReportPage() {
               </TableBody>
             </Table>
            ) : (
-             <p className="text-sm text-muted-foreground text-center py-4">No top product profit data available{storeContextMessage}.</p>
+             <p className="text-sm text-muted-foreground text-center py-4">No top product profit data available for this period.</p>
            )}
         </CardContent>
         <CardFooter className="justify-center border-t pt-4">
