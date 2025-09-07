@@ -393,6 +393,45 @@ $$ LANGUAGE plpgsql;
 GRANT EXECUTE ON FUNCTION get_top_products_by_profit(UUID, INTEGER, TIMESTAMPTZ, TIMESTAMPTZ) TO authenticated;
 ```
 
+### `get_all_products_revenue_for_store`
+```sql
+CREATE OR REPLACE FUNCTION get_all_products_revenue_for_store(
+    p_store_id UUID,
+    p_days_period INTEGER DEFAULT NULL
+)
+RETURNS TABLE (
+    product_id UUID,
+    product_name TEXT,
+    product_category TEXT,
+    primary_image_url TEXT,
+    primary_image_data_ai_hint TEXT,
+    total_revenue_generated NUMERIC,
+    units_sold BIGINT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        oi.product_id,
+        p.name AS product_name,
+        p.category AS product_category,
+        (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id ORDER BY "order" LIMIT 1) AS primary_image_url,
+        (SELECT pi.data_ai_hint FROM product_images pi WHERE pi.product_id = p.id ORDER BY "order" LIMIT 1) AS primary_image_data_ai_hint,
+        SUM(oi.price_per_unit_snapshot * oi.quantity) AS total_revenue_generated,
+        SUM(oi.quantity) AS units_sold
+    FROM order_items oi
+    JOIN orders o ON oi.order_id = o.id
+    JOIN products p ON oi.product_id = p.id
+    WHERE o.store_id = p_store_id
+      AND o.status IN ('Shipped', 'Delivered')
+      AND (p_days_period IS NULL OR o.order_date >= (CURRENT_DATE - (p_days_period || ' days')::INTERVAL))
+    GROUP BY oi.product_id, p.name, p.category, p.id
+    ORDER BY total_revenue_generated DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+GRANT EXECUTE ON FUNCTION get_all_products_revenue_for_store(UUID, INTEGER) TO authenticated;
+```
+
 
 ## Next Steps
 
