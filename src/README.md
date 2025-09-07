@@ -249,7 +249,7 @@ BEGIN
         p_order_payload->>'payment_method',
         (p_order_payload->>'shipping_latitude')::FLOAT,
         (p_order_payload->>'shipping_longitude')::FLOAT,
-        (p_order_payload->>'delivery_type')::TEXT,
+        COALESCE((p_order_payload->>'delivery_type')::TEXT, 'self_delivery'),
         p_order_payload->>'customer_specification',
         (p_order_payload->>'delivery_cost')::DECIMAL
     )
@@ -305,6 +305,92 @@ $$ LANGUAGE plpgsql;
 
 -- Grant execution permission to the 'authenticated' role
 GRANT EXECUTE ON FUNCTION create_order_with_snapshots(UUID, UUID, JSONB, JSONB) TO authenticated;
+```
+
+### `get_top_products_by_revenue` (with date filtering)
+```sql
+CREATE OR REPLACE FUNCTION get_top_products_by_revenue(
+    p_store_id UUID,
+    p_limit INTEGER,
+    p_start_date TIMESTAMPTZ DEFAULT NULL,
+    p_end_date TIMESTAMPTZ DEFAULT NULL
+)
+RETURNS TABLE (
+    product_id UUID,
+    product_name TEXT,
+    product_category TEXT,
+    primary_image_url TEXT,
+    primary_image_data_ai_hint TEXT,
+    total_revenue_generated NUMERIC,
+    units_sold BIGINT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        oi.product_id,
+        p.name AS product_name,
+        p.category AS product_category,
+        (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id ORDER BY "order" LIMIT 1) AS primary_image_url,
+        (SELECT pi.data_ai_hint FROM product_images pi WHERE pi.product_id = p.id ORDER BY "order" LIMIT 1) AS primary_image_data_ai_hint,
+        SUM(oi.price_per_unit_snapshot * oi.quantity) AS total_revenue_generated,
+        SUM(oi.quantity) AS units_sold
+    FROM order_items oi
+    JOIN orders o ON oi.order_id = o.id
+    JOIN products p ON oi.product_id = p.id
+    WHERE o.store_id = p_store_id
+      AND o.status IN ('Shipped', 'Delivered')
+      AND (p_start_date IS NULL OR o.order_date >= p_start_date)
+      AND (p_end_date IS NULL OR o.order_date <= p_end_date)
+    GROUP BY oi.product_id, p.name, p.category, p.id
+    ORDER BY total_revenue_generated DESC
+    LIMIT p_limit;
+END;
+$$ LANGUAGE plpgsql;
+
+GRANT EXECUTE ON FUNCTION get_top_products_by_revenue(UUID, INTEGER, TIMESTAMPTZ, TIMESTAMPTZ) TO authenticated;
+```
+
+### `get_top_products_by_profit` (with date filtering)
+```sql
+CREATE OR REPLACE FUNCTION get_top_products_by_profit(
+    p_store_id UUID,
+    p_limit INTEGER,
+    p_start_date TIMESTAMPTZ DEFAULT NULL,
+    p_end_date TIMESTAMPTZ DEFAULT NULL
+)
+RETURNS TABLE (
+    product_id UUID,
+    product_name TEXT,
+    product_category TEXT,
+    primary_image_url TEXT,
+    primary_image_data_ai_hint TEXT,
+    total_profit_generated NUMERIC,
+    units_sold BIGINT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        oi.product_id,
+        p.name AS product_name,
+        p.category AS product_category,
+        (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id ORDER BY "order" LIMIT 1) AS primary_image_url,
+        (SELECT pi.data_ai_hint FROM product_images pi WHERE pi.product_id = p.id ORDER BY "order" LIMIT 1) AS primary_image_data_ai_hint,
+        SUM((oi.price_per_unit_snapshot - oi.cost_per_unit_snapshot) * oi.quantity) AS total_profit_generated,
+        SUM(oi.quantity) AS units_sold
+    FROM order_items oi
+    JOIN orders o ON oi.order_id = o.id
+    JOIN products p ON oi.product_id = p.id
+    WHERE o.store_id = p_store_id
+      AND o.status IN ('Shipped', 'Delivered')
+      AND (p_start_date IS NULL OR o.order_date >= p_start_date)
+      AND (p_end_date IS NULL OR o.order_date <= p_end_date)
+    GROUP BY oi.product_id, p.name, p.category, p.id
+    ORDER BY total_profit_generated DESC
+    LIMIT p_limit;
+END;
+$$ LANGUAGE plpgsql;
+
+GRANT EXECUTE ON FUNCTION get_top_products_by_profit(UUID, INTEGER, TIMESTAMPTZ, TIMESTAMPTZ) TO authenticated;
 ```
 
 

@@ -119,9 +119,10 @@ export async function getMonthlyRevenueOverview(
 export async function getTopProductsByRevenue(
   storeId: string,
   limit: number,
-  daysPeriod: number | null // Allow null for all-time
+  startDate?: string,
+  endDate?: string
 ): Promise<{ data: TopProductByRevenue[] | null; error: Error | null }> {
-  console.log(`[reportService.getTopProductsByRevenue] Fetching top ${limit} products by revenue for store ${storeId}, period: ${daysPeriod === null ? 'all time' : daysPeriod + ' days'}.`);
+  console.log(`[reportService.getTopProductsByRevenue] Fetching top ${limit} products by revenue for store ${storeId}.`);
   if (!storeId) {
     return { data: null, error: new Error("Store ID is required.") };
   }
@@ -129,7 +130,8 @@ export async function getTopProductsByRevenue(
   const { data, error } = await supabase.rpc('get_top_products_by_revenue', {
     p_store_id: storeId,
     p_limit: limit,
-    p_days_period: daysPeriod,
+    p_start_date: startDate,
+    p_end_date: endDate,
   });
 
   if (error) {
@@ -218,9 +220,10 @@ export async function getMonthlyProfitOverview(
 export async function getTopProductsByProfit(
   storeId: string,
   limit: number,
-  daysPeriod: number | null = 90 // Default to last 90 days
+  startDate?: string,
+  endDate?: string
 ): Promise<{ data: ProductProfitData[] | null; error: Error | null }> {
-  console.log(`[reportService.getTopProductsByProfit] Fetching top ${limit} products by profit for store ${storeId}, period: ${daysPeriod === null ? 'all time' : daysPeriod + ' days'}.`);
+  console.log(`[reportService.getTopProductsByProfit] Fetching top ${limit} products by profit for store ${storeId}.`);
   if (!storeId) {
     return { data: null, error: new Error("Store ID is required for top products by profit.") };
   }
@@ -228,7 +231,8 @@ export async function getTopProductsByProfit(
   const { data, error } = await supabase.rpc('get_top_products_by_profit', {
     p_store_id: storeId,
     p_limit: limit,
-    p_days_period: daysPeriod,
+    p_start_date: startDate,
+    p_end_date: endDate,
   });
 
   if (error) {

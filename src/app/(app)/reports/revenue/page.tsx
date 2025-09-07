@@ -27,7 +27,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, parseISO, isValid } from 'date-fns';
+import { format, parseISO, isValid, subDays } from 'date-fns';
 import { createClient } from '@/lib/supabase/client';
 import type { User as AuthUser } from '@supabase/supabase-js';
 import { getStoreById, type StoreFromSupabase } from "@/services/storeService";
@@ -39,6 +39,8 @@ import {
   type MonthlyRevenueData,
   type TopProductByRevenue,
 } from "@/services/reportService";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
+import type { DateRange } from "react-day-picker";
 
 interface RevenueChartDataItem {
   month: string;
@@ -117,6 +119,11 @@ export default function RevenueReportPage() {
 
   const [isLoading, setIsLoading] = React.useState(true);
   const [errorMessages, setErrorMessages] = React.useState<string[]>([]);
+  
+  const [dateRange, setDateRange] = React.useState<DateRange | undefined>({
+    from: subDays(new Date(), 29),
+    to: new Date(),
+  });
 
   React.useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setAuthUser(user));
@@ -146,7 +153,12 @@ export default function RevenueReportPage() {
       const storePromise = getStoreById(storeIdFromUrl, authUser.id);
       const summaryStatsPromise = getRevenueSummaryStats(storeIdFromUrl);
       const monthlyRevenuePromise = getMonthlyRevenueOverview(storeIdFromUrl, 6);
-      const topProductsPromise = getTopProductsByRevenue(storeIdFromUrl, 5, 30);
+      const topProductsPromise = getTopProductsByRevenue(
+        storeIdFromUrl,
+        5,
+        dateRange?.from?.toISOString(),
+        dateRange?.to?.toISOString()
+      );
 
       const results = await Promise.allSettled([
         storePromise,
@@ -216,7 +228,7 @@ export default function RevenueReportPage() {
     };
 
     fetchReportData();
-  }, [storeIdFromUrl, authUser, toast]);
+  }, [storeIdFromUrl, authUser, toast, dateRange]);
 
   const storeContextMessage = selectedStore ? ` for ${selectedStore.name}` : storeIdFromUrl ? " for selected store" : "";
   const queryParams = storeIdFromUrl ? `?storeId=${storeIdFromUrl}` : "";
@@ -244,11 +256,14 @@ export default function RevenueReportPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-3xl font-bold">Revenue Report{isLoading && !selectedStore ? <Skeleton className="h-8 w-40 inline-block ml-2" /> : storeContextMessage}</h1>
-        <Button variant="outline" onClick={() => router.back()}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back
-        </Button>
+        <div className="flex items-center gap-2">
+            <DateRangePicker date={dateRange} onDateChange={setDateRange} />
+            <Button variant="outline" onClick={() => router.back()}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back
+            </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -343,7 +358,12 @@ export default function RevenueReportPage() {
       <Card>
         <CardHeader>
           <CardTitle>Top Products by Revenue</CardTitle>
-          <CardDescription>Detailed breakdown of revenue by products (last 30 days){storeContextMessage}.</CardDescription>
+          <CardDescription>
+            {dateRange?.from && dateRange.to
+              ? `Showing top products from ${format(dateRange.from, "PPP")} to ${format(dateRange.to, "PPP")}`
+              : "Top products by revenue in the selected date range"}
+            {storeContextMessage}.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (

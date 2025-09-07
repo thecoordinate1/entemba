@@ -19,6 +19,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { format, subDays } from 'date-fns';
+import type { DateRange } from "react-day-picker";
 
 import { createClient } from '@/lib/supabase/client';
 import type { User as AuthUser } from '@supabase/supabase-js';
@@ -29,6 +31,7 @@ import {
   type ProfitSummaryStats,
   type ProductProfitData,
 } from "@/services/reportService";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 
 interface StatCardProps {
   title: string;
@@ -95,7 +98,10 @@ export default function ProfitReportPage() {
   const [isLoadingPage, setIsLoadingPage] = React.useState(true);
   const [errorMessages, setErrorMessages] = React.useState<string[]>([]);
   
-  const [daysPeriod] = React.useState<number | null>(90); // Default to last 90 days for top products
+  const [dateRange, setDateRange] = React.useState<DateRange | undefined>({
+    from: subDays(new Date(), 29),
+    to: new Date(),
+  });
 
   React.useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setAuthUser(user));
@@ -126,7 +132,12 @@ export default function ProfitReportPage() {
       
       const storePromise = getStoreById(storeIdFromUrl, authUser.id);
       const summaryStatsPromise = getProfitSummaryStats(storeIdFromUrl);
-      const topProductsPromise = getTopProductsByProfit(storeIdFromUrl, 5, daysPeriod);
+      const topProductsPromise = getTopProductsByProfit(
+        storeIdFromUrl,
+        5,
+        dateRange?.from?.toISOString(),
+        dateRange?.to?.toISOString()
+      );
 
       const results = await Promise.allSettled([
         storePromise,
@@ -174,7 +185,7 @@ export default function ProfitReportPage() {
     };
 
     fetchReportData();
-  }, [storeIdFromUrl, authUser, toast, daysPeriod]);
+  }, [storeIdFromUrl, authUser, toast, dateRange]);
 
   const storeContextMessage = selectedStore ? ` for ${selectedStore.name}` : storeIdFromUrl ? " for selected store" : "";
   const queryParams = storeIdFromUrl ? `?storeId=${storeIdFromUrl}` : "";
@@ -216,11 +227,14 @@ export default function ProfitReportPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-3xl font-bold">Profit Report{isLoadingPage && !selectedStore ? <Skeleton className="h-8 w-40 inline-block ml-2" /> : storeContextMessage}</h1>
-        <Button variant="outline" onClick={() => router.back()}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back
-        </Button>
+        <div className="flex items-center gap-2">
+            <DateRangePicker date={dateRange} onDateChange={setDateRange} />
+            <Button variant="outline" onClick={() => router.back()}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back
+            </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -257,7 +271,12 @@ export default function ProfitReportPage() {
       <Card>
         <CardHeader>
           <CardTitle>Top Products by Profit</CardTitle>
-          <CardDescription>Detailed breakdown of profit by products (last {daysPeriod} days){storeContextMessage}.</CardDescription>
+          <CardDescription>
+            {dateRange?.from && dateRange.to
+              ? `Showing top products from ${format(dateRange.from, "PPP")} to ${format(dateRange.to, "PPP")}`
+              : "Top products by profit in the selected date range"}
+            {storeContextMessage}.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoadingPage ? (
