@@ -107,7 +107,7 @@ export default function ProfitReportPage() {
       }
       
       const summaryStatsPromise = getProfitSummaryStats(storeIdFromUrl);
-      const topProductsPromise = getTopProductsByProfit(storeIdFromUrl, 5, parseInt(timePeriod));
+      const topProductsPromise = getTopProductsByProfit(storeIdFromUrl, 5, parseInt(timePeriod, 10));
 
       const results = await Promise.allSettled([
         summaryStatsPromise,
@@ -287,7 +287,7 @@ export default function ProfitReportPage() {
                     <TableCell className="text-right">ZMW {Number(product.total_profit_generated).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
                     <TableCell className="text-right hidden md:table-cell">{product.units_sold.toLocaleString()}</TableCell>
                     <TableCell className="text-right hidden md:table-cell">
-                      {product.units_sold > 0 ? `ZMW ${(Number(product.total_profit_generated) / product.units_sold).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "ZMW 0.00"}
+                      {Number(product.units_sold) > 0 ? `ZMW ${(Number(product.total_profit_generated) / Number(product.units_sold)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "ZMW 0.00"}
                     </TableCell>
                     <TableCell className="text-center">
                       <Button variant="outline" size="sm" asChild>
