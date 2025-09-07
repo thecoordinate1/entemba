@@ -24,6 +24,7 @@ export interface TopProductByRevenue {
   product_name: string;
   product_category: string;
   primary_image_url: string | null;
+  primary_image_data_ai_hint: string | null;
   total_revenue_generated: number;
   units_sold: number;
 }
@@ -50,6 +51,7 @@ export interface ProductProfitData { // Used for both top products and all produ
   product_name: string;
   product_category: string;
   primary_image_url: string | null;
+  primary_image_data_ai_hint: string | null;
   total_profit_generated: number;
   units_sold: number;
 }
@@ -165,10 +167,9 @@ export async function getAllProductsRevenueForStore(
 // --- Service Functions (Profit) ---
 
 export async function getProfitSummaryStats(
-  storeId: string,
-  daysPeriod: number | null = 90 // Default to last 90 days
+  storeId: string
 ): Promise<{ data: ProfitSummaryStats | null; error: Error | null }> {
-  console.log(`[reportService.getProfitSummaryStats] Fetching for store ${storeId}, period ${daysPeriod} days`);
+  console.log(`[reportService.getProfitSummaryStats] Fetching for store ${storeId}`);
   if (!storeId) {
     return { data: null, error: new Error("Store ID is required for profit summary.") };
   }
