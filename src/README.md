@@ -64,6 +64,99 @@ Open [http://localhost:9002](http://localhost:9002) with your browser to see the
 
 You must run the following SQL functions in your Supabase SQL Editor for all application features to work correctly.
 
+### `get_profit_summary_stats`
+This function is required for the profit report page. It provides Year-to-Date (YTD) and current month profit summaries.
+```sql
+-- Calculates profit-related summary statistics for a given store.
+-- This version specifically calculates Year-to-Date (YTD) and Current Month figures.
+--
+-- Parameters:
+--   p_store_id: The UUID of the store to calculate profit stats for.
+--
+-- Returns:
+--   A single row with the following columns:
+--   - ytd_gross_profit: Gross profit from the beginning of the current year to date.
+--   - ytd_cogs: Cost of Goods Sold from the beginning of the current year to date.
+--   - current_month_gross_profit: Gross profit for the current calendar month.
+--   - current_month_cogs: Cost of Goods Sold for the current calendar month.
+--   - ytd_revenue_for_margin_calc: Total revenue YTD, used for margin calculation.
+--   - current_month_revenue_for_margin_calc: Total revenue for the current month.
+
+CREATE OR REPLACE FUNCTION get_profit_summary_stats(p_store_id UUID)
+RETURNS TABLE (
+    ytd_gross_profit NUMERIC,
+    ytd_cogs NUMERIC,
+    current_month_gross_profit NUMERIC,
+    current_month_cogs NUMERIC,
+    ytd_revenue_for_margin_calc NUMERIC,
+    current_month_revenue_for_margin_calc NUMERIC
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        -- Year-to-Date Calculations
+        COALESCE(SUM(
+            CASE
+                WHEN o.order_date >= date_trunc('year', CURRENT_DATE) THEN
+                    (oi.price_per_unit_snapshot - oi.cost_per_unit_snapshot) * oi.quantity
+                ELSE 0
+            END
+        ), 0) AS ytd_gross_profit,
+
+        COALESCE(SUM(
+            CASE
+                WHEN o.order_date >= date_trunc('year', CURRENT_DATE) THEN
+                    oi.cost_per_unit_snapshot * oi.quantity
+                ELSE 0
+            END
+        ), 0) AS ytd_cogs,
+
+        -- Current Month Calculations
+        COALESCE(SUM(
+            CASE
+                WHEN o.order_date >= date_trunc('month', CURRENT_DATE) THEN
+                    (oi.price_per_unit_snapshot - oi.cost_per_unit_snapshot) * oi.quantity
+                ELSE 0
+            END
+        ), 0) AS current_month_gross_profit,
+
+        COALESCE(SUM(
+            CASE
+                WHEN o.order_date >= date_trunc('month', CURRENT_DATE) THEN
+                    oi.cost_per_unit_snapshot * oi.quantity
+                ELSE 0
+            END
+        ), 0) AS current_month_cogs,
+        
+        -- YTD Revenue for Margin Calculation
+        COALESCE(SUM(
+            CASE
+                WHEN o.order_date >= date_trunc('year', CURRENT_DATE) THEN
+                    oi.price_per_unit_snapshot * oi.quantity
+                ELSE 0
+            END
+        ), 0) AS ytd_revenue_for_margin_calc,
+
+        -- Current Month Revenue for Margin Calculation
+        COALESCE(SUM(
+            CASE
+                WHEN o.order_date >= date_trunc('month', CURRENT_DATE) THEN
+                    oi.price_per_unit_snapshot * oi.quantity
+                ELSE 0
+            END
+        ), 0) AS current_month_revenue_for_margin_calc
+
+    FROM orders o
+    JOIN order_items oi ON o.id = oi.order_id
+    WHERE o.store_id = p_store_id
+      AND o.status IN ('Shipped', 'Delivered'); -- The date filter is now inside each CASE
+END;
+$$ LANGUAGE plpgsql;
+
+-- Grant execution permission to the 'authenticated' role
+GRANT EXECUTE ON FUNCTION get_profit_summary_stats(UUID) TO authenticated;
+```
+
 ### `get_total_products_sold_for_store`
 
 This function is required for the "Products Sold" card on the main dashboard.
