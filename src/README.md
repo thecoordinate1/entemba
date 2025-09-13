@@ -95,61 +95,23 @@ BEGIN
     RETURN QUERY
     SELECT
         -- Year-to-Date Calculations
-        COALESCE(SUM(
-            CASE
-                WHEN o.order_date >= date_trunc('year', CURRENT_DATE) THEN
-                    (oi.price_per_unit_snapshot - oi.cost_per_unit_snapshot) * oi.quantity
-                ELSE 0
-            END
-        ), 0) AS ytd_gross_profit,
-
-        COALESCE(SUM(
-            CASE
-                WHEN o.order_date >= date_trunc('year', CURRENT_DATE) THEN
-                    oi.cost_per_unit_snapshot * oi.quantity
-                ELSE 0
-            END
-        ), 0) AS ytd_cogs,
+        COALESCE(SUM(CASE WHEN o.order_date >= date_trunc('year', now()) THEN (oi.price_per_unit_snapshot - oi.cost_per_unit_snapshot) * oi.quantity ELSE 0 END), 0) AS ytd_gross_profit,
+        COALESCE(SUM(CASE WHEN o.order_date >= date_trunc('year', now()) THEN oi.cost_per_unit_snapshot * oi.quantity ELSE 0 END), 0) AS ytd_cogs,
 
         -- Current Month Calculations
-        COALESCE(SUM(
-            CASE
-                WHEN o.order_date >= date_trunc('month', CURRENT_DATE) THEN
-                    (oi.price_per_unit_snapshot - oi.cost_per_unit_snapshot) * oi.quantity
-                ELSE 0
-            END
-        ), 0) AS current_month_gross_profit,
-
-        COALESCE(SUM(
-            CASE
-                WHEN o.order_date >= date_trunc('month', CURRENT_DATE) THEN
-                    oi.cost_per_unit_snapshot * oi.quantity
-                ELSE 0
-            END
-        ), 0) AS current_month_cogs,
+        COALESCE(SUM(CASE WHEN o.order_date >= date_trunc('month', now()) THEN (oi.price_per_unit_snapshot - oi.cost_per_unit_snapshot) * oi.quantity ELSE 0 END), 0) AS current_month_gross_profit,
+        COALESCE(SUM(CASE WHEN o.order_date >= date_trunc('month', now()) THEN oi.cost_per_unit_snapshot * oi.quantity ELSE 0 END), 0) AS current_month_cogs,
         
         -- YTD Revenue for Margin Calculation
-        COALESCE(SUM(
-            CASE
-                WHEN o.order_date >= date_trunc('year', CURRENT_DATE) THEN
-                    oi.price_per_unit_snapshot * oi.quantity
-                ELSE 0
-            END
-        ), 0) AS ytd_revenue_for_margin_calc,
+        COALESCE(SUM(CASE WHEN o.order_date >= date_trunc('year', now()) THEN oi.price_per_unit_snapshot * oi.quantity ELSE 0 END), 0) AS ytd_revenue_for_margin_calc,
 
         -- Current Month Revenue for Margin Calculation
-        COALESCE(SUM(
-            CASE
-                WHEN o.order_date >= date_trunc('month', CURRENT_DATE) THEN
-                    oi.price_per_unit_snapshot * oi.quantity
-                ELSE 0
-            END
-        ), 0) AS current_month_revenue_for_margin_calc
+        COALESCE(SUM(CASE WHEN o.order_date >= date_trunc('month', now()) THEN oi.price_per_unit_snapshot * oi.quantity ELSE 0 END), 0) AS current_month_revenue_for_margin_calc
 
     FROM orders o
     JOIN order_items oi ON o.id = oi.order_id
     WHERE o.store_id = p_store_id
-      AND o.status IN ('Shipped', 'Delivered'); -- The date filter is now inside each CASE
+      AND o.status IN ('Shipped', 'Delivered');
 END;
 $$ LANGUAGE plpgsql;
 
@@ -430,6 +392,45 @@ END;
 $$ LANGUAGE plpgsql;
 
 GRANT EXECUTE ON FUNCTION get_all_products_revenue_for_store(UUID, INTEGER) TO authenticated;
+```
+
+### `get_all_products_profit_for_store`
+```sql
+CREATE OR REPLACE FUNCTION get_all_products_profit_for_store(
+    p_store_id UUID,
+    p_days_period INTEGER DEFAULT NULL
+)
+RETURNS TABLE (
+    product_id UUID,
+    product_name TEXT,
+    product_category TEXT,
+    primary_image_url TEXT,
+    primary_image_data_ai_hint TEXT,
+    total_profit_generated NUMERIC,
+    units_sold BIGINT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        oi.product_id,
+        p.name AS product_name,
+        p.category AS product_category,
+        (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id ORDER BY "order" LIMIT 1) AS primary_image_url,
+        (SELECT pi.data_ai_hint FROM product_images pi WHERE pi.product_id = p.id ORDER BY "order" LIMIT 1) AS primary_image_data_ai_hint,
+        SUM((oi.price_per_unit_snapshot - oi.cost_per_unit_snapshot) * oi.quantity) AS total_profit_generated,
+        SUM(oi.quantity) AS units_sold
+    FROM order_items oi
+    JOIN orders o ON oi.order_id = o.id
+    JOIN products p ON oi.product_id = p.id
+    WHERE o.store_id = p_store_id
+      AND o.status IN ('Shipped', 'Delivered')
+      AND (p_days_period IS NULL OR o.order_date >= (now() - (p_days_period || ' days')::INTERVAL))
+    GROUP BY oi.product_id, p.name, p.category, p.id
+    ORDER BY total_profit_generated DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+GRANT EXECUTE ON FUNCTION get_all_products_profit_for_store(UUID, INTEGER) TO authenticated;
 ```
 
 
