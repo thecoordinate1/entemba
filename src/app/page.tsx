@@ -36,7 +36,7 @@ export default function HomePage() {
                 </div>
               </div>
               <Image
-                src="https://picsum.photos/seed/1/600/400"
+                src="https://firebasestorage.googleapis.com/v0/b/gen-code-buddy-1.appspot.com/o/tmp%2Fisb-1-669046a0-e325-455b-b9d3-e7a937a075e7.png?alt=media&token=38a8e1e7-2900-4b53-b217-1f19f6a73562"
                 width="600"
                 height="400"
                 alt="E-Ntemba Platform Showcase"
