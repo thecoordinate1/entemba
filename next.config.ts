@@ -28,6 +28,12 @@ const nextConfig: NextConfig = {
         hostname: 'noympgnaetcrtpdlkkry.supabase.co', // Added Supabase hostname
         port: '',
         pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'firebasestorage.googleapis.com',
+        port: '',
+        pathname: '/**',
       }
     ],
   },
