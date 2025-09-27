@@ -12,7 +12,7 @@ export default function HomePage() {
         <section className="w-full py-12 md:py-24 lg:py-32 xl:py-48 bg-gradient-to-br from-background to-muted/30">
           <div className="container px-4 md:px-6">
             <div className="grid gap-6 lg:grid-cols-[1fr_400px] lg:gap-12 xl:grid-cols-[1fr_600px]">
-              <div className="flex flex-col justify-center space-y-4">
+              <div className="flex flex-col justify-center space-y-4 animate-slide-in-from-left duration-700">
                 <div className="space-y-2">
                   <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none text-primary">
                     Welcome to E-Ntemba
@@ -42,7 +42,7 @@ export default function HomePage() {
                 height="400"
                 alt={placeholderImages.landing.hero.alt}
                 data-ai-hint={placeholderImages.landing.hero.hint}
-                className="mx-auto aspect-video overflow-hidden rounded-xl object-cover sm:w-full lg:order-last lg:aspect-square shadow-xl"
+                className="mx-auto aspect-video overflow-hidden rounded-xl object-cover sm:w-full lg:order-last lg:aspect-square shadow-xl animate-slide-in-from-right duration-700"
               />
             </div>
           </div>
@@ -50,7 +50,7 @@ export default function HomePage() {
 
         <section className="w-full py-12 md:py-24 lg:py-32">
           <div className="container px-4 md:px-6">
-            <div className="flex flex-col items-center justify-center space-y-4 text-center">
+            <div className="flex flex-col items-center justify-center space-y-4 text-center animate-fade-in">
               <div className="space-y-2">
                 <div className="inline-block rounded-lg bg-muted px-3 py-1 text-sm text-muted-foreground">Key Features</div>
                 <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">
@@ -62,19 +62,19 @@ export default function HomePage() {
               </div>
             </div>
             <div className="mx-auto grid max-w-5xl items-start gap-8 sm:grid-cols-2 md:gap-12 lg:grid-cols-3 lg:gap-16 pt-12">
-              <div className="grid gap-1 p-4 rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow">
+              <div className="grid gap-1 p-4 rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow animate-slide-in-from-bottom duration-500 delay-200">
                 <h3 className="text-lg font-bold text-primary">Store Management</h3>
                 <p className="text-sm text-muted-foreground">
                   Easily create and manage multiple online stores from a single dashboard.
                 </p>
               </div>
-              <div className="grid gap-1 p-4 rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow">
+              <div className="grid gap-1 p-4 rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow animate-slide-in-from-bottom duration-500 delay-300">
                 <h3 className="text-lg font-bold text-primary">Product Catalog</h3>
                 <p className="text-sm text-muted-foreground">
                   Organize your products, manage inventory, and set pricing with intuitive tools.
                 </p>
               </div>
-              <div className="grid gap-1 p-4 rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow">
+              <div className="grid gap-1 p-4 rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow animate-slide-in-from-bottom duration-500 delay-400">
                 <h3 className="text-lg font-bold text-primary">Order Processing</h3>
                 <p className="text-sm text-muted-foreground">
                   Track orders, manage fulfillment, and keep your customers updated.
