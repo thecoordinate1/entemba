@@ -119,9 +119,9 @@ export default {
   			'accordion-up': 'accordion-up 0.2s ease-out',
         'fade-in': 'fade-in 1s ease-in-out',
         'fade-in-scroll': 'fade-in-scroll both',
-        'slide-in-from-left': 'slide-in-from-left 1s ease-in-out',
-        'slide-in-from-right': 'slide-in-from-right 1s ease-in-out',
-        'slide-in-from-bottom': 'slide-in-from-bottom 1s ease-in-out',
+        'slide-in-from-left': 'slide-in-from-left 1s ease-in-out both',
+        'slide-in-from-right': 'slide-in-from-right 1s ease-in-out both',
+        'slide-in-from-bottom': 'slide-in-from-bottom 1s ease-in-out both',
         'pulse-primary': 'pulse-primary 2s infinite',
   		},
       animationTimeline: {
