@@ -51,20 +51,20 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
-            <div className="mx-auto grid max-w-5xl items-start gap-8 sm:grid-cols-2 md:gap-12 lg:grid-cols-3 lg:gap-16 pt-12">
-              <div className="grid gap-1 p-4 rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow animate-slide-in-from-bottom duration-500 delay-200">
+            <div className="mx-auto flex flex-col items-center gap-8 pt-12">
+              <div className="grid gap-1 p-4 rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow animate-slide-in-from-bottom duration-500 delay-200 w-full max-w-md">
                 <h3 className="text-lg font-bold text-primary">Store Management</h3>
                 <p className="text-sm text-muted-foreground">
                   Easily create and manage multiple online stores from a single dashboard.
                 </p>
               </div>
-              <div className="grid gap-1 p-4 rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow animate-slide-in-from-bottom duration-500 delay-300">
+              <div className="grid gap-1 p-4 rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow animate-slide-in-from-bottom duration-500 delay-300 w-full max-w-md">
                 <h3 className="text-lg font-bold text-primary">Product Catalog</h3>
                 <p className="text-sm text-muted-foreground">
                   Organize your products, manage inventory, and set pricing with intuitive tools.
                 </p>
               </div>
-              <div className="grid gap-1 p-4 rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow animate-slide-in-from-bottom duration-500 delay-400">
+              <div className="grid gap-1 p-4 rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow animate-slide-in-from-bottom duration-500 delay-400 w-full max-w-md">
                 <h3 className="text-lg font-bold text-primary">Order Processing</h3>
                 <p className="text-sm text-muted-foreground">
                   Track orders, manage fulfillment, and keep your customers updated.
