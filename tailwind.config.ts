@@ -105,8 +105,8 @@ export default {
             transform: 'scale(1)',
           },
           '50%': { 
-            'box-shadow': '0 0 0 6px hsl(var(--primary) / 0)',
-            transform: 'scale(1.05)',
+            'box-shadow': '0 0 0 12px hsl(var(--primary) / 0)',
+            transform: 'scale(1.1)',
           },
         },
   		},
