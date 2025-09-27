@@ -92,3 +92,10 @@
     overflow-y: hidden;
   }
 }
+
+@layer utilities {
+  .animate-fade-in-scroll {
+    animation: fade-in-scroll;
+    animation-timeline: view();
+  }
+}

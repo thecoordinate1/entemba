@@ -87,6 +87,10 @@ export default {
           from: { opacity: '0' },
           to: { opacity: '1' },
         },
+        'fade-in-scroll': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
         'slide-in-from-left': {
             from: { transform: 'translateX(-20px)', opacity: '0' },
             to: { transform: 'translateX(0)', opacity: '1' },
@@ -102,11 +106,11 @@ export default {
         'pulse-primary': {
           '0%, 100%': { 
             'box-shadow': '0 0 0 0 hsl(var(--primary) / 0.7)',
-            transform: 'scale(1)',
+            transform: 'scale(1.05)',
           },
           '50%': { 
-            'box-shadow': '0 0 0 12px hsl(var(--primary) / 0)',
-            transform: 'scale(1.1)',
+            'box-shadow': '0 0 0 16px hsl(var(--primary) / 0)',
+            transform: 'scale(1.15)',
           },
         },
   		},
@@ -114,11 +118,15 @@ export default {
   			'accordion-down': 'accordion-down 0.2s ease-out',
   			'accordion-up': 'accordion-up 0.2s ease-out',
         'fade-in': 'fade-in 1s ease-in-out',
+        'fade-in-scroll': 'fade-in-scroll both',
         'slide-in-from-left': 'slide-in-from-left 1s ease-in-out',
         'slide-in-from-right': 'slide-in-from-right 1s ease-in-out',
         'slide-in-from-bottom': 'slide-in-from-bottom 1s ease-in-out',
         'pulse-primary': 'pulse-primary 2s infinite',
-  		}
+  		},
+      animationTimeline: {
+        'view': 'view()',
+      },
   	}
   },
   plugins: [require("tailwindcss-animate")],
