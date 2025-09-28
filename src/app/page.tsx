@@ -33,7 +33,7 @@ export default function HomePage() {
                 </Button>
               </div>
                <div className="mx-auto grid max-w-5xl items-start gap-8 sm:grid-cols-2 md:gap-12 lg:grid-cols-3 pt-20">
-                <div className="grid gap-4 p-6 rounded-lg border bg-card text-card-foreground shadow-sm animate-fade-in-out">
+                <div className="grid gap-4 p-6 rounded-lg border bg-card text-card-foreground shadow-sm animate-slide-in-from-bottom">
                   <div className="flex items-center gap-4">
                     <div className="bg-primary/10 text-primary p-3 rounded-full">
                       <Store className="h-8 w-8" />
@@ -45,7 +45,7 @@ export default function HomePage() {
                     Sign up and create your first storefront in just a few clicks. Customize its name, description, and logo.
                   </p>
                 </div>
-                <div className="grid gap-4 p-6 rounded-lg border bg-card text-card-foreground shadow-sm animate-fade-in-out animation-delay-2000">
+                <div className="grid gap-4 p-6 rounded-lg border bg-card text-card-foreground shadow-sm animate-slide-in-from-bottom animation-delay-300">
                   <div className="flex items-center gap-4">
                     <div className="bg-primary/10 text-primary p-3 rounded-full">
                       <Package className="h-8 w-8" />
@@ -57,7 +57,7 @@ export default function HomePage() {
                     Use our simple product management tools to upload images, set prices, and track your inventory.
                   </p>
                 </div>
-                <div className="grid gap-4 p-6 rounded-lg border bg-card text-card-foreground shadow-sm animate-fade-in-out animation-delay-4000">
+                <div className="grid gap-4 p-6 rounded-lg border bg-card text-card-foreground shadow-sm animate-slide-in-from-bottom animation-delay-600">
                   <div className="flex items-center gap-4">
                     <div className="bg-primary/10 text-primary p-3 rounded-full">
                       <BarChart className="h-8 w-8" />
