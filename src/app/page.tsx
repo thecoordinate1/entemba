@@ -1,9 +1,7 @@
 
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import Image from "next/image";
 import { ArrowRight, Info, Store, Package, BarChart } from "lucide-react";
-import placeholderImages from "@/app/lib/placeholder-images.json";
 
 export default function HomePage() {
   return (
