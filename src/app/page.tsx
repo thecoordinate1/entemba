@@ -9,7 +9,7 @@ export default function HomePage() {
   return (
     <div className="flex flex-col min-h-screen">
       <main className="flex-1">
-        <section className="w-full py-20 md:py-32 lg:py-40 xl:py-56 bg-gradient-to-br from-background to-muted/30">
+        <section className="w-full py-20 md:py-32 lg:py-40 bg-gradient-to-br from-background to-muted/30">
           <div className="container px-4 md:px-6">
             <div className="flex flex-col items-center justify-center space-y-6 text-center">
               <div className="space-y-4 animate-slide-in-from-bottom duration-700">
@@ -33,6 +33,44 @@ export default function HomePage() {
                     <Info className="ml-2 h-5 w-5" />
                   </Link>
                 </Button>
+              </div>
+               <div className="mx-auto grid max-w-5xl items-start gap-8 sm:grid-cols-2 md:gap-12 lg:grid-cols-3 pt-20">
+                <div className="grid gap-4 p-6 rounded-lg border bg-card text-card-foreground shadow-sm animate-slide-in-from-left duration-500 delay-200">
+                  <div className="flex items-center gap-4">
+                    <div className="bg-primary/10 text-primary p-3 rounded-full">
+                      <Store className="h-8 w-8" />
+                    </div>
+                    <h3 className="text-2xl font-bold">Step 1</h3>
+                  </div>
+                  <h4 className="text-lg font-semibold">Create Your Store</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Sign up and create your first storefront in just a few clicks. Customize its name, description, and logo.
+                  </p>
+                </div>
+                <div className="grid gap-4 p-6 rounded-lg border bg-card text-card-foreground shadow-sm animate-slide-in-from-bottom duration-500 delay-300">
+                  <div className="flex items-center gap-4">
+                    <div className="bg-primary/10 text-primary p-3 rounded-full">
+                      <Package className="h-8 w-8" />
+                    </div>
+                    <h3 className="text-2xl font-bold">Step 2</h3>
+                  </div>
+                  <h4 className="text-lg font-semibold">Add Your Products</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Use our simple product management tools to upload images, set prices, and track your inventory.
+                  </p>
+                </div>
+                <div className="grid gap-4 p-6 rounded-lg border bg-card text-card-foreground shadow-sm animate-slide-in-from-right duration-500 delay-400">
+                  <div className="flex items-center gap-4">
+                    <div className="bg-primary/10 text-primary p-3 rounded-full">
+                      <BarChart className="h-8 w-8" />
+                    </div>
+                    <h3 className="text-2xl font-bold">Step 3</h3>
+                  </div>
+                  <h4 className="text-lg font-semibold">Start Selling</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Manage incoming orders, track your revenue, and gain insights with our powerful reporting tools.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -68,58 +106,6 @@ export default function HomePage() {
                 <h3 className="text-lg font-bold text-primary">Order Processing</h3>
                 <p className="text-sm text-muted-foreground">
                   Track orders, manage fulfillment, and keep your customers updated.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="w-full py-12 md:py-24 lg:py-32 bg-muted/30">
-          <div className="container px-4 md:px-6">
-            <div className="flex flex-col items-center justify-center space-y-4 text-center animate-fade-in-scroll">
-              <div className="space-y-2">
-                <div className="inline-block rounded-lg bg-background px-3 py-1 text-sm text-muted-foreground">How It Works</div>
-                <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">Get Started in Minutes</h2>
-                <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                  Three simple steps to launch your online business with E-Ntemba.
-                </p>
-              </div>
-            </div>
-            <div className="mx-auto grid max-w-5xl items-start gap-8 sm:grid-cols-2 md:gap-12 lg:grid-cols-3 pt-12">
-              <div className="grid gap-4 p-6 rounded-lg border bg-card text-card-foreground shadow-sm animate-slide-in-from-left duration-500 delay-200">
-                <div className="flex items-center gap-4">
-                  <div className="bg-primary/10 text-primary p-3 rounded-full">
-                    <Store className="h-8 w-8" />
-                  </div>
-                  <h3 className="text-2xl font-bold">Step 1</h3>
-                </div>
-                <h4 className="text-lg font-semibold">Create Your Store</h4>
-                <p className="text-sm text-muted-foreground">
-                  Sign up and create your first storefront in just a few clicks. Customize its name, description, and logo.
-                </p>
-              </div>
-              <div className="grid gap-4 p-6 rounded-lg border bg-card text-card-foreground shadow-sm animate-slide-in-from-bottom duration-500 delay-300">
-                <div className="flex items-center gap-4">
-                  <div className="bg-primary/10 text-primary p-3 rounded-full">
-                    <Package className="h-8 w-8" />
-                  </div>
-                  <h3 className="text-2xl font-bold">Step 2</h3>
-                </div>
-                <h4 className="text-lg font-semibold">Add Your Products</h4>
-                <p className="text-sm text-muted-foreground">
-                  Use our simple product management tools to upload images, set prices, and track your inventory.
-                </p>
-              </div>
-              <div className="grid gap-4 p-6 rounded-lg border bg-card text-card-foreground shadow-sm animate-slide-in-from-right duration-500 delay-400">
-                <div className="flex items-center gap-4">
-                  <div className="bg-primary/10 text-primary p-3 rounded-full">
-                    <BarChart className="h-8 w-8" />
-                  </div>
-                  <h3 className="text-2xl font-bold">Step 3</h3>
-                </div>
-                <h4 className="text-lg font-semibold">Start Selling</h4>
-                <p className="text-sm text-muted-foreground">
-                  Manage incoming orders, track your revenue, and gain insights with our powerful reporting tools.
                 </p>
               </div>
             </div>
