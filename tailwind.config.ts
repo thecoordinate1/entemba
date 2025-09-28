@@ -106,12 +106,18 @@ export default {
         'pulse-primary': {
           '0%, 100%': { 
             'box-shadow': '0 0 0 0 hsl(var(--primary) / 0.7)',
-            transform: 'scale(1.05)',
+            transform: 'scale(1)',
           },
           '50%': { 
-            'box-shadow': '0 0 0 16px hsl(var(--primary) / 0)',
-            transform: 'scale(1.15)',
+            'box-shadow': '0 0 0 20px hsl(var(--primary) / 0)',
+            transform: 'scale(1.1)',
           },
+        },
+        'fade-in-out': {
+          '0%': { opacity: '0' },
+          '16.66%': { opacity: '1' },
+          '33.33%': { opacity: '0' },
+          '100%': { opacity: '0' },
         },
   		},
   		animation: {
@@ -122,11 +128,16 @@ export default {
         'slide-in-from-left': 'slide-in-from-left 1s ease-in-out both',
         'slide-in-from-right': 'slide-in-from-right 1s ease-in-out both',
         'slide-in-from-bottom': 'slide-in-from-bottom 1s ease-in-out both',
-        'pulse-primary': 'pulse-primary 2s infinite',
+        'pulse-primary': 'pulse-primary 3s infinite',
+        'fade-in-out': 'fade-in-out 6s infinite',
   		},
       animationTimeline: {
         'view': 'view()',
       },
+      animationDelay: {
+        '2000': '2000ms',
+        '4000': '4000ms',
+      }
   	}
   },
   plugins: [require("tailwindcss-animate")],
