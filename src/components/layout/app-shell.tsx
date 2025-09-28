@@ -11,16 +11,18 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { NavItem } from "@/config/nav";
 import { navItems } from "@/config/nav";
-import { LogOut, Settings, Gem, Store as StoreIcon, PanelLeft, Menu } from "lucide-react";
+import { LogOut, Settings, Gem, Store as StoreIcon, PanelLeft, Menu, PlusCircle } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
@@ -83,8 +85,10 @@ const StoreSelector = ({
   isLoading: boolean;
   isCollapsed: boolean;
 }) => {
+  const router = useRouter();
+  const selectedStoreName = stores.find(s => s.id === selectedStoreId)?.name || "Select a store";
+
   if (isCollapsed) {
-    const selectedStoreName = stores.find(s => s.id === selectedStoreId)?.name;
     const tooltipText = isLoading ? "Loading..." : (selectedStoreName || (stores.length > 0 ? "Select Store" : "No Stores"));
     return (
       <TooltipProvider>
@@ -113,19 +117,28 @@ const StoreSelector = ({
   }
 
   return (
-    <Select value={selectedStoreId || ""} onValueChange={onStoreChange} disabled={stores.length === 0}>
-      <SelectTrigger className="w-full my-2 h-11 text-sm bg-sidebar-background border-sidebar-border text-sidebar-foreground focus:ring-sidebar-ring">
-        <div className="flex items-center gap-2 truncate">
-          <StoreIcon className="h-5 w-5 text-sidebar-primary" />
-          <SelectValue placeholder="Select a store" />
-        </div>
-      </SelectTrigger>
-      <SelectContent>
-        {stores.map((store) => (
-          <SelectItem key={store.id} value={store.id}>{store.name}</SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+     <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" className="w-full my-2 h-11 text-sm bg-sidebar-background border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus:ring-sidebar-ring justify-start">
+            <div className="flex items-center gap-2 truncate">
+                <StoreIcon className="h-5 w-5 text-sidebar-primary flex-shrink-0" />
+                <span className="truncate">{selectedStoreName}</span>
+            </div>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-56">
+        <DropdownMenuRadioGroup value={selectedStoreId || ""} onValueChange={onStoreChange}>
+            {stores.map((store) => (
+                <DropdownMenuRadioItem key={store.id} value={store.id}>{store.name}</DropdownMenuRadioItem>
+            ))}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => router.push('/stores')}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            <span>Create New Store</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };
 
