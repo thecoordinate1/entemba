@@ -511,8 +511,11 @@ export default function StoresPage() {
       )}
 
       {authUser && stores.length === 0 && !isLoading && (
-         <div className="text-center text-muted-foreground py-10 col-span-full">
-          You haven't created any stores yet. Click "Create Store" to get started.
+         <div className="flex flex-col items-center justify-center text-center text-muted-foreground py-10 col-span-full">
+            <p className="mb-4">You haven't created any stores yet.</p>
+            <Button onClick={() => { setSelectedStore(null); resetFormFields(); setIsAddDialogOpen(true); }} disabled={!authUser}>
+              <PlusCircle className="mr-2 h-4 w-4" /> Create Your First Store
+            </Button>
         </div>
       )}
 
