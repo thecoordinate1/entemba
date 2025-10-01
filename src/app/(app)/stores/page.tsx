@@ -44,8 +44,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import type { Store as MockStoreType, SocialLink as MockSocialLinkType } from "@/lib/mockData"; 
-import { storeStatusColors } from "@/lib/mockData"; 
+import type { Store as MockStoreType, SocialLink as MockSocialLinkType, StoreStatus } from "@/lib/types"; 
+import { storeStatusColors } from "@/lib/types"; 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
@@ -127,7 +127,7 @@ export default function StoresPage() {
   const [formStoreLocation, setFormStoreLocation] = React.useState("");
   const [formStorePickupLat, setFormStorePickupLat] = React.useState<number | string>("");
   const [formStorePickupLng, setFormStorePickupLng] = React.useState<number | string>("");
-  const [formStoreStatus, setFormStoreStatus] = React.useState<MockStoreType["status"]>("Inactive");
+  const [formStoreStatus, setFormStoreStatus] = React.useState<StoreStatus>("Inactive");
   const [formSocialLinks, setFormSocialLinks] = React.useState<StoreSocialLinkPayload[]>([]);
 
 
@@ -445,7 +445,7 @@ export default function StoresPage() {
         <Separator className="my-2" />
         <div className="grid gap-2">
           <Label htmlFor="status">Status</Label>
-          <Select name="status" value={formStoreStatus} onValueChange={(value: MockStoreType["status"]) => setFormStoreStatus(value)}>
+          <Select name="status" value={formStoreStatus} onValueChange={(value: StoreStatus) => setFormStoreStatus(value)}>
             <SelectTrigger id="status">
               <SelectValue placeholder="Select status" />
             </SelectTrigger>

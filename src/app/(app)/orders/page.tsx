@@ -2,8 +2,8 @@
 
 "use client";
 
-import type { Order as OrderUIType, OrderStatus, Product as ProductUIType } from "@/lib/mockData"; // Using mockData types for UI consistency
-import { orderStatusIcons, orderStatusColors } from "@/lib/mockData";
+import type { OrderStatus, Product as ProductUIType } from "@/lib/types"; // Using types for UI consistency
+import { orderStatusIcons, orderStatusColors } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +56,7 @@ import { getProductsByStoreId as fetchStoreProducts, getProductsByIds, type Prod
 import { getStoreById, type StoreFromSupabase } from "@/services/storeService";
 import { getCustomerByEmail, createCustomer as createNewCustomer, type CustomerPayload as NewCustomerPayload } from "@/services/customerService";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { Order as OrderUIType } from "@/lib/types";
 
 const ITEMS_PER_PAGE = 10;
 

@@ -46,8 +46,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardFooter } from "@/components/ui/card"; 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Customer as CustomerUIType, CustomerStatus } from "@/lib/mockData";
-import { customerStatusColors } from "@/lib/mockData";
+import type { Customer as CustomerUIType, CustomerStatus } from "@/lib/types";
+import { customerStatusColors } from "@/lib/types";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";

@@ -1,12 +1,13 @@
 
+
 "use client";
 
 import * as React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import NextImage from "next/image"; // Aliased to avoid conflict
 import Link from "next/link";
-import type { Order as OrderUIType, OrderStatus as OrderStatusUIType } from "@/lib/mockData"; // UI types
-import { orderStatusColors, orderStatusIcons } from "@/lib/mockData";
+import type { Order as OrderUIType, OrderStatus as OrderStatusUIType } from "@/lib/types"; // UI types
+import { orderStatusColors, orderStatusIcons } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
