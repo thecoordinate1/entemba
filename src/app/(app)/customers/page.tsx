@@ -146,14 +146,14 @@ export default function CustomersPage() {
 
   React.useEffect(() => {
     const fetchCustomersData = async () => {
-      if (!authUser) {
+      if (!authUser || !storeId) {
         setIsLoadingCustomers(false);
         setCustomers([]);
         setTotalCustomers(0);
         return;
       }
       setIsLoadingCustomers(true);
-      const { data, count, error } = await getCustomers(currentPage, ITEMS_PER_PAGE);
+      const { data, count, error } = await getCustomers(storeId, currentPage, ITEMS_PER_PAGE);
       if (error) {
         toast({ variant: "destructive", title: "Error Fetching Customers", description: error.message });
         setCustomers([]);
@@ -166,7 +166,7 @@ export default function CustomersPage() {
     };
 
     fetchCustomersData();
-  }, [authUser, currentPage, toast]);
+  }, [authUser, storeId, currentPage, toast]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -231,9 +231,9 @@ export default function CustomersPage() {
       const newCurrentPage = Math.min(currentPage, newTotalPages > 0 ? newTotalPages : 1);
       if (currentPage !== newCurrentPage) {
           setCurrentPage(newCurrentPage);
-      } else {
+      } else if (storeId) {
           // If still on the same page, refetch to update list
-          const { data, count } = await getCustomers(newCurrentPage, ITEMS_PER_PAGE);
+          const { data, count } = await getCustomers(storeId, newCurrentPage, ITEMS_PER_PAGE);
           if (data) setCustomers(data.map(mapCustomerFromSupabaseToUI));
           if (count !== null) setTotalCustomers(count);
       }
@@ -366,11 +366,11 @@ export default function CustomersPage() {
           </div>
         </div>
       </div>
-      {storeId && <p className="text-sm text-muted-foreground">Displaying all customers. Store-specific customer views and metrics may be filtered in the future if needed.</p>}
-      {!storeId && <p className="text-sm text-muted-foreground">Displaying all customers.</p>}
+      {storeId && <p className="text-sm text-muted-foreground">Showing customers who have ordered from this store.</p>}
+      {!storeId && <p className="text-sm text-muted-foreground">Please select a store to view its customers.</p>}
 
 
-      {isLoadingCustomers && authUser && (
+      {isLoadingCustomers && authUser && storeId && (
          <div className="space-y-2">
           {[...Array(ITEMS_PER_PAGE / 2)].map((_, i) => (
             <Skeleton key={`skel-cust-row-${i}`} className="h-16 w-full" />
@@ -378,7 +378,7 @@ export default function CustomersPage() {
         </div>
       )}
 
-      {!isLoadingCustomers && authUser && (
+      {!isLoadingCustomers && authUser && storeId && (
         <Card>
           <CardContent className="pt-6">
             <Table>
@@ -478,7 +478,7 @@ export default function CustomersPage() {
           {totalCustomers === 0 && !isLoadingCustomers && (
              <CardFooter className="flex items-center justify-center border-t pt-4">
                 <p className="text-sm text-muted-foreground">
-                    {searchTerm ? `No customers found matching "${searchTerm}".` : "No customers yet. New customers will be added when you create an order for them."}
+                    {searchTerm ? `No customers found matching "${searchTerm}".` : "No customers have placed orders in this store yet."}
                 </p>
              </CardFooter>
           )}

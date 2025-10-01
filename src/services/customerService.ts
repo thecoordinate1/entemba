@@ -55,35 +55,42 @@ const COMMON_CUSTOMER_SELECT = `
 `;
 
 export async function getCustomers(
+  storeId: string | null,
   page: number = 1,
   limit: number = 10
 ): Promise<{ data: CustomerFromSupabase[] | null; count: number | null; error: Error | null }> {
-  console.log(`[customerService.getCustomers] Fetching customers via explicit join, page: ${page}, limit: ${limit}`);
-  
+  console.log(`[customerService.getCustomers] Fetching customers. StoreID: ${storeId}, Page: ${page}, Limit: ${limit}`);
+
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return { data: [], count: 0, error: new Error("User not authenticated.") };
   }
 
-  // Fetch stores for the current vendor first
-  const { data: stores, error: storesError } = await supabase
-    .from('stores')
-    .select('id')
-    .eq('vendor_id', user.id);
+  let storeIds: string[] = [];
+  if (storeId) {
+    storeIds = [storeId];
+  } else {
+    // If no specific store is selected, get all stores for the vendor
+    const { data: stores, error: storesError } = await supabase
+      .from('stores')
+      .select('id')
+      .eq('vendor_id', user.id);
 
-  if (storesError) {
-    console.error('[customerService.getCustomers] Error fetching vendor stores:', storesError.message);
-    return { data: null, count: 0, error: new Error("Could not fetch vendor's stores to determine customer list.") };
+    if (storesError) {
+      console.error('[customerService.getCustomers] Error fetching vendor stores:', storesError.message);
+      return { data: null, count: 0, error: new Error("Could not fetch vendor's stores to determine customer list.") };
+    }
+    if (stores) {
+      storeIds = stores.map(s => s.id);
+    }
   }
   
-  if (!stores || stores.length === 0) {
-    console.log('[customerService.getCustomers] Vendor has no stores, returning empty customer list.');
+  if (storeIds.length === 0) {
+    console.log('[customerService.getCustomers] No stores found for this vendor, returning empty customer list.');
     return { data: [], count: 0, error: null };
   }
 
-  const storeIds = stores.map(s => s.id);
-
-  // Fetch unique customer IDs who have ordered from these stores
+  // Fetch unique customer IDs who have ordered from the relevant stores
   const { data: customerLinks, error: ordersError } = await supabase
     .from('orders')
     .select('customer_id')
@@ -119,7 +126,7 @@ export async function getCustomers(
     return { data: null, count: null, error: new Error(message) };
   }
 
-  console.log('[customerService.getCustomers] Fetched customers via explicit join. Count:', data?.length, 'Total Count:', count);
+  console.log('[customerService.getCustomers] Fetched customers count:', data?.length, 'Total Count:', count);
   return { data, count, error: null };
 }
 
