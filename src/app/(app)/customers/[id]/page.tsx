@@ -12,8 +12,8 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Edit, User as UserIcon, Users, ShieldCheck, ShieldX, Phone, MapPin, CalendarDays, ShoppingCart, DollarSign, Tag, AlertCircle, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { CustomerStatus, Customer as CustomerUIType, OrderStatus as OrderStatusUIType, Order as OrderUIType } from "@/lib/mockData"; 
-import { customerStatusColors, orderStatusColors, orderStatusIcons } from "@/lib/mockData"; 
+import type { CustomerStatus, Customer as CustomerUIType, OrderStatus as OrderStatusUIType, Order as OrderUIType } from "@/lib/types"; 
+import { customerStatusColors, orderStatusColors, orderStatusIcons } from "@/lib/types"; 
 import { cn } from "@/lib/utils";
 import {
   Dialog,

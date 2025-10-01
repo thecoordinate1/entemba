@@ -248,14 +248,18 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
     }
   }, [searchParams, availableStores, pathname, router, isLoadingStores]);
 
-
   React.useEffect(() => {
     const currentNavItem = navItems.find(item => pathname.startsWith(item.href));
     const baseTitle = currentNavItem?.title || "E-Ntemba";
     const store = availableStores.find(s => s.id === selectedStoreId);
-    setPageTitle(store ? `${store.name} - ${baseTitle}` : baseTitle);
-    document.title = `${pageTitle} | E-Ntemba`;
-  }, [pathname, selectedStoreId, availableStores, pageTitle]);
+    const newTitle = store ? `${store.name} - ${baseTitle}` : baseTitle;
+    
+    setPageTitle(newTitle);
+    if (typeof window !== 'undefined') {
+      document.title = `${newTitle} | E-Ntemba`;
+    }
+  }, [pathname, selectedStoreId, availableStores]);
+
 
   const handleStoreChange = (storeId: string) => {
     setSelectedStoreId(storeId);
