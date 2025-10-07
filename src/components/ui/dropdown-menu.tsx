@@ -181,10 +181,6 @@ const DropdownMenuShortcut = ({
 }
 DropdownMenuShortcut.displayName = "DropdownMenuShortcut"
 
-const DropdownMenuDescription = DropdownMenuPrimitive.Description;
-const DropdownMenuTitle = DropdownMenuPrimitive.Title;
-
-
 export {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -201,6 +197,4 @@ export {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuRadioGroup,
-  DropdownMenuDescription,
-  DropdownMenuTitle
 }
