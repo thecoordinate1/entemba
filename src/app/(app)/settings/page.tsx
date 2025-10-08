@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -66,7 +67,7 @@ export default function SettingsPage() {
 
   // Payout state
   const [bankName, setBankName] = React.useState('');
-  const [accountHolder, setAccountHolder] = React.useState('');
+  const [accountName, setAccountName] = React.useState('');
   const [accountNumber, setAccountNumber] = React.useState('');
   const [branchName, setBranchName] = React.useState('');
   const [momoProvider, setMomoProvider] = React.useState('');
@@ -122,7 +123,7 @@ export default function SettingsPage() {
           setAvatarPreview(profile.avatar_url || user.user_metadata?.avatar_url || null);
           // Set payout info
           setBankName(profile.bank_name || '');
-          setAccountHolder(profile.bank_account_holder || '');
+          setAccountName(profile.bank_account_name || '');
           setAccountNumber(profile.bank_account_number || '');
           setBranchName(profile.bank_branch_name || '');
           setMomoProvider(profile.mobile_money_provider || '');
@@ -392,7 +393,7 @@ export default function SettingsPage() {
 
     const payload: VendorProfileUpdatePayload = {
       bank_name: bankName,
-      bank_account_holder: accountHolder,
+      bank_account_name: accountName,
       bank_account_number: accountNumber,
       bank_branch_name: branchName,
       mobile_money_provider: momoProvider,
@@ -732,7 +733,7 @@ export default function SettingsPage() {
                                     <h4 className="font-medium flex items-center"><Banknote className="mr-2 h-5 w-5 text-primary" /> Bank Account</h4>
                                     <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 text-sm">
                                         <dt className="text-muted-foreground">Bank:</dt><dd>{bankName}</dd>
-                                        <dt className="text-muted-foreground">Account Name:</dt><dd>{accountHolder}</dd>
+                                        <dt className="text-muted-foreground">Account Name:</dt><dd>{accountName}</dd>
                                         <dt className="text-muted-foreground">Account Number:</dt><dd>{accountNumber}</dd>
                                         <dt className="text-muted-foreground">Branch:</dt><dd>{branchName}</dd>
                                     </dl>
@@ -770,8 +771,8 @@ export default function SettingsPage() {
                         <Input id="bankName" value={bankName || ''} onChange={(e) => setBankName(e.target.value)} placeholder="e.g., Zanaco" />
                       </div>
                       <div className="grid gap-2">
-                        <Label htmlFor="accountHolder">Account Holder Name</Label>
-                        <Input id="accountHolder" value={accountHolder || ''} onChange={(e) => setAccountHolder(e.target.value)} placeholder="e.g., John Doe" />
+                        <Label htmlFor="accountName">Account Holder Name</Label>
+                        <Input id="accountName" value={accountName || ''} onChange={(e) => setAccountName(e.target.value)} placeholder="e.g., John Doe" />
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -828,4 +829,5 @@ export default function SettingsPage() {
     </div>
   );
 }
+
 

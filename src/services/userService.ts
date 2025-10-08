@@ -14,7 +14,7 @@ export interface VendorProfile {
   updated_at?: string;
   // Payout Information
   bank_name: string | null;
-  bank_account_holder: string | null;
+  bank_account_name: string | null;
   bank_account_number: string | null;
   bank_branch_name: string | null;
   mobile_money_provider: string | null;
@@ -27,7 +27,7 @@ export interface VendorProfileUpdatePayload {
   email?: string; 
   avatar_url?: string;
   bank_name?: string;
-  bank_account_holder?: string;
+  bank_account_name?: string;
   bank_account_number?: string;
   bank_branch_name?: string;
   mobile_money_provider?: string;
@@ -66,7 +66,7 @@ export async function getCurrentVendorProfile(userId: string): Promise<{ profile
           email: user.email,
           avatar_url: user.user_metadata.avatar_url,
           bank_name: null,
-          bank_account_holder: null,
+          bank_account_name: null,
           bank_account_number: null,
           bank_branch_name: null,
           mobile_money_provider: null,
@@ -171,4 +171,5 @@ export async function uploadAvatar(userId: string, file: File): Promise<{ public
   console.log(`[userService.uploadAvatar] Avatar uploaded successfully. Public URL: ${data.publicUrl}`);
   return { publicUrl: data.publicUrl, error: null };
 }
+
 
