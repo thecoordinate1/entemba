@@ -64,51 +64,6 @@ Open [http://localhost:9002](http://localhost:9002) with your browser to see the
 
 You must run the following SQL functions in your Supabase SQL Editor for all application features to work correctly.
 
-### `get_revenue_summary_stats` (with Average Order Value)
-```sql
-CREATE OR REPLACE FUNCTION get_revenue_summary_stats(p_store_id UUID)
-RETURNS TABLE (
-    ytd_revenue NUMERIC,
-    ytd_transactions BIGINT,
-    current_month_revenue NUMERIC,
-    current_month_transactions BIGINT,
-    ytd_avg_order_value NUMERIC,
-    current_month_avg_order_value NUMERIC
-) AS $$
-DECLARE
-    ytd_rev NUMERIC;
-    ytd_trans BIGINT;
-    cm_rev NUMERIC;
-    cm_trans BIGINT;
-BEGIN
-    SELECT
-        COALESCE(SUM(CASE WHEN o.order_date >= date_trunc('year', now()) THEN o.total_amount ELSE 0 END), 0),
-        COALESCE(SUM(CASE WHEN o.order_date >= date_trunc('year', now()) THEN 1 ELSE 0 END), 0),
-        COALESCE(SUM(CASE WHEN o.order_date >= date_trunc('month', now()) THEN o.total_amount ELSE 0 END), 0),
-        COALESCE(SUM(CASE WHEN o.order_date >= date_trunc('month', now()) THEN 1 ELSE 0 END), 0)
-    INTO
-        ytd_rev,
-        ytd_trans,
-        cm_rev,
-        cm_trans
-    FROM orders o
-    WHERE o.store_id = p_store_id
-      AND o.status IN ('Shipped', 'Delivered');
-
-    ytd_revenue := ytd_rev;
-    ytd_transactions := ytd_trans;
-    current_month_revenue := cm_rev;
-    current_month_transactions := cm_trans;
-    ytd_avg_order_value := COALESCE(ytd_rev / NULLIF(ytd_trans, 0), 0);
-    current_month_avg_order_value := COALESCE(cm_rev / NULLIF(cm_trans, 0), 0);
-
-    RETURN NEXT;
-END;
-$$ LANGUAGE plpgsql;
-
-GRANT EXECUTE ON FUNCTION get_revenue_summary_stats(UUID) TO authenticated;
-```
-
 ### `get_profit_summary_stats`
 This function is required for the profit report page. It provides Year-to-Date (YTD) and current month profit summaries.
 ```sql
@@ -246,12 +201,7 @@ This function is required for creating new orders from the "Add Order" dialog. I
 -- This function is designed to be called via RPC from the application.
 -- It ensures that historical order data is accurate even if product prices change later.
 --
--- Parameters:
---   p_store_id: The UUID of the store the order belongs to.
---   p_customer_id: The UUID of the customer placing the order.
---   p_order_payload: A JSON object containing the main order details.
---   p_order_items: A JSON array of objects, each representing an item in the order.
-
+-
 CREATE OR REPLACE FUNCTION create_order_with_snapshots(
     p_store_id UUID,
     p_customer_id UUID,

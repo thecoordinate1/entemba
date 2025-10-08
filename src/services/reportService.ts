@@ -12,6 +12,8 @@ export interface RevenueSummaryStats {
   ytd_transactions: number;
   current_month_revenue: number;
   current_month_transactions: number;
+  ytd_avg_order_value: number; // Added
+  current_month_avg_order_value: number; // Added
 }
 
 export interface MonthlyRevenueData {

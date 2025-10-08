@@ -192,9 +192,7 @@ export default function RevenueReportPage() {
 
   const queryParams = storeIdFromUrl ? `?storeId=${storeIdFromUrl}` : "";
 
-  const avgOrderValue = (summaryStats?.current_month_transactions && summaryStats?.current_month_revenue && summaryStats.current_month_transactions > 0)
-    ? (summaryStats.current_month_revenue / summaryStats.current_month_transactions) 
-    : 0;
+  const avgOrderValue = summaryStats?.current_month_avg_order_value ?? 0;
 
   if (errorMessages.length > 0 && !isLoadingPage) {
     return (
