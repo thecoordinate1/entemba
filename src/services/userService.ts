@@ -98,20 +98,39 @@ export async function updateCurrentVendorProfile(
     return { profile: currentProfile.profile, error: {message: "No fields to update."}};
   }
 
-  const { data, error } = await supabase
+  // First, update the public vendors table
+  const { data: profileData, error: profileError } = await supabase
     .from('vendors')
     .update(updates)
     .eq('id', userId)
     .select()
     .single();
 
-  if (error) {
-    console.error('[userService.updateCurrentVendorProfile] Error updating vendor profile:', JSON.stringify(error, null, 2));
-    return { profile: null, error };
+  if (profileError) {
+    console.error('[userService.updateCurrentVendorProfile] Error updating vendor profile:', JSON.stringify(profileError, null, 2));
+    return { profile: null, error: profileError };
   }
-  console.log("[userService.updateCurrentVendorProfile] Profile updated successfully:", data);
-  return { profile: data as VendorProfile, error: null };
+
+  // If the profile update was successful and included display_name or avatar_url,
+  // also update the user's metadata in the auth.users table.
+  if (updates.display_name || updates.avatar_url) {
+    const authUpdates: { data?: { display_name?: string; avatar_url?: string } } = { data: {} };
+    if (updates.display_name) authUpdates.data!.display_name = updates.display_name;
+    if (updates.avatar_url) authUpdates.data!.avatar_url = updates.avatar_url;
+
+    console.log("[userService.updateCurrentVendorProfile] Updating auth user metadata:", authUpdates.data);
+    const { error: authError } = await supabase.auth.updateUser(authUpdates);
+
+    if (authError) {
+      // This is not a critical failure; the main profile is updated. Log it as a warning.
+      console.warn('[userService.updateCurrentVendorProfile] Could not update auth.users metadata:', authError.message);
+    }
+  }
+
+  console.log("[userService.updateCurrentVendorProfile] Profile updated successfully:", profileData);
+  return { profile: profileData as VendorProfile, error: null };
 }
+
 
 export async function uploadAvatar(userId: string, file: File): Promise<{ publicUrl: string | null, error: any }> {
   if (!userId || !file) {
@@ -152,3 +171,4 @@ export async function uploadAvatar(userId: string, file: File): Promise<{ public
   console.log(`[userService.uploadAvatar] Avatar uploaded successfully. Public URL: ${data.publicUrl}`);
   return { publicUrl: data.publicUrl, error: null };
 }
+
