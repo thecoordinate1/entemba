@@ -64,6 +64,54 @@ Open [http://localhost:9002](http://localhost:9002) with your browser to see the
 
 You must run the following SQL functions in your Supabase SQL Editor for all application features to work correctly.
 
+### `get_revenue_summary_stats` (with Average Order Value)
+```sql
+-- Drop the old function first if its return signature is changing
+DROP FUNCTION IF EXISTS get_revenue_summary_stats(UUID);
+
+CREATE OR REPLACE FUNCTION get_revenue_summary_stats(p_store_id UUID)
+RETURNS TABLE (
+    ytd_revenue NUMERIC,
+    ytd_transactions BIGINT,
+    current_month_revenue NUMERIC,
+    current_month_transactions BIGINT,
+    ytd_avg_order_value NUMERIC,
+    current_month_avg_order_value NUMERIC
+) AS $$
+DECLARE
+    ytd_rev NUMERIC;
+    ytd_trans BIGINT;
+    cm_rev NUMERIC;
+    cm_trans BIGINT;
+BEGIN
+    SELECT
+        COALESCE(SUM(CASE WHEN o.order_date >= date_trunc('year', now()) THEN o.total_amount ELSE 0 END), 0),
+        COALESCE(COUNT(DISTINCT CASE WHEN o.order_date >= date_trunc('year', now()) THEN o.id ELSE NULL END), 0),
+        COALESCE(SUM(CASE WHEN o.order_date >= date_trunc('month', now()) THEN o.total_amount ELSE 0 END), 0),
+        COALESCE(COUNT(DISTINCT CASE WHEN o.order_date >= date_trunc('month', now()) THEN o.id ELSE NULL END), 0)
+    INTO
+        ytd_rev,
+        ytd_trans,
+        cm_rev,
+        cm_trans
+    FROM orders o
+    WHERE o.store_id = p_store_id
+      AND o.status IN ('Shipped', 'Delivered');
+
+    ytd_revenue := ytd_rev;
+    ytd_transactions := ytd_trans;
+    current_month_revenue := cm_rev;
+    current_month_transactions := cm_trans;
+    ytd_avg_order_value := CASE WHEN ytd_trans > 0 THEN ytd_rev / ytd_trans ELSE 0 END;
+    current_month_avg_order_value := CASE WHEN cm_trans > 0 THEN cm_rev / cm_trans ELSE 0 END;
+
+    RETURN NEXT;
+END;
+$$ LANGUAGE plpgsql;
+
+GRANT EXECUTE ON FUNCTION get_revenue_summary_stats(UUID) TO authenticated;
+```
+
 ### `get_profit_summary_stats`
 This function is required for the profit report page. It provides Year-to-Date (YTD) and current month profit summaries.
 ```sql

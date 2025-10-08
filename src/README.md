@@ -66,6 +66,9 @@ You must run the following SQL functions in your Supabase SQL Editor for all app
 
 ### `get_revenue_summary_stats` (with Average Order Value)
 ```sql
+-- Drop the old function first if its return signature is changing
+DROP FUNCTION IF EXISTS get_revenue_summary_stats(UUID);
+
 CREATE OR REPLACE FUNCTION get_revenue_summary_stats(p_store_id UUID)
 RETURNS TABLE (
     ytd_revenue NUMERIC,
@@ -83,9 +86,9 @@ DECLARE
 BEGIN
     SELECT
         COALESCE(SUM(CASE WHEN o.order_date >= date_trunc('year', now()) THEN o.total_amount ELSE 0 END), 0),
-        COALESCE(SUM(CASE WHEN o.order_date >= date_trunc('year', now()) THEN 1 ELSE 0 END), 0),
+        COALESCE(COUNT(DISTINCT CASE WHEN o.order_date >= date_trunc('year', now()) THEN o.id ELSE NULL END), 0),
         COALESCE(SUM(CASE WHEN o.order_date >= date_trunc('month', now()) THEN o.total_amount ELSE 0 END), 0),
-        COALESCE(SUM(CASE WHEN o.order_date >= date_trunc('month', now()) THEN 1 ELSE 0 END), 0)
+        COALESCE(COUNT(DISTINCT CASE WHEN o.order_date >= date_trunc('month', now()) THEN o.id ELSE NULL END), 0)
     INTO
         ytd_rev,
         ytd_trans,
@@ -99,8 +102,8 @@ BEGIN
     ytd_transactions := ytd_trans;
     current_month_revenue := cm_rev;
     current_month_transactions := cm_trans;
-    ytd_avg_order_value := COALESCE(ytd_rev / NULLIF(ytd_trans, 0), 0);
-    current_month_avg_order_value := COALESCE(cm_rev / NULLIF(cm_trans, 0), 0);
+    ytd_avg_order_value := CASE WHEN ytd_trans > 0 THEN ytd_rev / ytd_trans ELSE 0 END;
+    current_month_avg_order_value := CASE WHEN cm_trans > 0 THEN cm_rev / cm_trans ELSE 0 END;
 
     RETURN NEXT;
 END;
