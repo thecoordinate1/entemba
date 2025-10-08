@@ -153,6 +153,9 @@ export default function LoginPage() {
                 <p className="text-sm text-muted-foreground">
                     A verification link was sent to <strong>{form.getValues("email")}</strong>. Please check your inbox (and spam folder) to continue.
                 </p>
+                <p className="text-xs text-muted-foreground italic">
+                    Before resending, please wait a few minutes as email delivery may be delayed by poor internet connectivity.
+                </p>
                 <Button
                     type="button"
                     className="w-full"
