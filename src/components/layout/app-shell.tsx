@@ -200,15 +200,21 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
     setIsLoadingStores(false);
   }, [toast]);
   
+  // Effect for Auth changes
   React.useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setAuthUser(session?.user ?? null);
-      if (event === "SIGNED_IN" && session?.user) {
-        fetchInitialUserData(session.user);
-      } else if (event === "SIGNED_OUT") {
+      const currentUser = session?.user ?? null;
+      setAuthUser(currentUser);
+      if (event === "SIGNED_IN" && currentUser) {
+        fetchInitialUserData(currentUser);
+      } else if (event === 'SIGNED_OUT') {
         setVendorDisplayName(null); setVendorEmail(null); setVendorAvatarUrl(null);
         setAvailableStores([]); setSelectedStoreId(null);
         setIsLoadingProfile(false); setIsLoadingStores(false);
+      } else if (event === 'USER_UPDATED' && currentUser) {
+        // This event fires when user metadata changes, like from our service.
+        setVendorDisplayName(currentUser.user_metadata.display_name || currentUser.email);
+        setVendorAvatarUrl(currentUser.user_metadata.avatar_url);
       }
     });
 
@@ -417,3 +423,5 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
     return <AppShellLayout>{children}</AppShellLayout>;
 }
+
+    
