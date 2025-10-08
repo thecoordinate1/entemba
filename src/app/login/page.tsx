@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { signInWithEmail } from "@/services/authService";
-import { Gem } from "lucide-react";
+import { KioskIcon } from "@/components/icons/KioskIcon";
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -83,7 +83,7 @@ export default function LoginPage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-muted/40 p-4">
         <div className="flex items-center gap-2 mb-8 text-2xl font-semibold text-primary">
-          <Gem className="h-8 w-8" />
+          <KioskIcon className="h-8 w-8" />
           <span>E-Ntemba</span>
         </div>
         <Card className="w-full max-w-md shadow-xl">
@@ -113,7 +113,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-muted/40 p-4">
       <div className="flex items-center gap-2 mb-8 text-2xl font-semibold text-primary">
-        <Gem className="h-8 w-8" />
+        <KioskIcon className="h-8 w-8" />
         <span>E-Ntemba</span>
       </div>
       <Card className="w-full max-w-md shadow-xl">

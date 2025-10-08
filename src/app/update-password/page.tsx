@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Gem } from "lucide-react";
+import { KioskIcon } from "@/components/icons/KioskIcon";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import * as React from "react";
@@ -167,7 +167,7 @@ export default function UpdatePasswordPage() {
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-muted/40 p-4">
             <div className="flex items-center gap-2 mb-8 text-2xl font-semibold text-primary">
-                <Gem className="h-8 w-8" />
+                <KioskIcon className="h-8 w-8" />
                 <span>E-Ntemba</span>
             </div>
             <React.Suspense fallback={<UpdatePasswordSkeleton />}>

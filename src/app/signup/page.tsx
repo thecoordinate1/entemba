@@ -27,7 +27,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { signUpWithEmail } from "@/services/authService";
-import { Gem } from "lucide-react";
+import { KioskIcon } from "@/components/icons/KioskIcon";
 
 const signUpSchema = z.object({
   displayName: z.string().min(1, { message: "Display name is required." }),
@@ -75,7 +75,7 @@ export default function SignUpPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-muted/40 p-4">
        <div className="flex items-center gap-2 mb-8 text-2xl font-semibold text-primary">
-          <Gem className="h-8 w-8" />
+          <KioskIcon className="h-8 w-8" />
           <span>E-Ntemba</span>
         </div>
       <Card className="w-full max-w-md shadow-xl">
