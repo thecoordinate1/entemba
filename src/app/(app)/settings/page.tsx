@@ -20,7 +20,7 @@ import type { SocialLink as MockSocialLinkType } from "@/lib/mockData"; // Using
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
-import { Instagram, Facebook, Twitter, Link as LinkIcon, Palette, User, Shield, CreditCard, Building, UploadCloud, LocateFixed, Copy, Banknote, Phone } from "lucide-react";
+import { Instagram, Facebook, Twitter, Link as LinkIcon, Palette, User, Shield, CreditCard, Building, UploadCloud, LocateFixed, Copy, Banknote, Phone, Pencil } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { getCurrentVendorProfile, updateCurrentVendorProfile, uploadAvatar, type VendorProfile, type VendorProfileUpdatePayload } from "@/services/userService";
@@ -716,78 +716,116 @@ export default function SettingsPage() {
 
         {/* Billing Tab */}
         <TabsContent value="billing">
-          <Card>
-            <CardHeader>
-              <CardTitle>Payout Information</CardTitle>
-              <CardDescription>Manage where you receive your money.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSavePayoutDetails} className="space-y-8">
-                {/* Bank Account Section */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium flex items-center gap-2"><Banknote className="h-5 w-5 text-primary"/>Bank Account Details</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="bankName">Bank Name</Label>
-                      <Input id="bankName" value={bankName || ''} onChange={(e) => setBankName(e.target.value)} placeholder="e.g., Zanaco" />
+          <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Current Payout Methods</CardTitle>
+                    <CardDescription>This is the information on file for your payouts.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                     {isLoadingProfile ? (
+                        <Skeleton className="h-24 w-full" />
+                    ) : (bankName || momoNumber) ? (
+                        <>
+                            {bankName && (
+                                <div className="space-y-2 rounded-lg border p-4">
+                                    <h4 className="font-medium flex items-center"><Banknote className="mr-2 h-5 w-5 text-primary" /> Bank Account</h4>
+                                    <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                                        <dt className="text-muted-foreground">Bank:</dt><dd>{bankName}</dd>
+                                        <dt className="text-muted-foreground">Account Name:</dt><dd>{accountHolder}</dd>
+                                        <dt className="text-muted-foreground">Account Number:</dt><dd>{accountNumber}</dd>
+                                        <dt className="text-muted-foreground">Branch:</dt><dd>{branchName}</dd>
+                                    </dl>
+                                </div>
+                            )}
+                            {momoNumber && (
+                                <div className="space-y-2 rounded-lg border p-4">
+                                    <h4 className="font-medium flex items-center"><Phone className="mr-2 h-5 w-5 text-primary" /> Mobile Money</h4>
+                                    <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                                        <dt className="text-muted-foreground">Provider:</dt><dd className="capitalize">{momoProvider}</dd>
+                                        <dt className="text-muted-foreground">Number:</dt><dd>{momoNumber}</dd>
+                                        <dt className="text-muted-foreground">Registered Name:</dt><dd>{momoName}</dd>
+                                    </dl>
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <p className="text-sm text-muted-foreground text-center py-4">You have not set up any payout methods. Please add your details below.</p>
+                    )}
+                </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Pencil className="h-5 w-5"/> Edit Payout Information</CardTitle>
+                <CardDescription>Manage where you receive your money. Fill in at least one method.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSavePayoutDetails} className="space-y-8">
+                  {/* Bank Account Section */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-medium flex items-center gap-2"><Banknote className="h-5 w-5 text-primary"/>Bank Account Details</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="bankName">Bank Name</Label>
+                        <Input id="bankName" value={bankName || ''} onChange={(e) => setBankName(e.target.value)} placeholder="e.g., Zanaco" />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="accountHolder">Account Holder Name</Label>
+                        <Input id="accountHolder" value={accountHolder || ''} onChange={(e) => setAccountHolder(e.target.value)} placeholder="e.g., John Doe" />
+                      </div>
                     </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="accountHolder">Account Holder Name</Label>
-                      <Input id="accountHolder" value={accountHolder || ''} onChange={(e) => setAccountHolder(e.target.value)} placeholder="e.g., John Doe" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="accountNumber">Account Number</Label>
+                        <Input id="accountNumber" value={accountNumber || ''} onChange={(e) => setAccountNumber(e.target.value)} placeholder="e.g., 1234567890" />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="branchName">Branch Name</Label>
+                        <Input id="branchName" value={branchName || ''} onChange={(e) => setBranchName(e.target.value)} placeholder="e.g., Manda Hill" />
+                      </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="accountNumber">Account Number</Label>
-                      <Input id="accountNumber" value={accountNumber || ''} onChange={(e) => setAccountNumber(e.target.value)} placeholder="e.g., 1234567890" />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="branchName">Branch Name</Label>
-                      <Input id="branchName" value={branchName || ''} onChange={(e) => setBranchName(e.target.value)} placeholder="e.g., Manda Hill" />
-                    </div>
-                  </div>
-                </div>
 
-                <Separator />
+                  <Separator />
 
-                {/* Mobile Money Section */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium flex items-center gap-2"><Phone className="h-5 w-5 text-primary"/>Mobile Money Details</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="momoProvider">Provider</Label>
-                      <Select value={momoProvider || ''} onValueChange={setMomoProvider}>
-                        <SelectTrigger id="momoProvider">
-                          <SelectValue placeholder="Select a provider" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="mtn">MTN Mobile Money</SelectItem>
-                          <SelectItem value="airtel">Airtel Money</SelectItem>
-                          <SelectItem value="zamtel">Zamtel Kwacha</SelectItem>
-                        </SelectContent>
-                      </Select>
+                  {/* Mobile Money Section */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-medium flex items-center gap-2"><Phone className="h-5 w-5 text-primary"/>Mobile Money Details</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="momoProvider">Provider</Label>
+                        <Select value={momoProvider || ''} onValueChange={setMomoProvider}>
+                          <SelectTrigger id="momoProvider">
+                            <SelectValue placeholder="Select a provider" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="mtn">MTN Mobile Money</SelectItem>
+                            <SelectItem value="airtel">Airtel Money</SelectItem>
+                            <SelectItem value="zamtel">Zamtel Kwacha</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="momoNumber">Mobile Number</Label>
+                        <Input id="momoNumber" value={momoNumber || ''} onChange={(e) => setMomoNumber(e.target.value)} placeholder="e.g., 0966123456" />
+                      </div>
                     </div>
                     <div className="grid gap-2">
-                      <Label htmlFor="momoNumber">Mobile Number</Label>
-                      <Input id="momoNumber" value={momoNumber || ''} onChange={(e) => setMomoNumber(e.target.value)} placeholder="e.g., 0966123456" />
-                    </div>
+                        <Label htmlFor="momoName">Registered Name</Label>
+                        <Input id="momoName" value={momoName || ''} onChange={(e) => setMomoName(e.target.value)} placeholder="e.g., John Doe" />
+                      </div>
                   </div>
-                   <div className="grid gap-2">
-                      <Label htmlFor="momoName">Registered Name</Label>
-                      <Input id="momoName" value={momoName || ''} onChange={(e) => setMomoName(e.target.value)} placeholder="e.g., John Doe" />
-                    </div>
-                </div>
-                
-                <div className="pt-4">
-                  <Button type="submit" disabled={isUpdatingPayout}>{isUpdatingPayout ? 'Saving...' : 'Save Payout Details'}</Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+                  
+                  <div className="pt-4">
+                    <Button type="submit" disabled={isUpdatingPayout}>{isUpdatingPayout ? 'Saving...' : 'Save Payout Details'}</Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
   );
 }
 
-    
