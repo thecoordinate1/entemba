@@ -27,8 +27,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { signInWithEmail } from "@/services/authService";
+import { signInWithEmail, resendConfirmationEmail } from "@/services/authService";
 import { KioskIcon } from "@/components/icons/KioskIcon";
+import { MailWarning } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -42,6 +43,7 @@ export default function LoginPage() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
   const [hasMounted, setHasMounted] = React.useState(false);
+  const [showVerificationNeeded, setShowVerificationNeeded] = React.useState(false);
 
   React.useEffect(() => {
     setHasMounted(true);
@@ -55,14 +57,34 @@ export default function LoginPage() {
     },
   });
 
+  async function handleResendVerification() {
+    setIsLoading(true);
+    const email = form.getValues("email");
+    const { error } = await resendConfirmationEmail(email);
+    setIsLoading(false);
+
+    if (error) {
+        toast({ variant: "destructive", title: "Failed to Resend", description: error.message });
+    } else {
+        toast({ title: "Verification Email Sent", description: "Please check your inbox." });
+        setShowVerificationNeeded(false); // Go back to login form
+    }
+  }
+
   async function onSubmit(values: LoginFormValues) {
     setIsLoading(true);
+    setShowVerificationNeeded(false);
     const { error } = await signInWithEmail(values.email, values.password);
     setIsLoading(false);
 
     if (error) {
       if (error.message.toLowerCase().includes("email not confirmed")) {
-        router.push(`/resend-confirmation?email=${encodeURIComponent(values.email)}`);
+        setShowVerificationNeeded(true);
+        toast({
+            variant: "destructive",
+            title: "Email Not Verified",
+            description: "You must verify your email before you can sign in.",
+        });
       } else {
         toast({
           variant: "destructive",
@@ -124,44 +146,71 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input placeholder="you@example.com" {...field} disabled={isLoading} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="flex items-center justify-between">
-                        <FormLabel>Password</FormLabel>
-                        <Link href="/forgot-password" passHref legacyBehavior>
-                            <a className="text-sm text-primary hover:underline">Forgot password?</a>
-                        </Link>
-                    </div>
-                    <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} disabled={isLoading} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Signing In..." : "Sign In"}
-              </Button>
-            </form>
-          </Form>
+          {showVerificationNeeded ? (
+            <div className="space-y-4 text-center">
+                <MailWarning className="mx-auto h-12 w-12 text-destructive" />
+                <h3 className="text-xl font-semibold">Email Verification Required</h3>
+                <p className="text-sm text-muted-foreground">
+                    A verification link was sent to <strong>{form.getValues("email")}</strong>. Please check your inbox (and spam folder) to continue.
+                </p>
+                <Button
+                    type="button"
+                    className="w-full"
+                    onClick={handleResendVerification}
+                    disabled={isLoading}
+                >
+                    {isLoading ? "Sending..." : "Resend Verification Email"}
+                </Button>
+                <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setShowVerificationNeeded(false)}
+                    disabled={isLoading}
+                >
+                    Back to Login
+                </Button>
+            </div>
+          ) : (
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input placeholder="you@example.com" {...field} disabled={isLoading} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <div className="flex items-center justify-between">
+                          <FormLabel>Password</FormLabel>
+                          <Link href="/forgot-password" passHref legacyBehavior>
+                              <a className="text-sm text-primary hover:underline">Forgot password?</a>
+                          </Link>
+                      </div>
+                      <FormControl>
+                        <Input type="password" placeholder="••••••••" {...field} disabled={isLoading} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? "Signing In..." : "Sign In"}
+                </Button>
+              </form>
+            </Form>
+          )}
         </CardContent>
         <CardContent className="mt-4 text-center text-sm">
           Don&apos;t have an account?{" "}

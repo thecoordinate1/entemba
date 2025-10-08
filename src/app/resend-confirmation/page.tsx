@@ -133,7 +133,9 @@ function ResendConfirmationSkeleton() {
               <Skeleton className="h-4 w-16" />
               <Skeleton className="h-10 w-full" />
             </div>
-            <Skeleton className="h-10 w-full" />
+            <Button className="w-full" disabled>
+                <Skeleton className="h-5 w-40" />
+            </Button>
           </div>
         </CardContent>
         <CardContent className="mt-4 text-center text-sm">
