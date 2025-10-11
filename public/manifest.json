@@ -1,20 +1,46 @@
 {
   "name": "E-Ntemba Vendor Dashboard",
   "short_name": "E-Ntemba",
-  "description": "Vendor dashboard for the E-Ntemba e-commerce platform.",
+  "description": "The all-in-one dashboard for managing your E-Ntemba online stores.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#222c22",
-  "theme_color": "#2E8B57",
+  "background_color": "#1c252d",
+  "theme_color": "#34D399",
   "icons": [
     {
-      "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgdmlld0JveD0iMCAwIDY0IDY0IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkdyZWVuIGtpb3NrIG9uIHNsYXRlIGJhY2tncm91bmQiPjxyZWN0IHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgcng9IjgiIHJ5PSI4IiBmaWxsPSIjMkY0RjRGIi8+PGcgb3BhY2l0eT0iMC4xMiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMCwyKSI+PHJlY3QgeD0iNiIgeT0iMzAiIHdpZHRoPSI1MiIgaGVpZ_idDoiMjIiIHJ4PSIzIiBmaWxsPSIjMDAwIi8+PC9nPjxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDYsNikiPjxyZWN0IHg9IjYiIHk9IjI2IiB3aWR0aD0iNDQiIGhlaWdodD0iMTgiIHJ4PSIzIiBmaWxsPSIjMkU4QjU3Ii8+PHJlY3QgeD0iMTAiIHk9IjMwIiB3aWR0aD0iMzYiIGhlaWdodD0iMTAiIHJ4PSIyIiBmaWxsPSIjMUU2QjQyIiAvPjxyZWN0IHg9IjEyIiB5PSIxOSIgd2lkdGg9IjEyIiBoZWlnaHQ9IjEyIiByeD0iMS41IiBmaWxsPSIjRkZGRkZGIiBvcGFjaXR5PSIwLjkiLz48cmVjdCB4PSIyOSIgeT0iMTkiIHdpZHRoPSIxMSIgaGVpZ2h0PSIxMiIgcng9IjEuNSIgZmlsbD0iIzBCM0YyRSIgb3BhY2l0eT0iMC4xMiIvPjxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDAsMCkiPjxyZWN0IHg9IjQiIHk9IjYiIHdpZHRoPSI0OCIgaGVpZ2h0PSIxNCIgcng9IjMiIGZpbGw9IiMxRTZCNDIiLz48cGF0aCBkPSJNNiA4IGg4IGEwIDAgMCAwIDEgMCAwIHY4IGgtOCB6IiBmaWxsPSIjMkVDQzcxIi8+PHBhdGggZD0iTTE4IDggaDggdjggaC04IHoiIGZpbGw9IiMyRUNDNzEiLz48cGF0aCBkPSJNMzAgOCBoOCB2OCBoLTggeiIgZmlsbD0iIzJFQ0M3MSIvPjxwYXRoIGQ9Ik00MiA4IGg2IHY4IGgtNiB6IiBmaWxsPSIjMkVDQzcxIi8+PHJlY3QgeD0iNCIgeT0iMTgiIHdpZHRoPSI0OCIgaGVpZ2h0PSIzIiByeD0iMS41IiBmaWxsPSIjMTY0QzM0Ii8+PC9nPjxyZWN0IHg9IjIiIHk9IjIiIHdpZHRoPSI1MiIgaGVpZ2h0PSI2IiByeD0iMyIgZmlsbD0iIzE0NEMzMyIvPjxyZWN0IHg9IjEzIiB5PSIyMS41IiB3aWR0aD0iNiIgaGVpZ2h0PSIyIiByeD0iMC44IiBmaWxsPSIjRTZGNkVB অতুলनीयIi8+PHJlY3QgeD0iMzIiIHk9IjIxLjUiIHdpZHRoPSI1IiBoZWlnaHQ9IjIiIHJ4PSIwLjgiIGZpbGw9IiNCRUU5RDAiIG9wYWNpdHk9IjAuNyIvPjxyZWN0IHg9IjYiIHk9IjI2IiB3aWR0aD0iNDQiIGhlaWdodD0iMTgiIHJ4PSIzIiBmaWxsPSJub25lIiBzdHJva2U9IiMxNjNEMkQiIHN0cm9rZS13aWR0aD0iMC44Ii8+PHJlY3QgeD0iNCIgeT0iNiIgd2lkdGg9IjQ4IiBoZWlnaHQ9IjE0IiByeD0iMyIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMEYyQjIwIiBzdHJva2Utd2lkdGg9IjAuOCIvPjwvZz48L3N2Zz4=",
-      "sizes": "64x64",
-      "type": "image/svg+xml"
+      "src": "/icons/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png"
     },
     {
       "src": "/icons/icon-192x192.png",
       "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-384x384.png",
+      "sizes": "384x384",
       "type": "image/png"
     },
     {
