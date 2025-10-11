@@ -5,7 +5,7 @@ const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
   skipWaiting: true,
-  disable: process.env.NODE_ENV === 'development',
+  disable: false, // Ensure PWA is enabled in development
 });
 
 const nextConfig: NextConfig = {
@@ -31,7 +31,7 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
       {
-        protocol: 'https',
+        protocol: 'https' as const,
         hostname: 'noympgnaetcrtpdlkkry.supabase.co', // Added Supabase hostname
         port: '',
         pathname: '/**',
