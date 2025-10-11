@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   description: 'Vendor dashboard for E-Ntemba',
   manifest: '/manifest.json',
   icons: {
-    icon: 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22 viewBox=%220 0 64 64%22 role=%22img%22 aria-label=%22Green kiosk on slate background%22><rect width=%2264%22 height=%2264%22 rx=%228%22 ry=%228%22 fill=%22%232F4F4F%22/><g opacity=%220.12%22 transform=%22translate(0,2)%22><rect x=%226%22 y=%2230%22 width=%2252%22 height=%2222%22 rx=%223%22 fill=%22%23000%22/></g><g transform=%22translate(6,6)%22><rect x=%226%22 y=%2226%22 width=%2244%22 height=%2218%22 rx=%223%22 fill=%22%232E8B57%22/><rect x=%2210%22 y=%2230%22 width=%2236%22 height=%2210%22 rx=%222%22 fill=%22%231E6B42%22/><rect x=%2212%22 y=%2219%22 width=%2212%22 height=%2212%22 rx=%221.5%22 fill=%22%23FFFFFF%22 opacity=%220.9%22/><rect x=%2229%22 y=%2219%22 width=%2211%22 height=%2212%22 rx=%221.5%22 fill=%22%230B3F2E%22 opacity=%220.12%22/><g transform=%22translate(0,0)%22><rect x=%224%22 y=%226%22 width=%2248%22 height=%2214%22 rx=%223%22 fill=%22%231E6B42%22/><path d=%22M6 8 h8 a0 0 0 0 1 0 0 v8 h-8 z%22 fill=%22%232ECC71%22/><path d=%22M18 8 h8 v8 h-8 z%22 fill=%22%232ECC71%22/><path d=%22M30 8 h8 v8 h-8 z%22 fill=%22%232ECC71%22/><path d=%22M42 8 h6 v8 h-6 z%22 fill=%22%232ECC71%22/><rect x=%224%22 y=%2218%22 width=%2248%22 height=%223%22 rx=%221.5%22 fill=%22%23164C34%22/></g><rect x=%222%22 y=%222%22 width=%2252%22 height=%226%22 rx=%223%22 fill=%22%23144C33%22/><rect x=%2213%22 y=%2221.5%22 width=%226%22 height=%222%22 rx=%220.8%22 fill=%22%23E6F6EA%22/><rect x=%2232%22 y=%2221.5%22 width=%225%22 height=%222%22 rx=%220.8%22 fill=%22%23BEE9D0%22 opacity=%220.7%22/><rect x=%226%22 y=%2226%22 width=%2244%22 height=%2218%22 rx=%223%22 fill=%22none%22 stroke=%22%23163D2D%22 stroke-width=%220.8%22/><rect x=%224%22 y=%226%22 width=%2248%22 height=%2214%22 rx=%223%22 fill=%22none%22 stroke=%22%230F2B20%22 stroke-width=%220.8%22/></g></svg>',
+    icon: 'data:image/svg+xml,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2764%27 height=%2764%27 viewBox=%270 0 64 64%27 role=%27img%27 aria-label=%27Green kiosk on slate background%27%3e%3crect width=%2764%27 height=%2764%27 rx=%278%27 ry=%278%27 fill=%27%232F4F4F%27/%3e%3cg opacity=%270.12%27 transform=%27translate(0,2)%27%3e%3crect x=%276%27 y=%2730%27 width=%2752%27 height=%2722%27 rx=%273%27 fill=%27%23000%27/%3e%3c/g%3e%3cg transform=%27translate(6,6)%27%3e%3crect x=%276%27 y=%2726%27 width=%2744%27 height=%2718%27 rx=%273%27 fill=%27%232E8B57%27/%3e%3crect x=%2710%27 y=%2730%27 width=%2736%27 height=%2710%27 rx=%272%27 fill=%27%231E6B42%27/%3e%3crect x=%2712%27 y=%2719%27 width=%2712%27 height=%2712%27 rx=%271.5%27 fill=%27%23FFFFFF%27 opacity=%270.9%27/%3e%3crect x=%2729%27 y=%2719%27 width=%2711%27 height=%2712%27 rx=%271.5%27 fill=%27%230B3F2E%27 opacity=%270.12%27/%3e%3cg transform=%27translate(0,0)%27%3e%3crect x=%274%27 y=%276%27 width=%2748%27 height=%2714%27 rx=%273%27 fill=%27%231E6B42%27/%3e%3cpath d=%27M6 8 h8 a0 0 0 0 1 0 0 v8 h-8 z%27 fill=%27%232ECC71%27/%3e%3cpath d=%27M18 8 h8 v8 h-8 z%27 fill=%27%232ECC71%27/%3e%3cpath d=%27M30 8 h8 v8 h-8 z%27 fill=%27%232ECC71%27/%3e%3cpath d=%27M42 8 h6 v8 h-6 z%27 fill=%27%232ECC71%27/%3e%3crect x=%274%27 y=%2718%27 width=%2748%27 height=%273%27 rx=%271.5%27 fill=%27%23164C34%27/%3e%3c/g%3e%3crect x=%272%27 y=%272%27 width=%2752%27 height=%276%27 rx=%273%27 fill=%27%23144C33%27/%3e%3crect x=%2713%27 y=%2721.5%27 width=%276%27 height=%272%27 rx=%270.8%27 fill=%27%23E6F6EA%27/%3e%3crect x=%2732%27 y=%2721.5%27 width=%275%27 height=%272%27 rx=%270.8%27 fill=%27%23BEE9D0%27 opacity=%270.7%27/%3e%3crect x=%276%27 y=%2726%27 width=%2744%27 height=%2718%27 rx=%273%27 fill=%27none%27 stroke=%27%23163D2D%27 stroke-width=%270.8%27/%3e%3crect x=%274%27 y=%276%27 width=%2748%27 height=%2714%27 rx=%273%27 fill=%27none%27 stroke=%27%230F2B20%27 stroke-width=%270.8%27/%3e%3c/g%3e%3c/svg%3e',
   },
 };
 
@@ -17,14 +17,10 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // The theme class on <html> will be managed by client-side JavaScript
-  // in the Settings page or a dedicated theme provider/hook in a more complex setup.
-  // For now, we can keep the default dark class or remove it and let the client script handle it.
-  // Keeping it 'dark' provides a default until client-side JS loads and potentially changes it.
   return (
     <html lang="en" className="dark">
        <head>
-        {/* The favicon is now handled by the Next.js Metadata API above */}
+        <meta name="theme-color" content="#2E8B57" />
       </head>
       <body className={`font-sans antialiased`}>
         {children}
