@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { NavItem } from "@/config/nav";
 import { navItems } from "@/config/nav";
-import { LogOut, Settings, Store as StoreIcon, PanelLeft, Menu, PlusCircle } from "lucide-react";
+import { LogOut, Settings, Store as StoreIcon, PanelLeft, Menu, PlusCircle, Download } from "lucide-react";
 import { KioskIcon } from "@/components/icons/KioskIcon";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -165,6 +165,8 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
   const [isLoadingProfile, setIsLoadingProfile] = React.useState(true);
   const [pageTitle, setPageTitle] = React.useState("Loading...");
 
+  const [installPrompt, setInstallPrompt] = React.useState<any>(null);
+
   const supabase = createClient();
   
   const fetchInitialUserData = React.useCallback(async (user: AuthUser) => {
@@ -200,6 +202,19 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
     setIsLoadingStores(false);
   }, [toast]);
   
+  React.useEffect(() => {
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+  
   // Effect for Auth changes
   React.useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -212,7 +227,6 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
         setAvailableStores([]); setSelectedStoreId(null);
         setIsLoadingProfile(false); setIsLoadingStores(false);
       } else if (event === 'USER_UPDATED' && currentUser) {
-        // This event fires when user metadata changes, like from our service.
         setVendorDisplayName(currentUser.user_metadata.display_name || currentUser.email);
         setVendorAvatarUrl(currentUser.user_metadata.avatar_url);
       }
@@ -233,9 +247,7 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     const storeIdFromUrl = searchParams.get("storeId");
 
-    // Once stores are loaded, handle redirects and selections
     if (!isLoadingStores) {
-      // If user has stores, select the one from URL or the first one as default
       if (availableStores.length > 0) {
         if (storeIdFromUrl && availableStores.some(s => s.id === storeIdFromUrl)) {
           setSelectedStoreId(storeIdFromUrl);
@@ -247,7 +259,6 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
           router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
         }
       } else {
-        // User has no stores. If they are on the dashboard, redirect them to /stores.
         if (pathname === '/dashboard') {
           router.replace('/stores');
         }
@@ -280,6 +291,18 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
     await signOut();
     toast({ title: "Logged Out" });
     router.push("/login");
+  };
+
+  const handleInstallClick = async () => {
+    if (!installPrompt) {
+      return;
+    }
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') {
+      toast({ title: "Installation Complete", description: "E-Ntemba has been added to your device." });
+    }
+    setInstallPrompt(null);
   };
 
   const getHrefWithStoreId = (href: string) => {
@@ -358,6 +381,11 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
               <Link href={getHrefWithStoreId('/settings')} className={cn("flex items-center justify-start gap-2 rounded-md p-3 text-base font-medium transition-colors", {'bg-sidebar-accent text-sidebar-accent-foreground': pathname.startsWith('/settings'), 'text-sidebar-foreground hover:bg-sidebar-accent/50': !pathname.startsWith('/settings'), 'justify-center': isSidebarCollapsed })}>
                 <Settings className="h-5 w-5" /><span className={cn(isSidebarCollapsed && "hidden")}>Settings</span>
               </Link>
+               {installPrompt && (
+                <Button variant="ghost" className={cn("w-full flex items-center justify-start gap-2 rounded-md p-3 text-base font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/50", {'justify-center': isSidebarCollapsed})} onClick={handleInstallClick}>
+                    <Download className="h-5 w-5" /><span className={cn(isSidebarCollapsed && "hidden")}>Install App</span>
+                </Button>
+               )}
               <Button variant="ghost" className={cn("w-full flex items-center justify-start gap-2 rounded-md p-3 text-base font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/50", {'justify-center': isSidebarCollapsed})} onClick={handleLogout}>
                 <LogOut className="h-5 w-5" /><span className={cn(isSidebarCollapsed && "hidden")}>Logout</span>
               </Button>
@@ -423,5 +451,3 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
     return <AppShellLayout>{children}</AppShellLayout>;
 }
-
-    
