@@ -39,6 +39,7 @@ import {
   type CustomerPayload,
 } from "@/services/customerService";
 import { getOrdersByCustomerAndStore, type OrderFromSupabase } from "@/services/orderService"; 
+import { mapOrderFromSupabaseToUI } from "@/lib/order-mapper";
 
 
 // Form data type for Edit dialog
@@ -76,32 +77,6 @@ const mapCustomerFromSupabaseToUI = (customer: CustomerFromSupabase): CustomerUI
       zip: customer.zip_postal_code || "",
       country: customer.country || "",
     },
-  };
-};
-
-const mapOrderFromSupabaseToUI_CustomerOrders = (order: OrderFromSupabase): OrderUIType => {
-  return {
-    id: order.id,
-    customerName: order.customer_name,
-    customerEmail: order.customer_email,
-    date: new Date(order.order_date).toISOString().split("T")[0],
-    total: order.total_amount,
-    status: order.status as OrderStatusUIType,
-    itemsCount: order.order_items?.reduce((sum, item) => sum + item.quantity, 0) || 0, // Add null check for order_items
-    detailedItems: order.order_items?.map(item => ({ // Add null check for order_items
-      productId: item.product_id || `deleted_${item.id}`,
-      name: item.product_name_snapshot,
-      quantity: item.quantity,
-      price: item.price_per_unit_snapshot,
-      image: item.product_image_url_snapshot || "https://placehold.co/50x50.png",
-    })) || [], // Default to empty array
-    shippingAddress: order.shipping_address,
-    billingAddress: order.billing_address,
-    shippingMethod: order.shipping_method || undefined,
-    paymentMethod: order.payment_method || undefined,
-    trackingNumber: order.tracking_number || undefined,
-    shippingLatitude: order.shipping_latitude || undefined,
-    shippingLongitude: order.shipping_longitude || undefined,
   };
 };
 
@@ -177,7 +152,7 @@ export default function CustomerDetailPage() {
             try {
                 const { data: ordersData, error: ordersError } = await getOrdersByCustomerAndStore(fetchedCustomerData.id, storeId);
                 if (ordersError) throw ordersError;
-                setCustomerOrders(ordersData?.map(mapOrderFromSupabaseToUI_CustomerOrders) || []);
+                setCustomerOrders(ordersData?.map(mapOrderFromSupabaseToUI) || []);
             } catch (ordersErr: any) {
                 toast({ variant: "destructive", title: "Error Fetching Orders", description: ordersErr.message });
                 setCustomerOrders([]);

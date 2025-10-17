@@ -1,4 +1,3 @@
-
 // src/services/orderService.ts
 import { createClient } from '@/lib/supabase/client';
 import type { OrderStatus } from '@/lib/mockData';
@@ -432,4 +431,31 @@ export async function getMonthlySalesOverviewForStore(
 
   console.log('[orderService.getMonthlySalesOverviewForStore] Data from RPC:', data);
   return { data: data as MonthlySalesDataFromRPC[] | null, error: null };
+}
+
+export async function getSelfDeliveryOrdersForStore(
+  storeId: string
+): Promise<{ data: OrderFromSupabase[] | null; error: Error | null }> {
+  console.log(`[orderService.getSelfDeliveryOrdersForStore] Fetching self-delivery orders for store_id: ${storeId}`);
+  
+  const deliveryStatuses: OrderStatus[] = ['Confirmed', 'Driver Picking Up', 'Delivering'];
+
+  const { data: ordersData, error: ordersError } = await supabase
+    .from('orders')
+    .select(commonOrderSelect)
+    .eq('store_id', storeId)
+    .eq('delivery_type', 'self_delivery')
+    .in('status', deliveryStatuses)
+    .order('created_at', { ascending: true }); // Show oldest first for delivery queue
+
+  if (ordersError) {
+    let message = ordersError.message || 'Failed to fetch self-delivery orders.';
+    console.error('[orderService.getSelfDeliveryOrdersForStore] Supabase fetch error:', message, 'Original Supabase Error:', JSON.stringify(ordersError, null, 2));
+    const errorToReturn = new Error(message);
+    (errorToReturn as any).details = ordersError;
+    return { data: null, error: errorToReturn };
+  }
+
+  console.log(`[orderService.getSelfDeliveryOrdersForStore] Fetched ${ordersData?.length || 0} self-delivery orders.`);
+  return { data: ordersData as OrderFromSupabase[] | null, error: null };
 }
