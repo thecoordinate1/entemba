@@ -588,6 +588,12 @@ export default function OrdersPage() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          <Button variant="outline" asChild disabled={!storeIdFromUrl || !authUser}>
+            <Link href={`/delivery?${searchParams.toString()}`}>
+              <Truck className="mr-2 h-4 w-4" />
+              Delivery
+            </Link>
+          </Button>
         </div>
         <Dialog open={isAddOrderDialogOpen} onOpenChange={(isOpen) => { setIsAddOrderDialogOpen(isOpen); if (!isOpen) resetAddOrderForm(); }}>
           <DialogTrigger asChild>
