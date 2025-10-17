@@ -52,6 +52,7 @@ export interface Store {
   categories: string[];
   socialLinks?: SocialLink[];
   location?: string;
+  contactPhone?: string;
   pickupLatitude?: number;
   pickupLongitude?: number;
   createdAt: string;

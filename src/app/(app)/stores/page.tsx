@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -30,7 +31,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MoreVertical, PlusCircle, Edit, Trash2, MapPin, Eye, Tag, Instagram, Facebook, Twitter, Link as LinkIconLucide, UploadCloud, ExternalLink } from "lucide-react";
+import { MoreVertical, PlusCircle, Edit, Trash2, MapPin, Eye, Tag, Instagram, Facebook, Twitter, Link as LinkIconLucide, UploadCloud, ExternalLink, Phone } from "lucide-react";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -102,6 +103,7 @@ const mapStoreFromSupabaseToMockStore = (store: StoreFromSupabase): MockStoreTyp
   categories: store.categories || [],
   socialLinks: store.social_links.map(sl => ({ platform: sl.platform as MockSocialLinkType["platform"], url: sl.url })),
   location: store.location || undefined,
+  contactPhone: store.contact_phone || undefined,
   pickupLatitude: store.pickup_latitude || undefined,
   pickupLongitude: store.pickup_longitude || undefined,
   createdAt: new Date(store.created_at).toISOString().split("T")[0],
@@ -125,6 +127,7 @@ export default function StoresPage() {
   const [formStoreDescription, setFormStoreDescription] = React.useState("");
   const [formStoreCategories, setFormStoreCategories] = React.useState<string>("");
   const [formStoreLocation, setFormStoreLocation] = React.useState("");
+  const [formStoreContactPhone, setFormStoreContactPhone] = React.useState("");
   const [formStorePickupLat, setFormStorePickupLat] = React.useState<number | string>("");
   const [formStorePickupLng, setFormStorePickupLng] = React.useState<number | string>("");
   const [formStoreStatus, setFormStoreStatus] = React.useState<StoreStatus>("Inactive");
@@ -183,6 +186,7 @@ export default function StoresPage() {
     setFormStoreDescription(store.description);
     setFormStoreCategories(store.categories.join(", "));
     setFormStoreLocation(store.location || "");
+    setFormStoreContactPhone(store.contactPhone || "");
     setFormStorePickupLat(store.pickupLatitude || "");
     setFormStorePickupLng(store.pickupLongitude || "");
     setFormStoreStatus(store.status);
@@ -200,6 +204,7 @@ export default function StoresPage() {
     setFormStoreDescription("");
     setFormStoreCategories("");
     setFormStoreLocation("");
+    setFormStoreContactPhone("");
     setFormStorePickupLat("");
     setFormStorePickupLng("");
     setFormStoreStatus("Inactive");
@@ -222,6 +227,7 @@ export default function StoresPage() {
       categories: categoriesArray,
       status: formStoreStatus,
       location: formStoreLocation || null,
+      contact_phone: formStoreContactPhone || null,
       pickup_latitude: formStorePickupLat ? parseFloat(String(formStorePickupLat)) : null,
       pickup_longitude: formStorePickupLng ? parseFloat(String(formStorePickupLng)) : null,
       social_links: formSocialLinks.filter(link => link.url.trim() !== ''),
@@ -424,6 +430,10 @@ export default function StoresPage() {
                 <Label htmlFor="location">Default Pickup Address</Label>
                 <Input id="location" name="location" value={formStoreLocation} onChange={e => setFormStoreLocation(e.target.value)} placeholder="e.g., 123 Main St, Lusaka" />
             </div>
+             <div className="grid gap-2">
+                <Label htmlFor="contactPhone">Contact Phone</Label>
+                <Input id="contactPhone" name="contactPhone" type="tel" value={formStoreContactPhone} onChange={e => setFormStoreContactPhone(e.target.value)} placeholder="e.g., +260 977 123456" />
+            </div>
         </div>
         <Separator className="my-2" />
         <h4 className="text-md font-medium">Social Links (Optional)</h4>
@@ -575,6 +585,12 @@ export default function StoresPage() {
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <MapPin className="mr-1 h-4 w-4" />
                     <span>{store.location}</span>
+                    </div>
+                )}
+                 {store.contactPhone && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Phone className="mr-1 h-4 w-4" />
+                    <span>{store.contactPhone}</span>
                     </div>
                 )}
                 {store.socialLinks && store.socialLinks.length > 0 && (

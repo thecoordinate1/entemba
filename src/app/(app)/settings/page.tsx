@@ -80,6 +80,7 @@ export default function SettingsPage() {
   const [storeDescription, setStoreDescription] = React.useState("");
   const [storeCategory, setStoreCategory] = React.useState("");
   const [storeLocation, setStoreLocation] = React.useState("");
+  const [storeContactPhone, setStoreContactPhone] = React.useState("");
   const [storeStatus, setStoreStatus] = React.useState<StoreFromSupabase["status"]>("Inactive");
   const [storeSocialLinks, setStoreSocialLinks] = React.useState<SocialLinkPayload[]>([]);
   
@@ -155,7 +156,8 @@ export default function SettingsPage() {
           toast({ variant: "destructive", title: "Error Fetching Store", description: error.message });
           setSelectedStore(null);
           // Reset form fields if store not found or error
-          setStoreName(""); setStoreDescription(""); setStoreCategory(""); setStoreLocation(""); 
+          setStoreName(""); setStoreDescription(""); setStoreCategory(""); setStoreLocation("");
+          setStoreContactPhone(""); 
           setStorePickupLat(""); setStorePickupLng("");
           setStoreStatus("Inactive"); setStoreSocialLinks([]); setStoreLogo(null); 
           setLogoPreview(null);
@@ -165,6 +167,7 @@ export default function SettingsPage() {
           setStoreDescription(storeDetails.description);
           setStoreCategory(storeDetails.category);
           setStoreLocation(storeDetails.location || "");
+          setStoreContactPhone(storeDetails.contact_phone || "");
           setStorePickupLat(storeDetails.pickup_latitude || "");
           setStorePickupLng(storeDetails.pickup_longitude || "");
           setStoreStatus(storeDetails.status);
@@ -176,7 +179,8 @@ export default function SettingsPage() {
       } else {
         setSelectedStore(null); 
          // Reset form fields if no storeId or no authUser
-         setStoreName(""); setStoreDescription(""); setStoreCategory(""); setStoreLocation(""); 
+         setStoreName(""); setStoreDescription(""); setStoreCategory(""); setStoreLocation("");
+         setStoreContactPhone(""); 
          setStorePickupLat(""); setStorePickupLng("");
          setStoreStatus("Inactive"); setStoreSocialLinks([]); setStoreLogo(null); 
          setLogoPreview(null);
@@ -288,6 +292,7 @@ export default function SettingsPage() {
         description: storeDescription,
         category: storeCategory,
         location: storeLocation || null,
+        contact_phone: storeContactPhone || null,
         pickup_latitude: storePickupLat ? parseFloat(String(storePickupLat)) : null,
         pickup_longitude: storePickupLng ? parseFloat(String(storePickupLng)) : null,
         status: storeStatus,
@@ -527,6 +532,10 @@ export default function SettingsPage() {
                      <div className="grid gap-2">
                         <Label htmlFor="storeLocation">Store Location / Address</Label>
                         <Input id="storeLocation" value={storeLocation || ''} onChange={(e) => setStoreLocation(e.target.value)} />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="storeContactPhone">Contact Phone</Label>
+                        <Input id="storeContactPhone" type="tel" value={storeContactPhone || ''} onChange={(e) => setStoreContactPhone(e.target.value)} />
                     </div>
                    </div>
                    
@@ -829,5 +838,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
-

@@ -16,6 +16,7 @@ export interface StorePayload { // For creating/updating store data
   categories: string[];
   status: 'Active' | 'Inactive' | 'Maintenance';
   location?: string | null;
+  contact_phone?: string | null;
   pickup_latitude?: number | null;
   pickup_longitude?: number | null;
   logo_url?: string | null;
@@ -31,6 +32,7 @@ export interface StoreFromSupabase {
   status: 'Active' | 'Inactive' | 'Maintenance';
   categories: string[];
   location: string | null;
+  contact_phone: string | null;
   pickup_latitude: number | null;
   pickup_longitude: number | null;
   created_at: string;
@@ -41,7 +43,7 @@ export interface StoreFromSupabase {
   }[];
 }
 
-const STORE_COLUMNS_TO_SELECT = 'id, vendor_id, name, description, logo_url, status, categories, location, pickup_latitude, pickup_longitude, created_at, updated_at';
+const STORE_COLUMNS_TO_SELECT = 'id, vendor_id, name, description, logo_url, status, categories, location, contact_phone, pickup_latitude, pickup_longitude, created_at, updated_at';
 
 
 // Helper to extract path from Supabase Storage URL
@@ -221,6 +223,7 @@ export async function createStore(
     categories: storeData.categories, // DB expects text[] or text, Prisma/Supabase client handles array->string if needed for text
     status: storeData.status,
     location: storeData.location,
+    contact_phone: storeData.contact_phone,
     pickup_latitude: storeData.pickup_latitude,
     pickup_longitude: storeData.pickup_longitude,
     logo_url: null, 
@@ -346,6 +349,7 @@ export async function updateStore(
     categories: storeData.categories,
     status: storeData.status,
     location: storeData.location,
+    contact_phone: storeData.contact_phone,
     pickup_latitude: storeData.pickup_latitude,
     pickup_longitude: storeData.pickup_longitude,
     logo_url: newLogoUrl, // This could be the newly uploaded URL, existing one, or null if cleared & no new upload
