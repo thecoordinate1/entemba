@@ -1,6 +1,7 @@
+
 // src/services/orderService.ts
 import { createClient } from '@/lib/supabase/client';
-import type { OrderStatus } from '@/lib/mockData';
+import type { OrderStatus } from '@/lib/types';
 import type { CustomerFromSupabase } from './customerService';
 
 const supabase = createClient();
@@ -214,11 +215,34 @@ export async function updateOrderStatus(
   if (options?.pickup_latitude !== undefined) updatePayload.pickup_latitude = options.pickup_latitude;
   if (options?.pickup_longitude !== undefined) updatePayload.pickup_longitude = options.pickup_longitude;
   
-  // Special case: if moving to 'Confirmed', this is where stock should be decremented.
-  // This logic is now handled inside the create_order_with_snapshots RPC for better transactional safety.
-  // The 'Process Order' button in the UI should now directly move an order from 'Pending' to 'Confirmed'
-  // and decrement stock via the backend logic associated with that status change if not using the new RPC.
-  // Since we are using the new RPC, stock is handled at creation.
+  if (status === 'Shipped' || status === 'Delivered') {
+    const { data: orderItems, error: itemsError } = await supabase
+      .from('order_items')
+      .select('product_id, quantity')
+      .eq('order_id', orderId);
+
+    if (itemsError) {
+      console.error('[orderService.updateOrderStatus] Error fetching order items for stock update:', itemsError);
+      return { data: null, error: new Error('Could not fetch order items to update stock.') };
+    }
+
+    if (orderItems) {
+      for (const item of orderItems) {
+        if (item.product_id && item.quantity > 0) {
+          const { error: stockUpdateError } = await supabase.rpc('decrement_product_stock', {
+            p_product_id: item.product_id,
+            p_quantity: item.quantity,
+          });
+          if (stockUpdateError) {
+            console.error(`[orderService.updateOrderStatus] Error decrementing stock for product ${item.product_id}:`, stockUpdateError);
+            // In a real-world scenario, you might want to halt or rollback here
+            return { data: null, error: new Error(`Failed to update stock for product ${item.product_id}.`) };
+          }
+        }
+      }
+    }
+  }
+
 
   const { data: updatedOrder, error: updateError } = await supabase
     .from('orders')

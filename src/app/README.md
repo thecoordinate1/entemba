@@ -64,6 +64,18 @@ Open [http://localhost:9002](http://localhost:9002) with your browser to see the
 
 You must run the following SQL functions in your Supabase SQL Editor for all application features to work correctly.
 
+### `decrement_product_stock`
+```sql
+CREATE OR REPLACE FUNCTION decrement_product_stock(p_product_id UUID, p_quantity INTEGER)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE products
+  SET stock = stock - p_quantity
+  WHERE id = p_product_id;
+END;
+$$ LANGUAGE plpgsql;
+```
+
 ### `get_revenue_summary_stats` (with Average Order Value)
 ```sql
 -- Drop the old function first if its return signature is changing
