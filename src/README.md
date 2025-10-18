@@ -64,6 +64,67 @@ Open [http://localhost:9002](http://localhost:9002) with your browser to see the
 
 You must run the following SQL functions in your Supabase SQL Editor for all application features to work correctly.
 
+### Inventory Management Triggers
+These triggers automatically adjust product stock levels when an order's status is updated. This is crucial for accurate inventory tracking.
+```sql
+-- Function to decrement stock when an order is completed
+CREATE OR REPLACE FUNCTION decrement_product_stock_on_order_completion()
+RETURNS TRIGGER AS $$
+DECLARE
+    item RECORD;
+BEGIN
+    -- Check if the status is changing TO a completed state ('Shipped' or 'Delivered')
+    -- FROM a non-completed state.
+    IF (NEW.status IN ('Shipped', 'Delivered')) AND (OLD.status NOT IN ('Shipped', 'Delivered')) THEN
+        FOR item IN
+            SELECT product_id, quantity FROM order_items WHERE order_id = NEW.id
+        LOOP
+            -- Decrement the stock for each product in the order
+            UPDATE products
+            SET stock = stock - item.quantity
+            WHERE id = item.product_id;
+        END LOOP;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger that calls the decrement function after an order update
+CREATE TRIGGER on_order_completion_decrement_stock
+AFTER UPDATE ON orders
+FOR EACH ROW
+EXECUTE FUNCTION decrement_product_stock_on_order_completion();
+
+-- Function to increment stock when a completed order is cancelled/returned
+CREATE OR REPLACE FUNCTION increment_product_stock_on_order_event()
+RETURNS TRIGGER AS $$
+DECLARE
+    item RECORD;
+BEGIN
+    -- Check if the status is changing FROM a completed state ('Shipped' or 'Delivered')
+    -- TO a non-completed state (e.g., 'Cancelled').
+    IF (OLD.status IN ('Shipped', 'Delivered')) AND (NEW.status NOT IN ('Shipped', 'Delivered')) THEN
+        FOR item IN
+            SELECT product_id, quantity FROM order_items WHERE order_id = NEW.id
+        LOOP
+            -- Increment the stock for each product in the order
+            UPDATE products
+            SET stock = stock + item.quantity
+            WHERE id = item.product_id;
+        END LOOP;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger that calls the increment function after an order update
+CREATE TRIGGER on_order_cancellation_increment_stock
+AFTER UPDATE ON orders
+FOR EACH ROW
+EXECUTE FUNCTION increment_product_stock_on_order_event();
+```
+
+
 ### `get_revenue_summary_stats` (with Average Order Value)
 ```sql
 -- Drop the old function first if its return signature is changing
