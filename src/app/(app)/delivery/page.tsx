@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { orderStatusColors, orderStatusIcons } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
+import { Progress } from "@/components/ui/progress";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,6 +44,11 @@ const deliveryStatusTransitions: Record<OrderStatus, OrderStatus[]> = {
   Pending: [],
   Delivered: [],
   Cancelled: [],
+};
+
+const DELIVERY_TIER_MINIMUMS = {
+    Standard: 10,
+    Economy: 25,
 };
 
 
@@ -77,11 +83,14 @@ const DeliveryOrderCard: React.FC<{ order: OrderUIType, onStatusUpdate: (orderId
               </DropdownMenuContent>
             </DropdownMenu>
         </div>
-        <div className="pt-2">
+        <div className="pt-2 flex items-center gap-2">
              <Badge variant="outline" className={cn(orderStatusColors[order.status], "flex items-center gap-1.5 w-fit")}>
                 <StatusIcon className="h-4 w-4" />
                 {order.status}
             </Badge>
+            {order.shippingMethod && (
+                <Badge variant="secondary">{order.shippingMethod}</Badge>
+            )}
         </div>
       </CardHeader>
       <CardContent className="flex-grow space-y-4">
@@ -134,7 +143,7 @@ export default function DeliveryPage() {
   const storeId = searchParams.get("storeId");
   const { toast } = useToast();
   
-  const [orders, setOrders] = React.useState<OrderUIType[]>([]);
+  const [allOrders, setAllOrders] = React.useState<OrderUIType[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = React.useState<string | null>(null); // Store orderId being updated
@@ -150,7 +159,7 @@ export default function DeliveryPage() {
     if (!storeId || !authUser) {
       setError("Please select a store to view delivery orders.");
       setIsLoading(false);
-      setOrders([]);
+      setAllOrders([]);
       return;
     }
     setIsLoading(true);
@@ -159,9 +168,9 @@ export default function DeliveryPage() {
     if (fetchError) {
       setError(fetchError.message);
       toast({ variant: "destructive", title: "Failed to load orders", description: fetchError.message });
-      setOrders([]);
+      setAllOrders([]);
     } else {
-      setOrders(data?.map(mapOrderFromSupabaseToUI) || []);
+      setAllOrders(data?.map(mapOrderFromSupabaseToUI) || []);
     }
     setIsLoading(false);
   }, [storeId, authUser, toast]);
@@ -180,13 +189,20 @@ export default function DeliveryPage() {
         toast({ title: "Status Updated", description: `Order status changed to ${newStatus}.` });
         // Optimistically update or refetch
         if(newStatus === 'Delivered') {
-            setOrders(prev => prev.filter(o => o.id !== orderId));
+            setAllOrders(prev => prev.filter(o => o.id !== orderId));
         } else {
-            setOrders(prev => prev.map(o => o.id === orderId ? mapOrderFromSupabaseToUI(updatedOrder!) : o));
+            setAllOrders(prev => prev.map(o => o.id === orderId ? mapOrderFromSupabaseToUI(updatedOrder!) : o));
         }
     }
     setIsUpdatingStatus(null);
   };
+  
+  const expressOrders = allOrders.filter(o => o.shippingMethod === 'Express');
+  const standardOrders = allOrders.filter(o => o.shippingMethod === 'Standard');
+  const economyOrders = allOrders.filter(o => o.shippingMethod === 'Economy');
+
+  const standardProgress = Math.min((standardOrders.length / DELIVERY_TIER_MINIMUMS.Standard) * 100, 100);
+  const economyProgress = Math.min((economyOrders.length / DELIVERY_TIER_MINIMUMS.Economy) * 100, 100);
 
 
   return (
@@ -199,11 +215,41 @@ export default function DeliveryPage() {
         </Button>
       </div>
 
+       <div className="grid md:grid-cols-2 gap-4">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Standard Delivery Queue</CardTitle>
+                    <CardDescription>Orders waiting for standard delivery batch (2-4 days).</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex justify-between items-center mb-2">
+                        <span className="text-muted-foreground">Orders in Queue</span>
+                        <span className="font-bold">{standardOrders.length} / {DELIVERY_TIER_MINIMUMS.Standard}</span>
+                    </div>
+                    <Progress value={standardProgress} />
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Economy Delivery Queue</CardTitle>
+                    <CardDescription>Orders waiting for economy delivery batch (4-7 days).</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex justify-between items-center mb-2">
+                        <span className="text-muted-foreground">Orders in Queue</span>
+                        <span className="font-bold">{economyOrders.length} / {DELIVERY_TIER_MINIMUMS.Economy}</span>
+                    </div>
+                    <Progress value={economyProgress} />
+                </CardContent>
+            </Card>
+        </div>
+
+
       <Card>
         <CardHeader>
-          <CardTitle>Active Self-Delivery Queue</CardTitle>
+          <CardTitle>Immediate (Express) Delivery Queue</CardTitle>
           <CardDescription>
-            This page shows orders assigned for self-delivery that are currently active.
+            This page shows Express orders assigned for self-delivery that are currently active.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -222,15 +268,15 @@ export default function DeliveryPage() {
             </div>
           )}
 
-          {!isLoading && !error && orders.length === 0 && (
+          {!isLoading && !error && expressOrders.length === 0 && (
              <div className="text-center py-10 text-muted-foreground">
-                <p>There are no active self-delivery orders.</p>
+                <p>There are no active express delivery orders.</p>
             </div>
           )}
 
-          {!isLoading && !error && orders.length > 0 && (
+          {!isLoading && !error && expressOrders.length > 0 && (
              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {orders.map(order => (
+                {expressOrders.map(order => (
                     <DeliveryOrderCard 
                         key={order.id} 
                         order={order} 
