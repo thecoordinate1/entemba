@@ -75,7 +75,7 @@ const defaultNewOrderData = {
   customerSpecification: "",
   shippingAddress: "",
   billingAddress: "",
-  shippingMethod: "",
+  shippingMethod: "Standard",
   paymentMethod: "",
   shippingLatitude: "",
   shippingLongitude: "",
@@ -398,6 +398,10 @@ export default function OrdersPage() {
     const { name, value } = e.target;
     setNewOrderData(prev => ({ ...prev, [name]: value }));
   };
+  
+  const handleShippingMethodChange = (value: string) => {
+    setNewOrderData(prev => ({ ...prev, shippingMethod: value }));
+  };
 
   const handleNewOrderStatusChange = (value: OrderStatus) => {
     setNewOrderData(prev => ({ ...prev, status: value }));
@@ -631,16 +635,25 @@ export default function OrdersPage() {
                           />
                         </div>
                         <div className="grid gap-2">
-                            <Label htmlFor="shippingMethod">Shipping Method</Label>
-                            <Input id="shippingMethod" name="shippingMethod" value={newOrderData.shippingMethod} onChange={handleNewOrderInputChange} />
+                          <Label htmlFor="shippingMethod">Delivery Tier</Label>
+                          <Select name="shippingMethod" value={newOrderData.shippingMethod} onValueChange={handleShippingMethodChange}>
+                              <SelectTrigger id="shippingMethod">
+                                  <SelectValue placeholder="Select delivery speed" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                  <SelectItem value="Express">Express (1-2 days)</SelectItem>
+                                  <SelectItem value="Standard">Standard (2-4 days)</SelectItem>
+                                  <SelectItem value="Economy">Economy (4-7 days)</SelectItem>
+                              </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="deliveryCost">Delivery Cost</Label>
+                            <Input id="deliveryCost" name="delivery_cost" type="number" step="0.01" value={newOrderData.delivery_cost} onChange={handleNewOrderInputChange} />
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="paymentMethod">Payment Method</Label>
                             <Input id="paymentMethod" name="paymentMethod" value={newOrderData.paymentMethod} onChange={handleNewOrderInputChange} />
-                        </div>
-                         <div className="grid gap-2">
-                            <Label htmlFor="deliveryCost">Delivery Cost (Optional)</Label>
-                            <Input id="deliveryCost" name="delivery_cost" type="number" step="0.01" value={newOrderData.delivery_cost} onChange={handleNewOrderInputChange} />
                         </div>
                     </CardContent>
                   </Card>

@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -387,8 +388,8 @@ export default function OrderDetailPage() {
                         </DropdownMenu>
                     </div>
 
-                    {order.shippingMethod && <p className="text-sm">Method: {order.shippingMethod}</p>}
-                    {order.trackingNumber && <p className="text-sm">Tracking #: <span className="font-mono text-primary">{order.trackingNumber}</span></p>}
+                    {order.shippingMethod && <p className="text-sm"><span className="font-semibold">Delivery Tier:</span> {order.shippingMethod}</p>}
+                    {order.trackingNumber && <p className="text-sm"><span className="font-semibold">Tracking #:</span> <span className="font-mono text-primary">{order.trackingNumber}</span></p>}
                 </div>
                 
             </div>
