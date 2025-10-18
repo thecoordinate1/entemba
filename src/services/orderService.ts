@@ -459,3 +459,30 @@ export async function getSelfDeliveryOrdersForStore(
   console.log(`[orderService.getSelfDeliveryOrdersForStore] Fetched ${ordersData?.length || 0} self-delivery orders.`);
   return { data: ordersData as OrderFromSupabase[] | null, error: null };
 }
+
+
+export async function getConfirmedOrdersByShippingMethod(
+  storeId: string,
+  shippingMethod: 'Standard' | 'Economy'
+): Promise<{ data: OrderFromSupabase[] | null; error: Error | null }> {
+  console.log(`[orderService.getConfirmedOrdersByShippingMethod] Fetching orders for store_id: ${storeId}, method: ${shippingMethod}`);
+
+  const { data: ordersData, error: ordersError } = await supabase
+    .from('orders')
+    .select(commonOrderSelect)
+    .eq('store_id', storeId)
+    .eq('shipping_method', shippingMethod)
+    .eq('status', 'Confirmed')
+    .order('order_date', { ascending: true }); // Oldest first
+
+  if (ordersError) {
+    let message = ordersError.message || `Failed to fetch ${shippingMethod} orders.`;
+    console.error(`[orderService.getConfirmedOrdersByShippingMethod] Supabase fetch error:`, message, 'Original Supabase Error:', JSON.stringify(ordersError, null, 2));
+    const errorToReturn = new Error(message);
+    (errorToReturn as any).details = ordersError;
+    return { data: null, error: errorToReturn };
+  }
+
+  console.log(`[orderService.getConfirmedOrdersByShippingMethod] Fetched ${ordersData?.length || 0} ${shippingMethod} orders.`);
+  return { data: ordersData as OrderFromSupabase[] | null, error: null };
+}

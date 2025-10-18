@@ -16,8 +16,9 @@ import {
   Package,
   User,
   MoreVertical,
-  ChevronDown
+  ChevronRight
 } from "lucide-react";
+import Link from "next/link";
 import type { User as AuthUser } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -197,59 +198,73 @@ export default function DeliveryPage() {
     setIsUpdatingStatus(null);
   };
   
-  const expressOrders = allOrders.filter(o => o.shippingMethod === 'Express');
-  const standardOrders = allOrders.filter(o => o.shippingMethod === 'Standard');
-  const economyOrders = allOrders.filter(o => o.shippingMethod === 'Economy');
+  const confirmedOrders = allOrders.filter(o => o.status === 'Confirmed');
+  const activeDeliveryOrders = allOrders.filter(o => o.status !== 'Confirmed');
+
+  const standardOrders = confirmedOrders.filter(o => o.shippingMethod === 'Standard');
+  const economyOrders = confirmedOrders.filter(o => o.shippingMethod === 'Economy');
 
   const standardProgress = Math.min((standardOrders.length / DELIVERY_TIER_MINIMUMS.Standard) * 100, 100);
   const economyProgress = Math.min((economyOrders.length / DELIVERY_TIER_MINIMUMS.Economy) * 100, 100);
+
+  const queryParams = storeId ? `?storeId=${storeId}` : '';
 
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold flex items-center gap-2"><Truck className="h-7 w-7"/>Self-Delivery Management</h1>
-        <Button variant="outline" onClick={() => router.push(`/orders?${searchParams.toString()}`)}>
+        <Button variant="outline" onClick={() => router.push(`/orders${queryParams}`)}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to All Orders
         </Button>
       </div>
 
-       <div className="grid md:grid-cols-2 gap-4">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Standard Delivery Queue</CardTitle>
-                    <CardDescription>Orders waiting for standard delivery batch (2-4 days).</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex justify-between items-center mb-2">
-                        <span className="text-muted-foreground">Orders in Queue</span>
-                        <span className="font-bold">{standardOrders.length} / {DELIVERY_TIER_MINIMUMS.Standard}</span>
-                    </div>
-                    <Progress value={standardProgress} />
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader>
-                    <CardTitle>Economy Delivery Queue</CardTitle>
-                    <CardDescription>Orders waiting for economy delivery batch (4-7 days).</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex justify-between items-center mb-2">
-                        <span className="text-muted-foreground">Orders in Queue</span>
-                        <span className="font-bold">{economyOrders.length} / {DELIVERY_TIER_MINIMUMS.Economy}</span>
-                    </div>
-                    <Progress value={economyProgress} />
-                </CardContent>
-            </Card>
+       <div className="grid md:grid-cols-2 gap-6">
+            <Link href={`/delivery/standard${queryParams}`} className="group">
+                <Card className="hover:border-primary transition-colors">
+                    <CardHeader>
+                        <CardTitle>Standard Delivery Queue</CardTitle>
+                        <CardDescription>Orders waiting for standard delivery batch (2-4 days).</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-muted-foreground">Orders in Queue</span>
+                            <span className="font-bold">{standardOrders.length} / {DELIVERY_TIER_MINIMUMS.Standard}</span>
+                        </div>
+                        <Progress value={standardProgress} />
+                    </CardContent>
+                    <CardFooter className="text-sm text-muted-foreground group-hover:text-primary transition-colors">
+                        View Queue <ChevronRight className="ml-1 h-4 w-4" />
+                    </CardFooter>
+                </Card>
+            </Link>
+             <Link href={`/delivery/economy${queryParams}`} className="group">
+                <Card className="hover:border-primary transition-colors">
+                    <CardHeader>
+                        <CardTitle>Economy Delivery Queue</CardTitle>
+                        <CardDescription>Orders waiting for economy delivery batch (4-7 days).</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-muted-foreground">Orders in Queue</span>
+                            <span className="font-bold">{economyOrders.length} / {DELIVERY_TIER_MINIMUMS.Economy}</span>
+                        </div>
+                        <Progress value={economyProgress} />
+                    </CardContent>
+                    <CardFooter className="text-sm text-muted-foreground group-hover:text-primary transition-colors">
+                        View Queue <ChevronRight className="ml-1 h-4 w-4" />
+                    </CardFooter>
+                </Card>
+            </Link>
         </div>
 
 
       <Card>
         <CardHeader>
-          <CardTitle>Immediate (Express) Delivery Queue</CardTitle>
+          <CardTitle>Active Deliveries</CardTitle>
           <CardDescription>
-            This page shows Express orders assigned for self-delivery that are currently active.
+            This page shows Express orders and other orders that are actively in the delivery process.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -268,15 +283,15 @@ export default function DeliveryPage() {
             </div>
           )}
 
-          {!isLoading && !error && expressOrders.length === 0 && (
+          {!isLoading && !error && activeDeliveryOrders.length === 0 && (
              <div className="text-center py-10 text-muted-foreground">
-                <p>There are no active express delivery orders.</p>
+                <p>There are no active delivery orders.</p>
             </div>
           )}
 
-          {!isLoading && !error && expressOrders.length > 0 && (
+          {!isLoading && !error && activeDeliveryOrders.length > 0 && (
              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {expressOrders.map(order => (
+                {activeDeliveryOrders.map(order => (
                     <DeliveryOrderCard 
                         key={order.id} 
                         order={order} 
