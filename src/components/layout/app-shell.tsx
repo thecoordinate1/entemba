@@ -245,27 +245,39 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
   }, [supabase, fetchInitialUserData]);
   
   React.useEffect(() => {
+    // Only run this logic if we have finished loading stores.
+    if (isLoadingStores) {
+      return;
+    }
+    
     const storeIdFromUrl = searchParams.get("storeId");
 
-    if (!isLoadingStores) {
-      if (availableStores.length > 0) {
-        if (storeIdFromUrl && availableStores.some(s => s.id === storeIdFromUrl)) {
+    if (availableStores.length > 0) {
+      // If there's a valid store ID in the URL, use it.
+      if (storeIdFromUrl && availableStores.some(s => s.id === storeIdFromUrl)) {
+        if (selectedStoreId !== storeIdFromUrl) {
           setSelectedStoreId(storeIdFromUrl);
-        } else {
-          const firstStoreId = availableStores[0].id;
+        }
+      } else {
+        // Otherwise, default to the first store and update the URL.
+        const firstStoreId = availableStores[0].id;
+        if (selectedStoreId !== firstStoreId) {
           setSelectedStoreId(firstStoreId);
           const newParams = new URLSearchParams(searchParams.toString());
           newParams.set("storeId", firstStoreId);
+          // Use replace to avoid polluting browser history on initial load.
           router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
         }
-      } else {
-        if (pathname === '/dashboard') {
-          router.replace('/stores');
-        }
-        setSelectedStoreId(null);
+      }
+    } else {
+      // If the user has no stores, clear the selected store and redirect if they are on the dashboard.
+      setSelectedStoreId(null);
+      if (pathname === '/dashboard') {
+        router.replace('/stores');
       }
     }
-  }, [searchParams, availableStores, pathname, router, isLoadingStores]);
+  }, [searchParams, availableStores, pathname, router, isLoadingStores, selectedStoreId]);
+
 
   React.useEffect(() => {
     const currentNavItem = navItems.find(item => pathname.startsWith(item.href));
