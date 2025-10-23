@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -154,37 +155,41 @@ export default function ProductsPage() {
   }, [supabase]);
 
   React.useEffect(() => {
-    if (storeIdFromUrl) {
-      supabase.from('stores').select('name').eq('id', storeIdFromUrl).single().then(({data}) => {
-        setSelectedStoreName(data?.name || "Selected Store");
-      });
+    const fetchProducts = async () => {
+        if (storeIdFromUrl && authUser) {
+            setIsLoadingProducts(true);
+            try {
+                const storePromise = supabase.from('stores').select('name').eq('id', storeIdFromUrl).single();
+                const productsPromise = getProductsByStoreId(storeIdFromUrl, currentPage, ITEMS_PER_PAGE);
 
-      if (authUser) {
-        setIsLoadingProducts(true);
-        getProductsByStoreId(storeIdFromUrl, currentPage, ITEMS_PER_PAGE)
-          .then(({ data, count, error }) => {
-            if (error) {
-              toast({ variant: "destructive", title: "Error fetching products", description: error.message });
-              setProducts([]);
-              setTotalProducts(0);
-            } else if (data) {
-              setProducts(data.map(mapProductFromSupabaseToUI));
-              setTotalProducts(count || 0);
+                const [storeResult, productsResult] = await Promise.all([storePromise, productsPromise]);
+
+                if (storeResult.data) {
+                    setSelectedStoreName(storeResult.data.name);
+                }
+
+                if (productsResult.error) {
+                    toast({ variant: "destructive", title: "Error fetching products", description: productsResult.error.message });
+                    setProducts([]);
+                    setTotalProducts(0);
+                } else if (productsResult.data) {
+                    setProducts(productsResult.data.map(mapProductFromSupabaseToUI));
+                    setTotalProducts(productsResult.count || 0);
+                }
+            } catch (error: any) {
+                toast({ variant: "destructive", title: "An error occurred", description: error.message });
+            } finally {
+                setIsLoadingProducts(false);
             }
-          })
-          .finally(() => setIsLoadingProducts(false));
-      } else {
-        setProducts([]);
-        setTotalProducts(0);
-        setIsLoadingProducts(false);
-      }
-    } else {
-      setSelectedStoreName("No Store Selected");
-      setProducts([]);
-      setTotalProducts(0);
-      setIsLoadingProducts(false);
-    }
-  }, [storeIdFromUrl, authUser, toast, supabase, currentPage]);
+        } else {
+            setSelectedStoreName(storeIdFromUrl ? "Loading..." : "No Store Selected");
+            setProducts([]);
+            setTotalProducts(0);
+            setIsLoadingProducts(!storeIdFromUrl); // Only stop loading if a store ID is missing
+        }
+    };
+    fetchProducts();
+  }, [storeIdFromUrl, authUser?.id, currentPage, toast, supabase]);
 
   const resetImageSlots = () => {
     formImageSlots.forEach(slot => {
@@ -440,7 +445,7 @@ export default function ProductsPage() {
         toast({ variant: "destructive", title: "Error Deleting Product", description: error.message });
       } else {
         // setProducts(prev => prev.filter(p => p.id !== selectedProduct!.id));
-        toast({ title: "Product Deleted", description: `${selectedProduct.name} has been successfully deleted.`, variant: "default" });
+        toast({ title: "Product Deleted", description: `${selectedProduct.name} has been successfully deleted.`, variant: "default" }); // Use default for success
         setIsDeleteDialogOpen(false);
         setSelectedProduct(null);
          // Refetch current page data, potentially moving to previous page if current becomes empty
@@ -618,7 +623,7 @@ export default function ProductsPage() {
           </div>
           <Dialog open={isAddDialogOpen} onOpenChange={(isOpen) => { setIsAddDialogOpen(isOpen); if (!isOpen) resetFormFields(); }}>
             <DialogTrigger asChild>
-              <Button onClick={() => { resetFormFields(); setIsAddDialogOpen(true); }} disabled={!storeIdFromUrl || !authUser}>
+              <Button onClick={() => { setSelectedProduct(null); resetFormFields(); setIsAddDialogOpen(true); }} disabled={!storeIdFromUrl || !authUser}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Product
               </Button>
             </DialogTrigger>
@@ -735,6 +740,7 @@ export default function ProductsPage() {
                         <DropdownMenuItem onClick={() => openEditDialog(product)}>
                             <Edit className="mr-2 h-4 w-4" /> Edit
                         </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => openDeleteDialog(product)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
                             <Trash2 className="mr-2 h-4 w-4" /> Delete
                         </DropdownMenuItem>

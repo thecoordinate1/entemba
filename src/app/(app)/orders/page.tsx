@@ -157,68 +157,61 @@ export default function OrdersPage() {
   }, [supabase]);
 
   React.useEffect(() => {
-    if (storeIdFromUrl) {
-      if (authUser) {
+    const fetchPageData = async () => {
+        if (!storeIdFromUrl || !authUser) {
+            setOrders([]);
+            setTotalOrders(0);
+            setStoreProducts([]);
+            setSelectedStore(null);
+            setIsLoadingOrders(!storeIdFromUrl && !!authUser); // Only loading if store is missing but user is logged in
+            setIsLoadingStoreProducts(false);
+            return;
+        }
+
         setIsLoadingOrders(true);
         setIsLoadingStoreProducts(true);
 
-        getStoreById(storeIdFromUrl, authUser.id).then(({ data: storeData, error: storeError}) => {
-            if(storeError) {
-                toast({ variant: "destructive", title: "Error fetching store details", description: storeError.message });
-                setSelectedStore(null);
-            } else {
-                setSelectedStore(storeData);
-            }
-        });
+        try {
+            const storePromise = getStoreById(storeIdFromUrl, authUser.id);
+            const ordersPromise = statusFilter === "All"
+                ? getOrdersByStoreId(storeIdFromUrl, currentPage, ITEMS_PER_PAGE)
+                : getOrdersByStoreIdAndStatus(storeIdFromUrl, statusFilter, currentPage, ITEMS_PER_PAGE);
+            const productsPromise = fetchStoreProducts(storeIdFromUrl, 1, 1000); // Fetch all for dropdown
 
-        let fetchPromise;
-        if (statusFilter === "All") {
-          fetchPromise = getOrdersByStoreId(storeIdFromUrl, currentPage, ITEMS_PER_PAGE);
-        } else {
-          fetchPromise = getOrdersByStoreIdAndStatus(storeIdFromUrl, statusFilter, currentPage, ITEMS_PER_PAGE);
+            const [storeResult, ordersResult, productsResult] = await Promise.allSettled([storePromise, ordersPromise, productsPromise]);
+            
+            if (storeResult.status === 'fulfilled' && !storeResult.value.error) {
+                setSelectedStore(storeResult.value.data);
+            } else if (storeResult.status === 'rejected' || storeResult.value.error) {
+                const error = storeResult.status === 'fulfilled' ? storeResult.value.error : storeResult.reason;
+                toast({ variant: "destructive", title: "Error fetching store details", description: error.message });
+            }
+
+            if (ordersResult.status === 'fulfilled' && !ordersResult.value.error) {
+                setOrders(ordersResult.value.data?.map(mapOrderFromSupabaseToUI) || []);
+                setTotalOrders(ordersResult.value.count || 0);
+            } else if (ordersResult.status === 'rejected' || ordersResult.value.error) {
+                 const error = ordersResult.status === 'fulfilled' ? ordersResult.value.error : ordersResult.reason;
+                toast({ variant: "destructive", title: "Error fetching orders", description: error.message });
+            }
+
+            if (productsResult.status === 'fulfilled' && !productsResult.value.error) {
+                setStoreProducts(productsResult.value.data?.map(mapProductFromSupabaseToProductUIType).filter(p => p.status === 'Active') || []);
+            } else if (productsResult.status === 'rejected' || productsResult.value.error) {
+                 const error = productsResult.status === 'fulfilled' ? productsResult.value.error : productsResult.reason;
+                toast({ variant: "destructive", title: "Error fetching store products", description: error.message });
+            }
+
+        } catch (error: any) {
+            toast({ variant: "destructive", title: "An unexpected error occurred", description: error.message });
+        } finally {
+            setIsLoadingOrders(false);
+            setIsLoadingStoreProducts(false);
         }
+    };
 
-        fetchPromise
-          .then(({ data, count, error }) => {
-            if (error) {
-              toast({ variant: "destructive", title: "Error fetching orders", description: error.message });
-              setOrders([]);
-              setTotalOrders(0);
-            } else if (data) {
-              setOrders(data.map(mapOrderFromSupabaseToUI));
-              setTotalOrders(count || 0);
-            }
-          })
-          .finally(() => setIsLoadingOrders(false));
-
-        // Fetch products for the store (no pagination needed for this dropdown)
-        fetchStoreProducts(storeIdFromUrl, 1, 1000) // Fetch a large number for dropdown
-          .then(({ data: productsData, error: productsError }) => {
-            if (productsError) {
-              toast({ variant: "destructive", title: "Error fetching store products", description: productsError.message });
-              setStoreProducts([]);
-            } else if (productsData) {
-              setStoreProducts(productsData.map(mapProductFromSupabaseToProductUIType).filter(p => p.status === 'Active'));
-            }
-          })
-          .finally(() => setIsLoadingStoreProducts(false));
-
-      } else {
-        setOrders([]);
-        setTotalOrders(0);
-        setIsLoadingOrders(false);
-        setStoreProducts([]);
-        setIsLoadingStoreProducts(false);
-      }
-    } else {
-      setSelectedStore(null);
-      setOrders([]);
-      setTotalOrders(0);
-      setIsLoadingOrders(false);
-      setStoreProducts([]);
-      setIsLoadingStoreProducts(false);
-    }
-  }, [storeIdFromUrl, authUser, statusFilter, currentPage, toast, supabase]);
+    fetchPageData();
+  }, [storeIdFromUrl, authUser?.id, statusFilter, currentPage, toast]);
 
   React.useEffect(() => {
     const checkStockAndProceed = async () => {
