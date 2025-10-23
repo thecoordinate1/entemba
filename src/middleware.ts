@@ -61,7 +61,7 @@ export async function middleware(request: NextRequest) {
 
   const currentPath = request.nextUrl.pathname;
 
-  const authRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];
+  const authRoutes = ['/login', '/signup', '/forgot-password', '/update-password', '/resend-confirmation'];
   const publicStaticRoutes = ['/', '/about']; // Explicitly public routes
 
   // If user is not signed in and trying to access a protected route
@@ -87,6 +87,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * Feel free to modify this pattern to include more paths.
      */
-    '/((?!_next/static|_next/image|favicon.ico|auth).*)',
+    '/((?!_next/static|_next/image|favicon.ico|auth/callback).*)',
   ],
 }
