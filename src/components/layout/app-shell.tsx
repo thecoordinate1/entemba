@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import type { User as AuthUser } from '@supabase/supabase-js';
 
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { NavItem } from "@/config/nav";
@@ -417,7 +417,10 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
                     </Button>
                     </SheetTrigger>
                     <SheetContent side="left" className="p-0 w-72 bg-sidebar text-sidebar-foreground border-r-sidebar-border">
-                    {React.cloneElement(sidebarContent, { isCollapsed: false })}
+                      <SheetHeader>
+                          <SheetTitle className="sr-only">Main Menu</SheetTitle>
+                      </SheetHeader>
+                      {React.cloneElement(sidebarContent, { isCollapsed: false })}
                     </SheetContent>
                 </Sheet>
                 <h1 className="text-xl font-semibold sm:text-2xl truncate">
