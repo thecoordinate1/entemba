@@ -17,7 +17,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <head />
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+      </head>
       <body className={`font-sans antialiased`}>
         {children}
         <Toaster />

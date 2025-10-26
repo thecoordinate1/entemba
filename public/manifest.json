@@ -3,9 +3,13 @@
   "short_name": "E-Ntemba",
   "description": "The all-in-one dashboard for managing your E-Ntemba online stores.",
   "start_url": "/",
+  "id": "/?source=pwa",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#1c252d",
-  "theme_color": "#34D399",
+  "background_color": "#111827",
+  "theme_color": "#1E6B42",
+  "orientation": "portrait-primary",
+  "categories": ["business", "ecommerce", "shopping"],
   "icons": [
     {
       "src": "/icons/icon-72x72.png",
@@ -47,6 +51,36 @@
       "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "My Orders",
+      "short_name": "Orders",
+      "description": "View and manage your orders",
+      "url": "/orders",
+      "icons": [{ "src": "/icons/shortcut-orders-96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "My Products",
+      "short_name": "Products",
+      "description": "View and manage your products",
+      "url": "/products",
+      "icons": [{ "src": "/icons/shortcut-products-96.png", "sizes": "96x96" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/screenshot-desktop.png",
+      "type": "image/png",
+      "sizes": "1280x720",
+      "form_factor": "wide"
+    },
+    {
+      "src": "/screenshots/screenshot-mobile.png",
+      "type": "image/png",
+      "sizes": "540x720",
+      "form_factor": "narrow"
     }
   ]
 }
