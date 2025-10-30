@@ -79,6 +79,19 @@ export interface Customer {
   };
 }
 
+export interface ProductVariant {
+    id: string;
+    price: number;
+    orderPrice?: number | null;
+    stock: number;
+    sku?: string | null;
+    isDefault: boolean;
+    options: {
+        type: string;
+        value: string;
+    }[];
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -95,6 +108,7 @@ export interface Product {
   tags?: string[];
   weight?: number; // in kg
   dimensions?: { length: number; width: number; height: number }; // in cm
+  variants: ProductVariant[];
 }
 
 export const orderStatusIcons: Record<OrderStatus, LucideIcon> = {

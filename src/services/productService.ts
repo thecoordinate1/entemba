@@ -119,7 +119,6 @@ export interface TopSellingProductFromRPC {
   total_revenue_generated?: number; 
 }
 
-
 // Helper to upload a single product image
 async function uploadProductImage(
   storeId: string,
@@ -427,4 +426,140 @@ export async function getProductsByIds(
     }
 
     return { data: data as ProductFromSupabase[], error: null };
+}
+
+// --- Variant and Option Functions ---
+
+export async function getStoreOptionTypes(storeId: string): Promise<{ data: OptionTypeFromSupabase[] | null, error: Error | null }> {
+  if (!storeId) return { data: null, error: new Error("Store ID is required.") };
+  const { data, error } = await supabase
+    .from('option_types')
+    .select('*')
+    .eq('store_id', storeId);
+  return { data, error: error ? new Error(error.message) : null };
+}
+
+export async function getOptionValues(optionTypeId: string): Promise<{ data: OptionValueFromSupabase[] | null, error: Error | null }> {
+  if (!optionTypeId) return { data: null, error: new Error("Option Type ID is required.") };
+  const { data, error } = await supabase
+    .from('option_values')
+    .select('*')
+    .eq('option_type_id', optionTypeId);
+  return { data, error: error ? new Error(error.message) : null };
+}
+
+export async function findOrCreateOptionType(storeId: string, name: string): Promise<OptionTypeFromSupabase> {
+    const { data: existing, error } = await supabase
+        .from('option_types')
+        .select('id, name')
+        .eq('store_id', storeId)
+        .eq('name', name)
+        .single();
+    
+    if (existing) return existing as OptionTypeFromSupabase;
+
+    if (error && error.code !== 'PGRST116') throw new Error(error.message); // throw if error is not 'not found'
+
+    const { data: newType, error: createError } = await supabase
+        .from('option_types')
+        .insert({ store_id: storeId, name: name })
+        .select('id, name')
+        .single();
+
+    if (createError || !newType) throw new Error(createError?.message || "Could not create option type.");
+    return newType as OptionTypeFromSupabase;
+}
+
+
+export async function findOrCreateOptionValue(optionTypeId: string, value: string): Promise<OptionValueFromSupabase> {
+    const { data: existing, error } = await supabase
+        .from('option_values')
+        .select('id, value')
+        .eq('option_type_id', optionTypeId)
+        .eq('value', value)
+        .single();
+        
+    if (existing) return existing as OptionValueFromSupabase;
+
+    if (error && error.code !== 'PGRST116') throw new Error(error.message);
+
+    const { data: newValue, error: createError } = await supabase
+        .from('option_values')
+        .insert({ option_type_id: optionTypeId, value: value })
+        .select('id, value')
+        .single();
+
+    if (createError || !newValue) throw new Error(createError?.message || "Could not create option value.");
+    return newValue as OptionValueFromSupabase;
+}
+
+interface VariantPayload {
+  product_id: string;
+  price: number;
+  order_price?: number | null;
+  stock: number;
+  sku?: string | null;
+  is_default: boolean;
+  optionValueIds: string[];
+}
+
+export async function createProductVariant(payload: VariantPayload): Promise<{ data: ProductVariantFromSupabase | null, error: Error | null }> {
+  const { product_id, price, order_price, stock, sku, is_default, optionValueIds } = payload;
+  
+  // Step 1: Create the product_variant record
+  const { data: newVariant, error: variantError } = await supabase
+    .from('product_variants')
+    .insert({
+      product_id,
+      price,
+      order_price,
+      stock,
+      sku,
+      is_default
+    })
+    .select('id')
+    .single();
+
+  if (variantError || !newVariant) {
+    return { data: null, error: new Error(variantError?.message || "Failed to create variant record.") };
+  }
+
+  // Step 2: Create the links in the join table product_variant_options
+  if (optionValueIds.length > 0) {
+    const linksToInsert = optionValueIds.map(optionId => ({
+      variant_id: newVariant.id,
+      option_value_id: optionId,
+    }));
+    const { error: linkError } = await supabase
+      .from('product_variant_options')
+      .insert(linksToInsert);
+
+    if (linkError) {
+      // If linking fails, we should ideally roll back the variant creation.
+      // For now, we'll delete the orphaned variant and return the error.
+      await supabase.from('product_variants').delete().eq('id', newVariant.id);
+      return { data: null, error: new Error(`Failed to link variant options: ${linkError.message}`) };
+    }
+  }
+  
+  // Step 3: Refetch the complete variant data to return to the client
+  const { data: completeVariant, error: fetchError } = await supabase
+    .from('product_variants')
+    .select(`
+      *,
+      product_variant_options (
+        option_value:option_values (
+          *,
+          option_type:option_types (*)
+        )
+      )
+    `)
+    .eq('id', newVariant.id)
+    .single();
+
+  if (fetchError) {
+    return { data: null, error: new Error(`Variant created but failed to refetch details: ${fetchError.message}`)};
+  }
+
+  return { data: completeVariant, error: null };
 }

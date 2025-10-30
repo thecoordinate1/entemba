@@ -7,9 +7,9 @@ import NextImage from "next/image"; // Renamed to avoid conflict with Image from
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableRow, TableHeader } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Edit, Star, Tag, Weight, Ruler, ShoppingCart, DollarSign, UploadCloud, Image as ImageIconLucide, Calculator } from "lucide-react";
+import { ArrowLeft, Edit, Star, Tag, Weight, Ruler, ShoppingCart, DollarSign, UploadCloud, Image as ImageIconLucide, Calculator, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -34,10 +34,19 @@ import {
     updateProduct, 
     type ProductPayload, 
     type ProductFromSupabase, 
-    type ProductImageFromSupabase 
+    type ProductImageFromSupabase,
+    getStoreOptionTypes,
+    getOptionValues,
+    findOrCreateOptionType,
+    findOrCreateOptionValue,
+    createProductVariant,
+    type OptionTypeFromSupabase,
+    type OptionValueFromSupabase
 } from "@/services/productService";
-import type { Product as ProductUIType } from "@/lib/mockData"; // Using this as the target UI type for now
+import type { Product as ProductUIType, ProductVariant as ProductVariantUIType } from "@/lib/types";
 import { calculateDeliveryCapacity, type CalculateCapacityOutput } from "@/ai/flows/calculate-delivery-capacity-flow";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const MAX_IMAGES = 5;
 
@@ -49,11 +58,31 @@ interface FormImageSlot {
   originalUrl?: string; // The URL from Supabase, if it's an existing image
 }
 
+interface NewVariantOption {
+  typeId?: string;
+  typeName: string;
+  valueId?: string;
+  valueName: string;
+}
+
 const initialImageSlots = (): FormImageSlot[] => Array(MAX_IMAGES).fill(null).map((_, i) => ({
   file: null,
   previewUrl: null,
   order: i,
 }));
+
+const mapVariantFromSupabaseToUI = (variant: any): ProductVariantUIType => ({
+  id: variant.id,
+  price: variant.price,
+  orderPrice: variant.order_price,
+  stock: variant.stock,
+  sku: variant.sku,
+  isDefault: variant.is_default,
+  options: variant.product_variant_options.map((pvo: any) => ({
+    type: pvo.option_value.option_type.name,
+    value: pvo.option_value.value,
+  })),
+});
 
 
 // Helper to map backend product to UI product type
@@ -78,6 +107,7 @@ const mapProductFromSupabaseToUI = (product: ProductFromSupabase): ProductUIType
         width: product.dimensions_cm.width, 
         height: product.dimensions_cm.height 
     } : undefined,
+    variants: product.product_variants.map(mapVariantFromSupabaseToUI)
   };
 };
 
@@ -98,6 +128,8 @@ export default function ProductDetailPage() {
   const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
   
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
+  const [isAddVariantDialogOpen, setIsAddVariantDialogOpen] = React.useState(false);
+
   const [selectedImageIndex, setSelectedImageIndex] = React.useState(0);
   
   const [formImageSlots, setFormImageSlots] = React.useState<FormImageSlot[]>(initialImageSlots());
@@ -124,10 +156,42 @@ export default function ProductDetailPage() {
   const [isCalculatingCapacity, setIsCalculatingCapacity] = React.useState(false);
   const [capacityError, setCapacityError] = React.useState<string | null>(null);
 
+  // --- Variant Management State ---
+  const [storeOptionTypes, setStoreOptionTypes] = React.useState<OptionTypeFromSupabase[]>([]);
+  const [newVariantOptions, setNewVariantOptions] = React.useState<NewVariantOption[]>([]);
+  const [newVariantPrice, setNewVariantPrice] = React.useState<string>("");
+  const [newVariantOrderPrice, setNewVariantOrderPrice] = React.useState<string>("");
+  const [newVariantStock, setNewVariantStock] = React.useState<string>("");
+  const [newVariantSku, setNewVariantSku] = React.useState<string>("");
+  const [newVariantIsDefault, setNewVariantIsDefault] = React.useState<boolean>(false);
+  const [isSubmittingVariant, setIsSubmittingVariant] = React.useState<boolean>(false);
+
 
   React.useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setAuthUser(user));
   }, [supabase]);
+
+  const fetchProduct = React.useCallback(async () => {
+    if (!productId) return;
+    setIsLoadingProduct(true);
+    try {
+      const { data, error } = await getProductById(productId);
+      if (error) throw error;
+      if (data) {
+        const uiProduct = mapProductFromSupabaseToUI(data);
+        setProduct(uiProduct);
+        // ... (rest of the state updates)
+      } else {
+        throw new Error("Product not found");
+      }
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error Fetching Product", description: err.message });
+      setProduct(null);
+    } finally {
+      setIsLoadingProduct(false);
+    }
+  }, [productId, toast]);
+  
 
   React.useEffect(() => {
     if (productId) {
@@ -183,7 +247,14 @@ export default function ProductDetailPage() {
       setProduct(null);
     }
   }, [productId, toast]);
-
+  
+  React.useEffect(() => {
+    if (isAddVariantDialogOpen && storeIdFromUrl) {
+      getStoreOptionTypes(storeIdFromUrl).then(({ data }) => {
+        setStoreOptionTypes(data || []);
+      });
+    }
+  }, [isAddVariantDialogOpen, storeIdFromUrl]);
 
   const handleImageFileChange = (index: number, event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -207,16 +278,11 @@ export default function ProductDetailPage() {
   
   const openEditDialog = () => {
     if (!product) return;
-    // Form state should already be set by useEffect when product loads or changes
-    // This function now mainly just opens the dialog
     setIsEditDialogOpen(true);
   };
   
   const resetAndCloseEditDialog = () => {
     setIsEditDialogOpen(false);
-    // Optionally, re-initialize form fields if product data might have changed elsewhere,
-    // or rely on the main useEffect to keep form state in sync.
-    // For simplicity, we assume the main useEffect handles form state.
   };
 
 
@@ -353,6 +419,79 @@ export default function ProductDetailPage() {
       });
     } finally {
       setIsCalculatingCapacity(false);
+    }
+  };
+
+  const resetAddVariantForm = () => {
+    setNewVariantOptions([]);
+    setNewVariantPrice(product?.price.toString() ?? "");
+    setNewVariantOrderPrice(product?.orderPrice?.toString() ?? "");
+    setNewVariantStock("");
+    setNewVariantSku("");
+    setNewVariantIsDefault(false);
+  };
+
+  const handleAddVariantOption = () => {
+    setNewVariantOptions(prev => [...prev, { typeName: '', valueName: '' }]);
+  };
+
+  const handleVariantOptionChange = (index: number, field: 'typeName' | 'valueName', value: string) => {
+    setNewVariantOptions(prev => {
+      const newOptions = [...prev];
+      newOptions[index] = { ...newOptions[index], [field]: value };
+      return newOptions;
+    });
+  };
+
+  const handleRemoveVariantOption = (index: number) => {
+    setNewVariantOptions(prev => prev.filter((_, i) => i !== index));
+  };
+  
+  const handleCreateVariant = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!storeIdFromUrl || !product || newVariantOptions.length === 0) {
+      toast({ variant: "destructive", title: "Missing Information", description: "Please add at least one option for the variant." });
+      return;
+    }
+    setIsSubmittingVariant(true);
+    try {
+      const optionValueIds: string[] = [];
+      for (const option of newVariantOptions) {
+        if (!option.typeName.trim() || !option.valueName.trim()) {
+          throw new Error("Option type and value names cannot be empty.");
+        }
+        const optionType = await findOrCreateOptionType(storeIdFromUrl, option.typeName.trim());
+        const optionValue = await findOrCreateOptionValue(optionType.id, option.valueName.trim());
+        optionValueIds.push(optionValue.id);
+      }
+      
+      const priceNum = parseFloat(newVariantPrice);
+      const stockNum = parseInt(newVariantStock, 10);
+      if (isNaN(priceNum) || isNaN(stockNum)) {
+        throw new Error("Price and Stock must be valid numbers.");
+      }
+      
+      const payload = {
+        product_id: product.id,
+        price: priceNum,
+        order_price: newVariantOrderPrice ? parseFloat(newVariantOrderPrice) : null,
+        stock: stockNum,
+        sku: newVariantSku || null,
+        is_default: newVariantIsDefault,
+        optionValueIds: optionValueIds,
+      };
+
+      const { data: newVariant, error } = await createProductVariant(payload);
+      if (error) throw error;
+
+      toast({ title: "Variant Created", description: "The new product variant has been added." });
+      resetAddVariantForm();
+      setIsAddVariantDialogOpen(false);
+      fetchProduct(); // Refetch product to show new variant
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error Creating Variant", description: err.message });
+    } finally {
+      setIsSubmittingVariant(false);
     }
   };
 
@@ -552,131 +691,259 @@ export default function ProductDetailPage() {
           </DialogContent>
         </Dialog>
       </div>
-
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col md:flex-row gap-6">
-            <div className="md:w-2/5">
-              {product.images.length > 0 ? (
-                <NextImage
-                  src={currentImage}
-                  alt={`${product.name} - image ${selectedImageIndex + 1}`}
-                  width={600}
-                  height={450}
-                  className="rounded-lg object-cover aspect-[4/3] w-full border"
-                  priority={selectedImageIndex === 0} 
-                  unoptimized={currentImage?.startsWith('blob:')}
-                />
-              ) : (
-                <div className="rounded-lg object-cover aspect-[4/3] w-full border bg-muted flex items-center justify-center">
-                  <ImageIconLucide className="h-16 w-16 text-muted-foreground"/>
-                </div>
-              )}
-              {product.images && product.images.length > 1 && (
-                <div className="mt-4 grid grid-cols-5 gap-2">
-                  {product.images.map((imgUrl, index) => (
-                    imgUrl && ( 
-                       <button
-                        key={`thumb-${index}-${product.id}`}
-                        onClick={() => setSelectedImageIndex(index)}
-                        className={cn(
-                          "rounded-md overflow-hidden border-2 focus:outline-none focus:ring-2 focus:ring-primary transition-all",
-                          selectedImageIndex === index ? "border-primary ring-2 ring-primary" : "border-transparent hover:border-muted-foreground/50"
-                        )}
-                        aria-label={`View image ${index + 1} for ${product.name}`}
-                      >
+      
+      <Tabs defaultValue="details" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="details">Product Details</TabsTrigger>
+            <TabsTrigger value="variants">Variants</TabsTrigger>
+        </TabsList>
+        <TabsContent value="details">
+            <Card>
+                <CardHeader>
+                <div className="flex flex-col md:flex-row gap-6">
+                    <div className="md:w-2/5">
+                    {product.images.length > 0 ? (
                         <NextImage
-                          src={imgUrl}
-                          alt={`${product.name} thumbnail ${index + 1}`}
-                          width={100}
-                          height={75}
-                          className="object-cover aspect-[4/3] w-full h-full"
-                          unoptimized={imgUrl?.startsWith('blob:')}
+                        src={currentImage}
+                        alt={`${product.name} - image ${selectedImageIndex + 1}`}
+                        width={600}
+                        height={450}
+                        className="rounded-lg object-cover aspect-[4/3] w-full border"
+                        priority={selectedImageIndex === 0} 
+                        unoptimized={currentImage?.startsWith('blob:')}
                         />
-                      </button>
-                    )
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="md:w-3/5 space-y-3">
-              <div className="flex items-start justify-between">
-                <CardTitle className="text-3xl">{product.name}</CardTitle>
-                 <Badge variant={statusBadgeVariant} className={cn(statusBadgeClass, "text-sm px-3 py-1")}>
-                    {product.status}
-                  </Badge>
-              </div>
-              <CardDescription className="text-base">{product.description}</CardDescription>
-              
-              <div>
-                <div className="text-3xl font-bold text-primary">ZMW {product.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-                {product.orderPrice !== undefined && product.orderPrice !== product.price && (
-                  <div className="text-xl font-semibold text-muted-foreground">
-                    Order Price: <span className="text-accent">ZMW {product.orderPrice.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-                  </div>
-                )}
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <ShoppingCart className="h-5 w-5 text-muted-foreground" />
-                <span className={cn("text-sm", product.stock > 0 ? "text-foreground" : "text-destructive font-semibold")}>
-                  {product.stock > 0 ? `${product.stock} in stock` : "Out of Stock"}
-                </span>
-              </div>
-             
-              {product.sku && (
-                <div className="text-sm text-muted-foreground">SKU: {product.sku}</div>
-              )}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Separator className="my-6" />
-          
-          <h3 className="text-xl font-semibold mb-3">Product Details</h3>
-          <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed">{product.fullDescription}</p>
-
-          {(product.tags && product.tags.length > 0 || product.weight || product.dimensions) && <Separator className="my-6" />}
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-            {product.tags && product.tags.length > 0 && (
-              <div>
-                <h4 className="font-semibold mb-2 flex items-center"><Tag className="mr-2 h-5 w-5 text-primary"/> Tags</h4>
-                <div className="flex flex-wrap gap-2">
-                  {product.tags.map(tag => (
-                    <Badge key={tag} variant="secondary" className="font-normal">{tag}</Badge>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {(product.weight || product.dimensions) && (
-               <div>
-                <h4 className="font-semibold mb-2">Specifications</h4>
-                <Table className="mt-1">
-                  <TableBody>
-                    {product.weight && (
-                      <TableRow>
-                        <TableCell className="font-medium w-1/3 py-2 px-0"><Weight className="inline mr-2 h-4 w-4 text-muted-foreground"/> Weight</TableCell>
-                        <TableCell className="py-2 px-0">{product.weight} kg</TableCell>
-                      </TableRow>
+                    ) : (
+                        <div className="rounded-lg object-cover aspect-[4/3] w-full border bg-muted flex items-center justify-center">
+                        <ImageIconLucide className="h-16 w-16 text-muted-foreground"/>
+                        </div>
                     )}
-                    {product.dimensions && (
-                       <TableRow>
-                        <TableCell className="font-medium w-1/3 py-2 px-0"><Ruler className="inline mr-2 h-4 w-4 text-muted-foreground"/> Dimensions</TableCell>
-                        <TableCell className="py-2 px-0">{product.dimensions.length}L x {product.dimensions.width}W x {product.dimensions.height}H cm</TableCell>
-                      </TableRow>
+                    {product.images && product.images.length > 1 && (
+                        <div className="mt-4 grid grid-cols-5 gap-2">
+                        {product.images.map((imgUrl, index) => (
+                            imgUrl && ( 
+                            <button
+                                key={`thumb-${index}-${product.id}`}
+                                onClick={() => setSelectedImageIndex(index)}
+                                className={cn(
+                                "rounded-md overflow-hidden border-2 focus:outline-none focus:ring-2 focus:ring-primary transition-all",
+                                selectedImageIndex === index ? "border-primary ring-2 ring-primary" : "border-transparent hover:border-muted-foreground/50"
+                                )}
+                                aria-label={`View image ${index + 1} for ${product.name}`}
+                            >
+                                <NextImage
+                                src={imgUrl}
+                                alt={`${product.name} thumbnail ${index + 1}`}
+                                width={100}
+                                height={75}
+                                className="object-cover aspect-[4/3] w-full h-full"
+                                unoptimized={imgUrl?.startsWith('blob:')}
+                                />
+                            </button>
+                            )
+                        ))}
+                        </div>
                     )}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </div>
-        </CardContent>
-        <CardFooter className="text-xs text-muted-foreground border-t pt-4 mt-6">
-          Product ID: {product.id} &nbsp;&middot;&nbsp; Created on: {new Date(product.createdAt).toLocaleDateString()}
-        </CardFooter>
-      </Card>
+                    </div>
+                    <div className="md:w-3/5 space-y-3">
+                    <div className="flex items-start justify-between">
+                        <CardTitle className="text-3xl">{product.name}</CardTitle>
+                        <Badge variant={statusBadgeVariant} className={cn(statusBadgeClass, "text-sm px-3 py-1")}>
+                            {product.status}
+                        </Badge>
+                    </div>
+                    <CardDescription className="text-base">{product.description}</CardDescription>
+                    
+                    <div>
+                        <div className="text-3xl font-bold text-primary">ZMW {product.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                        {product.orderPrice !== undefined && product.orderPrice !== product.price && (
+                        <div className="text-xl font-semibold text-muted-foreground">
+                            Order Price: <span className="text-accent">ZMW {product.orderPrice.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                        </div>
+                        )}
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                        <ShoppingCart className="h-5 w-5 text-muted-foreground" />
+                        <span className={cn("text-sm", product.stock > 0 ? "text-foreground" : "text-destructive font-semibold")}>
+                        {product.stock > 0 ? `${product.stock} in stock` : "Out of Stock"}
+                        </span>
+                    </div>
+                    
+                    {product.sku && (
+                        <div className="text-sm text-muted-foreground">SKU: {product.sku}</div>
+                    )}
+                    </div>
+                </div>
+                </CardHeader>
+                <CardContent>
+                <Separator className="my-6" />
+                
+                <h3 className="text-xl font-semibold mb-3">Product Details</h3>
+                <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed">{product.fullDescription}</p>
+
+                {(product.tags && product.tags.length > 0 || product.weight || product.dimensions) && <Separator className="my-6" />}
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                    {product.tags && product.tags.length > 0 && (
+                    <div>
+                        <h4 className="font-semibold mb-2 flex items-center"><Tag className="mr-2 h-5 w-5 text-primary"/> Tags</h4>
+                        <div className="flex flex-wrap gap-2">
+                        {product.tags.map(tag => (
+                            <Badge key={tag} variant="secondary" className="font-normal">{tag}</Badge>
+                        ))}
+                        </div>
+                    </div>
+                    )}
+
+                    {(product.weight || product.dimensions) && (
+                    <div>
+                        <h4 className="font-semibold mb-2">Specifications</h4>
+                        <Table className="mt-1">
+                        <TableBody>
+                            {product.weight && (
+                            <TableRow>
+                                <TableCell className="font-medium w-1/3 py-2 px-0"><Weight className="inline mr-2 h-4 w-4 text-muted-foreground"/> Weight</TableCell>
+                                <TableCell className="py-2 px-0">{product.weight} kg</TableCell>
+                            </TableRow>
+                            )}
+                            {product.dimensions && (
+                            <TableRow>
+                                <TableCell className="font-medium w-1/3 py-2 px-0"><Ruler className="inline mr-2 h-4 w-4 text-muted-foreground"/> Dimensions</TableCell>
+                                <TableCell className="py-2 px-0">{product.dimensions.length}L x {product.dimensions.width}W x {product.dimensions.height}H cm</TableCell>
+                            </TableRow>
+                            )}
+                        </TableBody>
+                        </Table>
+                    </div>
+                    )}
+                </div>
+                </CardContent>
+                <CardFooter className="text-xs text-muted-foreground border-t pt-4 mt-6">
+                Product ID: {product.id} &nbsp;&middot;&nbsp; Created on: {new Date(product.createdAt).toLocaleDateString()}
+                </CardFooter>
+            </Card>
+        </TabsContent>
+        <TabsContent value="variants">
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle>Product Variants</CardTitle>
+                        <CardDescription>Manage different versions of this product, like sizes or colors.</CardDescription>
+                    </div>
+                    <Dialog open={isAddVariantDialogOpen} onOpenChange={(isOpen) => { setIsAddVariantDialogOpen(isOpen); if(!isOpen) resetAddVariantForm(); }}>
+                        <DialogTrigger asChild>
+                            <Button><Plus className="mr-2 h-4 w-4" /> Add Variant</Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-xl">
+                            <DialogHeader>
+                                <DialogTitle>Add New Variant</DialogTitle>
+                                <DialogDescription>Define options and details for a new product variant.</DialogDescription>
+                            </DialogHeader>
+                            <form onSubmit={handleCreateVariant}>
+                                <ScrollArea className="h-[60vh] pr-4">
+                                    <div className="grid gap-6 py-4">
+                                        <div>
+                                            <Label className="mb-2 block">Variant Options</Label>
+                                            <div className="space-y-4">
+                                                {newVariantOptions.map((opt, index) => (
+                                                    <div key={index} className="flex gap-2 items-center">
+                                                        <Input 
+                                                            placeholder="Option Type (e.g. Color)" 
+                                                            value={opt.typeName}
+                                                            onChange={e => handleVariantOptionChange(index, 'typeName', e.target.value)}
+                                                        />
+                                                        <Input 
+                                                            placeholder="Option Value (e.g. Red)" 
+                                                            value={opt.valueName}
+                                                            onChange={e => handleVariantOptionChange(index, 'valueName', e.target.value)}
+                                                        />
+                                                        <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveVariantOption(index)}>
+                                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <Button type="button" variant="outline" size="sm" className="mt-2" onClick={handleAddVariantOption}>
+                                                <Plus className="mr-2 h-4 w-4" /> Add Option
+                                            </Button>
+                                        </div>
+                                        <Separator />
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="variant-price">Price</Label>
+                                                <Input id="variant-price" placeholder="Variant price" value={newVariantPrice} onChange={e => setNewVariantPrice(e.target.value)} required />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="variant-order-price">Order Price (Optional)</Label>
+                                                <Input id="variant-order-price" placeholder="Cost price" value={newVariantOrderPrice} onChange={e => setNewVariantOrderPrice(e.target.value)} />
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="variant-stock">Stock</Label>
+                                                <Input id="variant-stock" type="number" placeholder="Quantity" value={newVariantStock} onChange={e => setNewVariantStock(e.target.value)} required />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="variant-sku">SKU (Optional)</Label>
+                                                <Input id="variant-sku" placeholder="SKU for this variant" value={newVariantSku} onChange={e => setNewVariantSku(e.target.value)} />
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center space-x-2 pt-2">
+                                            <Checkbox id="is-default" checked={newVariantIsDefault} onCheckedChange={checked => setNewVariantIsDefault(checked as boolean)} />
+                                            <Label htmlFor="is-default">Set as default variant</Label>
+                                        </div>
+                                    </div>
+                                </ScrollArea>
+                                <DialogFooter className="pt-4 mt-4 border-t">
+                                    <Button type="button" variant="outline" onClick={() => setIsAddVariantDialogOpen(false)} disabled={isSubmittingVariant}>Cancel</Button>
+                                    <Button type="submit" disabled={isSubmittingVariant}>{isSubmittingVariant ? "Creating..." : "Create Variant"}</Button>
+                                </DialogFooter>
+                            </form>
+                        </DialogContent>
+                    </Dialog>
+                </CardHeader>
+                <CardContent>
+                    {product.variants.length > 0 ? (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Variant</TableHead>
+                                    <TableHead>Price</TableHead>
+                                    <TableHead>Stock</TableHead>
+                                    <TableHead>SKU</TableHead>
+                                    <TableHead>Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {product.variants.map(variant => (
+                                    <TableRow key={variant.id}>
+                                        <TableCell className="font-medium">
+                                            {variant.options.map(o => o.value).join(' / ')}
+                                            {variant.isDefault && <Badge variant="outline" className="ml-2">Default</Badge>}
+                                        </TableCell>
+                                        <TableCell>ZMW {variant.price.toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
+                                        <TableCell>{variant.stock}</TableCell>
+                                        <TableCell>{variant.sku || 'N/A'}</TableCell>
+                                        <TableCell>
+                                            <Button variant="ghost" size="sm">
+                                                <Edit className="h-4 w-4" />
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    ) : (
+                        <div className="text-center text-muted-foreground py-8">
+                            <p>This product has no variants.</p>
+                            <p className="text-sm">The base product details will be used for pricing and stock.</p>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </TabsContent>
+      </Tabs>
+
 
       <Card>
         <CardHeader>
@@ -736,3 +1003,4 @@ export default function ProductDetailPage() {
     </div>
   );
 }
+
