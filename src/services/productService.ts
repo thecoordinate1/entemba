@@ -1,4 +1,3 @@
-
 // src/services/productService.ts
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
@@ -59,14 +58,44 @@ export interface ProductImageFromSupabase {
   created_at: string;
 }
 
+// NEW: Variant-related interfaces from Supabase
+export interface OptionTypeFromSupabase {
+  id: string;
+  store_id: string;
+  name: string;
+}
+
+export interface OptionValueFromSupabase {
+  id: string;
+  option_type_id: string;
+  value: string;
+}
+
+export interface ProductVariantOptionFromSupabase {
+  option_value: OptionValueFromSupabase & {
+    option_type: OptionTypeFromSupabase;
+  };
+}
+
+export interface ProductVariantFromSupabase {
+  id: string;
+  product_id: string;
+  price: number;
+  order_price: number | null;
+  stock: number;
+  sku: string | null;
+  is_default: boolean;
+  product_variant_options: ProductVariantOptionFromSupabase[];
+}
+
 export interface ProductFromSupabase {
   id: string;
   store_id: string;
   name: string;
   category: string;
-  price: number;
+  price: number; // This will now represent the base/default price
   order_price?: number | null;
-  stock: number;
+  stock: number; // This will now be an aggregation of variant stocks
   status: 'Active' | 'Draft' | 'Archived';
   description?: string | null;
   full_description: string; 
@@ -77,6 +106,7 @@ export interface ProductFromSupabase {
   created_at: string;
   updated_at: string;
   product_images: ProductImageFromSupabase[];
+  product_variants: ProductVariantFromSupabase[]; // Added variants
 }
 
 // Interface for the data returned by the get_top_selling_products RPC
@@ -126,7 +156,19 @@ async function uploadProductImage(
   return { publicUrl: data.publicUrl, error: null };
 }
 
-const COMMON_PRODUCT_SELECT = 'id, store_id, name, category, price, order_price, stock, status, description, full_description, sku, tags, weight_kg, dimensions_cm, created_at, updated_at, product_images(*)';
+const COMMON_PRODUCT_SELECT = `
+  id, store_id, name, category, price, order_price, stock, status, description, full_description, sku, tags, weight_kg, dimensions_cm, created_at, updated_at,
+  product_images(*),
+  product_variants (
+    *,
+    product_variant_options (
+      option_value:option_values (
+        *,
+        option_type:option_types (*)
+      )
+    )
+  )
+`;
 
 export async function getProductsByStoreId(
   storeId: string,
@@ -177,8 +219,13 @@ export async function getProductById(productId: string): Promise<{ data: Product
     return { data: null, error: new Error(productError.message || `Failed to fetch product with ID ${productId}.`) };
   }
   
-  if (productData && productData.product_images) {
-      productData.product_images.sort((a, b) => a.order - b.order);
+  if (productData) {
+      if (productData.product_images) {
+        productData.product_images.sort((a, b) => a.order - b.order);
+      }
+      if (productData.product_variants) {
+         productData.product_variants.sort((a, b) => a.is_default ? -1 : (b.is_default ? 1 : 0));
+      }
   }
 
   console.log('[productService.getProductById] Fetched product:', productData?.id);

@@ -34,7 +34,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Eye, Image as ImageIconLucide, DollarSign, UploadCloud, Tag, Weight, Ruler, Package, ChevronLeft, ChevronRight } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Eye, Image as ImageIconLucide, DollarSign, UploadCloud, Tag, Weight, Ruler, Package, ChevronLeft, ChevronRight, Sparkles, SlidersHorizontal } from "lucide-react";
 import NextImage from "next/image"; 
 import {
   AlertDialog,
@@ -83,19 +83,26 @@ const initialImageSlots = (): FormImageSlot[] => Array(MAX_IMAGES).fill(null).ma
 
 // Helper to map backend product to UI product type
 const mapProductFromSupabaseToUI = (product: ProductFromSupabase): ProductUIType => {
+  const defaultVariant = product.product_variants?.find(v => v.is_default) || product.product_variants?.[0];
+  
+  // Aggregate stock from all variants if they exist, otherwise use base product stock
+  const totalStock = product.product_variants && product.product_variants.length > 0
+    ? product.product_variants.reduce((acc, v) => acc + v.stock, 0)
+    : product.stock;
+
   return {
     id: product.id,
     name: product.name,
     images: product.product_images.sort((a,b) => a.order - b.order).map(img => img.image_url),
     category: product.category,
-    price: product.price,
-    orderPrice: product.order_price ?? undefined,
-    stock: product.stock,
+    price: defaultVariant?.price ?? product.price,
+    orderPrice: defaultVariant?.order_price ?? product.order_price ?? undefined,
+    stock: totalStock,
     status: product.status as ProductUIType["status"],
     createdAt: new Date(product.created_at).toISOString().split("T")[0],
     description: product.description ?? undefined,
     fullDescription: product.full_description,
-    sku: product.sku ?? undefined,
+    sku: defaultVariant?.sku ?? product.sku ?? undefined,
     tags: product.tags ?? undefined,
     weight: product.weight_kg ?? undefined,
     dimensions: product.dimensions_cm ? { 
@@ -103,6 +110,18 @@ const mapProductFromSupabaseToUI = (product: ProductFromSupabase): ProductUIType
         width: product.dimensions_cm.width, 
         height: product.dimensions_cm.height 
     } : undefined,
+    // NEW: Add variants data to UI type
+    variants: product.product_variants?.map(v => ({
+      id: v.id,
+      price: v.price,
+      stock: v.stock,
+      sku: v.sku || undefined,
+      isDefault: v.is_default,
+      options: v.product_variant_options.map(pvo => ({
+        type: pvo.option_value.option_type.name,
+        value: pvo.option_value.value,
+      })),
+    })) || []
   };
 };
 
@@ -238,7 +257,7 @@ export default function ProductsPage() {
 
   const preparePayload = (): ProductPayload | null => {
     if (!formProductName || !formCategory || formPrice === "" || formStock === "") {
-      toast({ variant: "destructive", title: "Missing Fields", description: "Name, Category, Price, and Stock are required." });
+      toast({ variant: "destructive", title: "Missing Fields", description: "Name, Category, Price, and Stock are required for the base product." });
       return null;
     }
     const priceNum = parseFloat(String(formPrice));
@@ -308,15 +327,11 @@ export default function ProductsPage() {
       if (error || !newProductFromBackend) {
         toast({ variant: "destructive", title: "Error Adding Product", description: error?.message || "Could not add product." });
       } else {
-        // const newProductUI = mapProductFromSupabaseToUI(newProductFromBackend);
-        // setProducts(prev => [newProductUI, ...prev]); // This might need adjustment with pagination
         toast({ title: "Product Added", description: `${newProductFromBackend.name} has been successfully added.` });
         setIsAddDialogOpen(false);
         resetFormFields();
-        // Refetch current page to include new product if it falls on this page
-        setCurrentPage(1); // Or refetch current page
-        setTotalProducts(prev => prev + 1); // Optimistic update
-        // Trigger refetch
+        setCurrentPage(1); 
+        setTotalProducts(prev => prev + 1);
          getProductsByStoreId(storeIdFromUrl, 1, ITEMS_PER_PAGE).then(({ data, count }) => {
             if (data) setProducts(data.map(mapProductFromSupabaseToUI));
             if (count !== null) setTotalProducts(count);
@@ -353,8 +368,6 @@ export default function ProductsPage() {
     const slotsFromProduct: FormImageSlot[] = initialImageSlots();
     product.images.forEach((imgUrl, index) => {
         if (index < MAX_IMAGES) {
-            // Find original image ID from DB product_images if it's a complex object, not just URL string
-            // This simplistic way assumes product.dataAiHints might hold some identifier, or just use index.
             const originalImageInfo = selectedProduct?.id ? 
               (products.find(p => p.id === selectedProduct.id) as any)?.product_images?.find((pi:any) => pi.image_url === imgUrl && pi.order === index)
               : null;
@@ -408,13 +421,10 @@ export default function ProductsPage() {
       if (error || !updatedProductFromBackend) {
         toast({ variant: "destructive", title: "Error Updating Product", description: error?.message || "Could not update product." });
       } else {
-        // const updatedProductUI = mapProductFromSupabaseToUI(updatedProductFromBackend);
-        // setProducts(prev => prev.map(p => p.id === updatedProductUI.id ? updatedProductUI : p));
         toast({ title: "Product Updated", description: `${updatedProductFromBackend.name} has been successfully updated.` });
         setIsEditDialogOpen(false);
         resetFormFields();
         setSelectedProduct(null);
-         // Trigger refetch of current page
         getProductsByStoreId(storeIdFromUrl, currentPage, ITEMS_PER_PAGE).then(({ data, count }) => {
             if (data) setProducts(data.map(mapProductFromSupabaseToUI));
             if (count !== null) setTotalProducts(count);
@@ -444,11 +454,9 @@ export default function ProductsPage() {
       if (error) {
         toast({ variant: "destructive", title: "Error Deleting Product", description: error.message });
       } else {
-        // setProducts(prev => prev.filter(p => p.id !== selectedProduct!.id));
-        toast({ title: "Product Deleted", description: `${selectedProduct.name} has been successfully deleted.`, variant: "default" }); // Use default for success
+        toast({ title: "Product Archived", description: `${selectedProduct.name} has been successfully archived.` });
         setIsDeleteDialogOpen(false);
         setSelectedProduct(null);
-         // Refetch current page data, potentially moving to previous page if current becomes empty
         setTotalProducts(prev => prev -1);
         const newTotalPages = Math.ceil((totalProducts - 1) / ITEMS_PER_PAGE);
         const newCurrentPage = Math.min(currentPage, newTotalPages > 0 ? newTotalPages : 1);
@@ -495,7 +503,7 @@ export default function ProductsPage() {
           <Input id="formCategory" value={formCategory} onChange={(e) => setFormCategory(e.target.value)} required />
         </div>
          <div className="grid gap-2">
-          <Label htmlFor="formPrice">Regular Price</Label>
+          <Label htmlFor="formPrice">Base Price</Label>
           <div className="relative">
             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">ZMW</span>
             <Input id="formPrice" type="number" step="0.01" value={formPrice} onChange={(e) => setFormPrice(e.target.value)} required className="pl-12" />
@@ -504,20 +512,20 @@ export default function ProductsPage() {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="grid gap-2">
-          <Label htmlFor="formOrderPrice">Order Price (Optional)</Label>
+          <Label htmlFor="formOrderPrice">Base Order Price (Optional)</Label>
           <div className="relative">
              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">ZMW</span>
             <Input id="formOrderPrice" type="number" step="0.01" value={formOrderPrice ?? ""} onChange={(e) => setFormOrderPrice(e.target.value)} placeholder="Defaults to regular price" className="pl-12" />
           </div>
         </div>
         <div className="grid gap-2">
-          <Label htmlFor="formStock">Stock</Label>
+          <Label htmlFor="formStock">Base Stock</Label>
           <Input id="formStock" type="number" value={formStock} onChange={(e) => setFormStock(e.target.value)} required />
         </div>
       </div>
        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="grid gap-2">
-          <Label htmlFor="formSku">SKU (Optional)</Label>
+          <Label htmlFor="formSku">Base SKU (Optional)</Label>
           <Input id="formSku" value={formSku ?? ""} onChange={(e) => setFormSku(e.target.value)} />
         </div>
         <div className="grid gap-2">
@@ -631,7 +639,7 @@ export default function ProductsPage() {
               <DialogHeader>
                 <DialogTitle>Add New Product {selectedStoreName ? `for ${selectedStoreName}` : ''}</DialogTitle>
                 <DialogDescription>
-                  Fill in the details for your new product. Add up to {MAX_IMAGES} images.
+                  Fill in the details for your new product. Variants can be added after creation.
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleAddProduct}>
@@ -672,8 +680,8 @@ export default function ProductsPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="hidden md:table-cell">Price</TableHead>
-                <TableHead className="hidden md:table-cell">Order Price</TableHead>
                 <TableHead className="hidden md:table-cell">Stock</TableHead>
+                 <TableHead className="hidden md:table-cell">Variants</TableHead>
                 <TableHead className="hidden md:table-cell">Created at</TableHead>
                 <TableHead> <span className="sr-only">Actions</span> </TableHead>
                 </TableRow>
@@ -712,15 +720,15 @@ export default function ProductsPage() {
                     </TableCell>
                     <TableCell className="hidden md:table-cell">ZMW {product.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
                     <TableCell className="hidden md:table-cell">
-                    {product.orderPrice !== undefined ? `ZMW ${product.orderPrice.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "-"}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
                     {product.stock === 0 && product.status === "Active" ? (
                         <span className="text-destructive">Out of Stock</span>
                     ) : (
-                        product.stock
+                        product.stock.toLocaleString()
                     )}
                     </TableCell>
+                     <TableCell className="hidden md:table-cell text-center">
+                        {product.variants && product.variants.length > 0 ? product.variants.length : 1}
+                     </TableCell>
                     <TableCell className="hidden md:table-cell">{product.createdAt ? new Date(product.createdAt).toLocaleDateString() : '-'}</TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
@@ -738,11 +746,16 @@ export default function ProductsPage() {
                             </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => openEditDialog(product)}>
-                            <Edit className="mr-2 h-4 w-4" /> Edit
+                            <Edit className="mr-2 h-4 w-4" /> Edit Base Product
+                        </DropdownMenuItem>
+                         <DropdownMenuItem asChild>
+                            <Link href={`/products/${product.id}?${searchParams.toString()}&tab=variants`}>
+                                <SlidersHorizontal className="mr-2 h-4 w-4" /> Manage Variants
+                            </Link>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => openDeleteDialog(product)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete
+                            <Trash2 className="mr-2 h-4 w-4" /> Archive Product
                         </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -792,7 +805,7 @@ export default function ProductsPage() {
           <DialogHeader>
             <DialogTitle>Edit Product {selectedProduct?.name} {selectedStoreName ? `for ${selectedStoreName}` : ''}</DialogTitle>
             <DialogDescription>
-              Update the details for {selectedProduct?.name}. Add up to {MAX_IMAGES} images.
+              Update the base details for {selectedProduct?.name}. Variants are managed on the product detail page.
             </DialogDescription>
           </DialogHeader>
           {selectedProduct && ( 
@@ -819,13 +832,13 @@ export default function ProductsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the product "{selectedProduct?.name}". All associated images will also be removed from storage.
+              This will archive the product "{selectedProduct?.name}" and it will no longer be visible to customers. You can unarchive it later.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setSelectedProduct(null)} disabled={isSubmitting}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteProduct} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={isSubmitting}>
-              {isSubmitting ? "Deleting..." : "Delete"}
+              {isSubmitting ? "Archiving..." : "Archive Product"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
