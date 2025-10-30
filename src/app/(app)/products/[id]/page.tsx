@@ -7,7 +7,7 @@ import NextImage from "next/image"; // Renamed to avoid conflict with Image from
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableRow, TableHeader } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableRow, TableHeader, TableHead } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Edit, Star, Tag, Weight, Ruler, ShoppingCart, DollarSign, UploadCloud, Image as ImageIconLucide, Calculator, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
 import {
@@ -1004,3 +1004,4 @@ export default function ProductDetailPage() {
   );
 }
 
+    
