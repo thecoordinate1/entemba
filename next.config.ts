@@ -44,4 +44,6 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withPWA(nextConfig);
+const config = process.env.NODE_ENV === 'development' ? nextConfig : withPWA(nextConfig);
+
+export default config;
