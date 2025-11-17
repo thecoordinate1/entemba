@@ -29,7 +29,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { signInWithEmail, resendConfirmationEmail } from "@/services/authService";
 import { KioskIcon } from "@/components/icons/KioskIcon";
-import { MailWarning } from "lucide-react";
+import { MailWarning, Eye, EyeOff } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -44,6 +44,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [hasMounted, setHasMounted] = React.useState(false);
   const [showVerificationNeeded, setShowVerificationNeeded] = React.useState(false);
+  const [showPassword, setShowPassword] = React.useState(false);
 
   React.useEffect(() => {
     setHasMounted(true);
@@ -202,7 +203,19 @@ export default function LoginPage() {
                           </Link>
                       </div>
                       <FormControl>
-                        <Input type="password" placeholder="••••••••" {...field} disabled={isLoading} />
+                        <div className="relative">
+                          <Input type={showPassword ? "text" : "password"} placeholder="••••••••" {...field} disabled={isLoading} />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground"
+                            onClick={() => setShowPassword(!showPassword)}
+                            aria-label={showPassword ? "Hide password" : "Show password"}
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
