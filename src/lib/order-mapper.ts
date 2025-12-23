@@ -12,6 +12,7 @@ import type { OrderFromSupabase } from "@/services/orderService";
 export const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType => {
   return {
     id: order.id,
+    storeId: order.store_id,
     customerName: order.customer_name,
     customerEmail: order.customer_email,
     customerPhone: order.customers?.phone || undefined, // Extract phone from nested customer
@@ -28,9 +29,9 @@ export const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType 
     })),
     shippingAddress: order.shipping_address,
     billingAddress: order.billing_address,
-    shippingMethod: order.shipping_method || undefined,
+    deliveryTier: order.delivery_tier || undefined,
     paymentMethod: order.payment_method || undefined,
-    trackingNumber: order.tracking_number || undefined,
+    deliveryCode: order.delivery_code || undefined,
     shippingLatitude: order.shipping_latitude || undefined,
     shippingLongitude: order.shipping_longitude || undefined,
     deliveryType: order.delivery_type || undefined,
@@ -39,5 +40,8 @@ export const mapOrderFromSupabaseToUI = (order: OrderFromSupabase): OrderUIType 
     pickupLongitude: order.pickup_longitude || undefined,
     customerSpecification: order.customer_specification || undefined,
     deliveryCost: order.delivery_cost ?? undefined,
+    driverId: order.driver_id || undefined,
+    notes: order.notes || undefined,
+    serviceFees: order.service_fees ?? undefined,
   };
 };

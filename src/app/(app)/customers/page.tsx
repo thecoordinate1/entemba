@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Edit, Trash2, Search, Eye, User, Users, ShieldCheck, ShieldX, ChevronLeft, ChevronRight } from "lucide-react";
+import { MoreHorizontal, Edit, Trash2, Search, Eye, User, Users, ShieldCheck, ShieldX, ChevronLeft, ChevronRight, UserPlus } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   AlertDialog,
@@ -44,13 +44,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardFooter } from "@/components/ui/card"; 
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Customer as CustomerUIType, CustomerStatus } from "@/lib/types";
 import { customerStatusColors } from "@/lib/types";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
+import { cn, downloadCSV } from "@/lib/utils";
+import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { User as AuthUser } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
@@ -58,9 +59,12 @@ import {
   getCustomers,
   updateCustomer,
   deleteCustomer,
+  getNewCustomersForStoreCount,
   type CustomerFromSupabase,
   type CustomerPayload,
 } from "@/services/customerService";
+import { MetricCard } from "@/components/MetricCard";
+import { MobileCustomerCard } from "@/components/MobileCustomerCard";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -121,7 +125,7 @@ const mapCustomerFromSupabaseToUI = (customer: CustomerFromSupabase): CustomerUI
 export default function CustomersPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const storeId = searchParams.get("storeId"); 
+  const storeId = searchParams.get("storeId");
 
   const [customers, setCustomers] = React.useState<CustomerUIType[]>([]);
   const [isLoadingCustomers, setIsLoadingCustomers] = React.useState(true);
@@ -139,6 +143,7 @@ export default function CustomersPage() {
 
   const [currentPage, setCurrentPage] = React.useState(1);
   const [totalCustomers, setTotalCustomers] = React.useState(0);
+  const [newCustomersCount, setNewCustomersCount] = React.useState<number | null>(null);
 
   React.useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setAuthUser(user));
@@ -154,6 +159,10 @@ export default function CustomersPage() {
       }
       setIsLoadingCustomers(true);
       const { data, count, error } = await getCustomers(storeId, currentPage, ITEMS_PER_PAGE);
+
+      const { data: newCustData } = await getNewCustomersForStoreCount(storeId, 30);
+      if (newCustData) setNewCustomersCount(newCustData.count);
+
       if (error) {
         toast({ variant: "destructive", title: "Error Fetching Customers", description: error.message });
         setCustomers([]);
@@ -230,12 +239,12 @@ export default function CustomersPage() {
       const newTotalPages = Math.ceil((totalCustomers - 1) / ITEMS_PER_PAGE);
       const newCurrentPage = Math.min(currentPage, newTotalPages > 0 ? newTotalPages : 1);
       if (currentPage !== newCurrentPage) {
-          setCurrentPage(newCurrentPage);
+        setCurrentPage(newCurrentPage);
       } else if (storeId) {
-          // If still on the same page, refetch to update list
-          const { data, count } = await getCustomers(storeId, newCurrentPage, ITEMS_PER_PAGE);
-          if (data) setCustomers(data.map(mapCustomerFromSupabaseToUI));
-          if (count !== null) setTotalCustomers(count);
+        // If still on the same page, refetch to update list
+        const { data, count } = await getCustomers(storeId, newCurrentPage, ITEMS_PER_PAGE);
+        if (data) setCustomers(data.map(mapCustomerFromSupabaseToUI));
+        if (count !== null) setTotalCustomers(count);
       }
     }
   };
@@ -261,6 +270,24 @@ export default function CustomersPage() {
   const openDeleteDialog = (customer: CustomerUIType) => {
     setSelectedCustomer(customer);
     setIsDeleteDialogOpen(true);
+  };
+
+  // Export Handler
+  const handleExport = () => {
+    if (!customers.length) {
+      toast({ title: "No customers to export", variant: "destructive" });
+      return;
+    }
+    const data = customers.map(c => ({
+      "Name": c.name,
+      "Email": c.email,
+      "Status": c.status,
+      "Total Orders": c.totalOrders, // Changed from c.total_orders to c.totalOrders
+      "Total Spent (ZMW)": c.totalSpent, // Changed from c.total_spent to c.totalSpent
+      "Last Order": c.lastOrderDate ? format(new Date(c.lastOrderDate), 'yyyy-MM-dd') : 'Never' // Changed from c.last_order_date to c.lastOrderDate
+    }));
+    downloadCSV(data, `customers-export-${format(new Date(), 'yyyyMMdd-HHmm')}.csv`);
+    toast({ title: "Export Started", description: "Customer list is downloading." });
   };
 
   const filteredCustomers = customers.filter(customer =>
@@ -369,9 +396,29 @@ export default function CustomersPage() {
       {storeId && <p className="text-sm text-muted-foreground">Showing customers who have ordered from this store.</p>}
       {!storeId && <p className="text-sm text-muted-foreground">Please select a store to view its customers.</p>}
 
+      {storeId && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <MetricCard
+            title="Total Customers"
+            value={totalCustomers.toLocaleString()}
+            icon={Users}
+            description="All time unique customers"
+          />
+          <MetricCard
+            title="New This Month"
+            value={newCustomersCount !== null ? newCustomersCount.toLocaleString() : "-"}
+            icon={UserPlus}
+            description="First order in last 30 days"
+            trend={newCustomersCount && newCustomersCount > 0 ? `+${newCustomersCount}` : undefined}
+            trendType="positive"
+            className="md:col-span-1"
+          />
+        </div>
+      )}
+
 
       {isLoadingCustomers && authUser && storeId && (
-         <div className="space-y-2">
+        <div className="space-y-2">
           {[...Array(ITEMS_PER_PAGE / 2)].map((_, i) => (
             <Skeleton key={`skel-cust-row-${i}`} className="h-16 w-full" />
           ))}
@@ -379,110 +426,128 @@ export default function CustomersPage() {
       )}
 
       {!isLoadingCustomers && authUser && storeId && (
-        <Card>
-          <CardContent className="pt-6">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="hidden w-[80px] sm:table-cell">Avatar</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead className="hidden md:table-cell">Email</TableHead>
-                  <TableHead className="text-right hidden lg:table-cell">Total Spent</TableHead>
-                  <TableHead className="text-center hidden lg:table-cell">Orders</TableHead>
-                  <TableHead className="hidden md:table-cell">Joined</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>
-                    <span className="sr-only">Actions</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredCustomers.map((customer) => {
-                  const StatusIcon = customer.status === 'Active' ? ShieldCheck : customer.status === 'Blocked' ? ShieldX : User;
-                  return (
-                    <TableRow key={customer.id} className="cursor-pointer" onClick={() => router.push(`/customers/${customer.id}?${searchParams.toString()}`)}>
-                      <TableCell className="hidden sm:table-cell">
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={customer.avatar} alt={customer.name} />
-                          <AvatarFallback>{customer.name.substring(0, 2).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                      </TableCell>
-                      <TableCell className="font-medium">{customer.name}</TableCell>
-                      <TableCell className="hidden md:table-cell text-muted-foreground">{customer.email}</TableCell>
-                      <TableCell className="text-right hidden lg:table-cell">ZMW {customer.totalSpent.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
-                      <TableCell className="text-center hidden lg:table-cell">{customer.totalOrders}</TableCell>
-                      <TableCell className="hidden md:table-cell text-muted-foreground">{new Date(customer.joinedDate).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={cn(customerStatusColors[customer.status], "flex items-center gap-1.5 whitespace-nowrap text-xs")}>
-                          <StatusIcon className="h-3.5 w-3.5" />
-                          {customer.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button aria-haspopup="true" size="icon" variant="ghost">
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Toggle menu</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem asChild>
-                               <Link href={`/customers/${customer.id}?${searchParams.toString()}`}>
-                                <Eye className="mr-2 h-4 w-4" /> View Details
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openEditDialog(customer)}>
-                              <Edit className="mr-2 h-4 w-4" /> Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openDeleteDialog(customer)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                              <Trash2 className="mr-2 h-4 w-4" /> Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-          {totalPages > 1 && (
-            <CardFooter className="flex items-center justify-between border-t pt-4">
-              <span className="text-sm text-muted-foreground">
-                Page {currentPage} of {totalPages} ({totalCustomers} customers)
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handlePreviousPage}
-                  disabled={currentPage === 1 || isLoadingCustomers}
-                >
-                  <ChevronLeft className="mr-1 h-4 w-4" />
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleNextPage}
-                  disabled={currentPage === totalPages || isLoadingCustomers}
-                >
-                  Next
-                  <ChevronRight className="ml-1 h-4 w-4" />
-                </Button>
-              </div>
-            </CardFooter>
-          )}
-          {totalCustomers === 0 && !isLoadingCustomers && (
-             <CardFooter className="flex items-center justify-center border-t pt-4">
+        <>
+          {/* Mobile View: Cards */}
+          <div className="md:hidden space-y-4 mb-4">
+            {filteredCustomers.map(customer => (
+              <MobileCustomerCard
+                key={customer.id}
+                customer={customer}
+                onView={() => router.push(`/customers/${customer.id}?storeId=${storeId}`)}
+                onEdit={openEditDialog}
+                onDelete={(id) => {
+                  const c = customers.find(cust => cust.id === id);
+                  if (c) openDeleteDialog(c);
+                }}
+              />
+            ))}
+          </div>
+
+          <Card className="hidden md:block">
+            <CardContent className="pt-6">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="hidden w-[80px] sm:table-cell">Avatar</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead className="hidden md:table-cell">Email</TableHead>
+                    <TableHead className="text-right hidden lg:table-cell">Total Spent</TableHead>
+                    <TableHead className="text-center hidden lg:table-cell">Orders</TableHead>
+                    <TableHead className="hidden md:table-cell">Joined</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>
+                      <span className="sr-only">Actions</span>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredCustomers.map((customer) => {
+                    const StatusIcon = customer.status === 'Active' ? ShieldCheck : customer.status === 'Blocked' ? ShieldX : User;
+                    return (
+                      <TableRow key={customer.id} className="cursor-pointer" onClick={() => router.push(`/customers/${customer.id}?${searchParams.toString()}`)}>
+                        <TableCell className="hidden sm:table-cell">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={customer.avatar} alt={customer.name} />
+                            <AvatarFallback>{customer.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                        </TableCell>
+                        <TableCell className="font-medium">{customer.name}</TableCell>
+                        <TableCell className="hidden md:table-cell text-muted-foreground">{customer.email}</TableCell>
+                        <TableCell className="text-right hidden lg:table-cell">ZMW {customer.totalSpent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                        <TableCell className="text-center hidden lg:table-cell">{customer.totalOrders}</TableCell>
+                        <TableCell className="hidden md:table-cell text-muted-foreground">{new Date(customer.joinedDate).toLocaleDateString()}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={cn(customerStatusColors[customer.status], "flex items-center gap-1.5 whitespace-nowrap text-xs")}>
+                            <StatusIcon className="h-3.5 w-3.5" />
+                            {customer.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button aria-haspopup="true" size="icon" variant="ghost">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Toggle menu</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuItem asChild>
+                                <Link href={`/customers/${customer.id}?${searchParams.toString()}`}>
+                                  <Eye className="mr-2 h-4 w-4" /> View Details
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openEditDialog(customer)}>
+                                <Edit className="mr-2 h-4 w-4" /> Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openDeleteDialog(customer)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+            {totalPages > 1 && (
+              <CardFooter className="flex items-center justify-between border-t pt-4">
+                <span className="text-sm text-muted-foreground">
+                  Page {currentPage} of {totalPages} ({totalCustomers} customers)
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePreviousPage}
+                    disabled={currentPage === 1 || isLoadingCustomers}
+                  >
+                    <ChevronLeft className="mr-1 h-4 w-4" />
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleNextPage}
+                    disabled={currentPage === totalPages || isLoadingCustomers}
+                  >
+                    Next
+                    <ChevronRight className="ml-1 h-4 w-4" />
+                  </Button>
+                </div>
+              </CardFooter>
+            )}
+            {totalCustomers === 0 && !isLoadingCustomers && (
+              <CardFooter className="flex items-center justify-center border-t pt-4">
                 <p className="text-sm text-muted-foreground">
-                    {searchTerm ? `No customers found matching "${searchTerm}".` : "No customers have placed orders in this store yet."}
+                  {searchTerm ? `No customers found matching "${searchTerm}".` : "No customers have placed orders in this store yet."}
                 </p>
-             </CardFooter>
-          )}
-        </Card>
+              </CardFooter>
+            )}
+          </Card>
+        </>
       )}
 
       {!authUser && !isLoadingCustomers && (

@@ -1,18 +1,19 @@
 
-import type {NextConfig} from 'next';
+import type { NextConfig } from 'next';
 
 const withPWA = require('next-pwa')({
   dest: 'public',
-  disable: process.env.NODE_ENV === 'development',
+  disable: false, // Enable PWA in development for testing
+  register: true,
+  skipWaiting: true,
+  runtimeCaching: require('next-pwa/cache'), // Use default runtime caching strategies
 });
 
 const nextConfig: NextConfig = {
   /* config options here */
+  turbopack: {},
   typescript: {
     ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
   },
   images: {
     remotePatterns: [

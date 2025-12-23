@@ -9,7 +9,7 @@ function getPathFromStorageUrl(url: string, bucketName: string): string | null {
   try {
     const urlObj = new URL(url);
     const publicPathPrefix = `/storage/v1/object/public/${bucketName}/`;
-    const signedPathPrefix = `/storage/v1/object/sign/${bucketName}/`; 
+    const signedPathPrefix = `/storage/v1/object/sign/${bucketName}/`;
 
     let pathWithinBucket: string | undefined;
 
@@ -30,7 +30,7 @@ function getPathFromStorageUrl(url: string, bucketName: string): string | null {
 }
 
 
-export interface ProductImagePayload { 
+export interface ProductImagePayload {
   image_url: string;
   order: number;
 }
@@ -43,11 +43,15 @@ export interface ProductPayload {
   stock: number;
   status: 'Active' | 'Draft' | 'Archived';
   description?: string | null;
-  full_description: string; 
+  full_description: string;
   sku?: string | null;
   tags?: string[] | null;
   weight_kg?: number | null;
   dimensions_cm?: { length: number; width: number; height: number } | null;
+  attributes?: Record<string, any> | null;
+  is_dropshippable?: boolean;
+  supplier_product_id?: string | null;
+  supplier_price?: number | null;
 }
 
 export interface ProductImageFromSupabase {
@@ -58,34 +62,13 @@ export interface ProductImageFromSupabase {
   created_at: string;
 }
 
-// NEW: Variant-related interfaces from Supabase
-export interface OptionTypeFromSupabase {
-  id: string;
-  store_id: string;
-  name: string;
-}
-
-export interface OptionValueFromSupabase {
-  id: string;
-  option_type_id: string;
-  value: string;
-}
-
-export interface ProductVariantOptionFromSupabase {
-  option_value: OptionValueFromSupabase & {
-    option_type: OptionTypeFromSupabase;
-  };
-}
-
 export interface ProductVariantFromSupabase {
   id: string;
   product_id: string;
   price: number;
-  order_price: number | null;
   stock: number;
   sku: string | null;
   is_default: boolean;
-  product_variant_options: ProductVariantOptionFromSupabase[];
 }
 
 export interface ProductFromSupabase {
@@ -98,15 +81,20 @@ export interface ProductFromSupabase {
   stock: number; // This will now be an aggregation of variant stocks
   status: 'Active' | 'Draft' | 'Archived';
   description?: string | null;
-  full_description: string; 
+  full_description: string;
   sku?: string | null;
   tags?: string[] | null;
   weight_kg?: number | null;
   dimensions_cm?: { length: number; width: number; height: number } | null;
+  attributes?: Record<string, any> | null;
   created_at: string;
   updated_at: string;
   product_images: ProductImageFromSupabase[];
-  product_variants: ProductVariantFromSupabase[]; // Added variants
+  product_variants?: ProductVariantFromSupabase[];
+
+  is_dropshippable?: boolean;
+  supplier_product_id?: string | null;
+  supplier_price?: number | null;
 }
 
 // Interface for the data returned by the get_top_selling_products RPC
@@ -116,7 +104,7 @@ export interface TopSellingProductFromRPC {
   product_category: string;
   primary_image_url: string | null;
   total_quantity_sold: number; // Ensure this is part of the interface
-  total_revenue_generated?: number; 
+  total_revenue_generated?: number;
 }
 
 // Helper to upload a single product image
@@ -126,16 +114,16 @@ async function uploadProductImage(
   imageFile: File
 ): Promise<{ publicUrl: string | null; error: Error | null }> {
   const pathWithinBucket = `${storeId}/${productId}/${Date.now()}_${imageFile.name}`;
-  
+
   const { data: { user: currentUser } } = await supabase.auth.getUser();
   const currentAuthUserId = currentUser?.id;
   console.log(`[productService.uploadProductImage] Attempting to upload. StoreID: ${storeId}, ProductID: ${productId}, Path: ${pathWithinBucket}, AuthUserID: ${currentAuthUserId}`);
 
   const { error: uploadError } = await supabase.storage
-    .from('product-images') 
+    .from('product-images')
     .upload(pathWithinBucket, imageFile, {
       cacheControl: '3600',
-      upsert: true, 
+      upsert: true,
     });
 
   if (uploadError) {
@@ -156,17 +144,8 @@ async function uploadProductImage(
 }
 
 const COMMON_PRODUCT_SELECT = `
-  id, store_id, name, category, price, order_price, stock, status, description, full_description, sku, tags, weight_kg, dimensions_cm, created_at, updated_at,
-  product_images(*),
-  product_variants (
-    *,
-    product_variant_options (
-      option_value:option_values (
-        *,
-        option_type:option_types (*)
-      )
-    )
-  )
+  id, store_id, name, category, price, order_price, stock, status, description, full_description, sku, tags, weight_kg, dimensions_cm, attributes, created_at, updated_at, is_dropshippable, supplier_product_id, supplier_price,
+  product_images(*)
 `;
 
 export async function getProductsByStoreId(
@@ -181,7 +160,7 @@ export async function getProductsByStoreId(
 
   const { data: productsData, error: productsError, count } = await supabase
     .from('products')
-    .select(COMMON_PRODUCT_SELECT, { count: 'exact' }) 
+    .select(COMMON_PRODUCT_SELECT, { count: 'exact' })
     .eq('store_id', storeId)
     .neq('status', 'Archived') // Exclude soft-deleted products
     .order('created_at', { ascending: false })
@@ -194,18 +173,22 @@ export async function getProductsByStoreId(
 
   if (productsData) {
     productsData.forEach(p => {
-        if (p.product_images) {
-            p.product_images.sort((a,b) => a.order - b.order);
-        }
+      if (p.product_images) {
+        p.product_images.sort((a, b) => a.order - b.order);
+      }
     });
   }
 
   console.log('[productService.getProductsByStoreId] Fetched products count:', productsData?.length, 'Total count:', count);
-  return { data: productsData as ProductFromSupabase[], count, error: null };
+  return { data: productsData as unknown as ProductFromSupabase[], count, error: null };
 }
 
 export async function getProductById(productId: string): Promise<{ data: ProductFromSupabase | null; error: Error | null }> {
   console.log('[productService.getProductById] Fetching product by ID:', productId);
+
+  if (!productId) {
+    return { data: null, error: new Error("Product ID is required") };
+  }
 
   const { data: productData, error: productError } = await supabase
     .from('products')
@@ -214,21 +197,20 @@ export async function getProductById(productId: string): Promise<{ data: Product
     .single();
 
   if (productError) {
-    console.error('[productService.getProductById] Supabase fetch product error:', productError);
-    return { data: null, error: new Error(productError.message || `Failed to fetch product with ID ${productId}.`) };
-  }
-  
-  if (productData) {
-      if (productData.product_images) {
-        productData.product_images.sort((a, b) => a.order - b.order);
-      }
-      if (productData.product_variants) {
-         productData.product_variants.sort((a, b) => a.is_default ? -1 : (b.is_default ? 1 : 0));
-      }
+    console.error(`[productService.getProductById] Supabase fetch product error for ID ${productId}:`, JSON.stringify(productError, null, 2));
+    const msg = productError.message || (productError.code ? `Supabase Error Code: ${productError.code}` : `Unknown error fetching product with ID ${productId}`);
+    return { data: null, error: new Error(msg) };
   }
 
+  if (productData) {
+    if (productData.product_images) {
+      productData.product_images.sort((a, b) => a.order - b.order);
+    }
+  }
+
+
   console.log('[productService.getProductById] Fetched product:', productData?.id);
-  return { data: productData as ProductFromSupabase | null, error: null };
+  return { data: productData as unknown as ProductFromSupabase | null, error: null };
 }
 
 export async function createProduct(
@@ -238,11 +220,12 @@ export async function createProduct(
   images: { file: File; order: number }[]
 ): Promise<{ data: ProductFromSupabase | null; error: Error | null }> {
   console.log('[productService.createProduct] Creating product for store_id:', storeId);
+  const { order_price, ...productDataForDb } = productData;
   const { data: newProduct, error: createError } = await supabase
     .from('products')
     .insert({
       store_id: storeId,
-      ...productData,
+      ...productDataForDb,
     })
     .select(COMMON_PRODUCT_SELECT)
     .single();
@@ -293,10 +276,12 @@ export async function updateProduct(
   imagesToUpdate: { id?: string; file?: File; existingUrl?: string, order: number }[]
 ): Promise<{ data: ProductFromSupabase | null; error: Error | null }> {
   console.log(`[productService.updateProduct] Updating product ${productId}`);
-  
+
+  const { order_price, ...productDataForDb } = productData;
+
   const { data: updatedProduct, error: updateError } = await supabase
     .from('products')
-    .update({ ...productData, updated_at: new Date().toISOString() })
+    .update({ ...productDataForDb, updated_at: new Date().toISOString() })
     .eq('id', productId)
     .select(COMMON_PRODUCT_SELECT)
     .single();
@@ -310,20 +295,20 @@ export async function updateProduct(
   const imageUrlsToKeep = imagesToUpdate
     .map(img => img.existingUrl)
     .filter((url): url is string => !!url);
-    
+
   const imagesToDelete = existingImages.filter(img => !imageUrlsToKeep.includes(img.image_url));
 
   if (imagesToDelete.length > 0) {
     const imageIdsToDelete = imagesToDelete.map(img => img.id);
     const imagePathsToDelete = imagesToDelete
-        .map(img => getPathFromStorageUrl(img.image_url, 'product-images'))
-        .filter((path): path is string => !!path);
-    
+      .map(img => getPathFromStorageUrl(img.image_url, 'product-images'))
+      .filter((path): path is string => !!path);
+
     console.log(`[productService.updateProduct] Deleting ${imageIdsToDelete.length} image records and ${imagePathsToDelete.length} files from storage.`);
-    
+
     if (imagePathsToDelete.length > 0) {
-        const { error: storageError } = await supabase.storage.from('product-images').remove(imagePathsToDelete);
-        if (storageError) console.error('[productService.updateProduct] Error deleting files from storage:', storageError.message);
+      const { error: storageError } = await supabase.storage.from('product-images').remove(imagePathsToDelete);
+      if (storageError) console.error('[productService.updateProduct] Error deleting files from storage:', storageError.message);
     }
 
     const { error: dbError } = await supabase.from('product_images').delete().in('id', imageIdsToDelete);
@@ -334,8 +319,8 @@ export async function updateProduct(
     if (img.file) { // New file needs upload
       const { publicUrl, error } = await uploadProductImage(storeId, productId, img.file);
       if (error) {
-          console.error('[productService.updateProduct] Failed to upload new image:', error.message);
-          return null;
+        console.error('[productService.updateProduct] Failed to upload new image:', error.message);
+        return null;
       }
       return { product_id: productId, image_url: publicUrl, order: img.order };
     } else if (img.id && img.existingUrl) { // Existing image, maybe hint changed
@@ -347,11 +332,11 @@ export async function updateProduct(
   const upsertData = (await Promise.all(imageUpsertPromises)).filter(d => d !== null);
 
   if (upsertData.length > 0) {
-      console.log(`[productService.updateProduct] Upserting ${upsertData.length} image records.`);
-      const { error: upsertError } = await supabase.from('product_images').upsert(upsertData, { onConflict: 'id' });
-      if (upsertError) {
-          console.error('[productService.updateProduct] Error upserting image records:', upsertError.message);
-      }
+    console.log(`[productService.updateProduct] Upserting ${upsertData.length} image records.`);
+    const { error: upsertError } = await supabase.from('product_images').upsert(upsertData, { onConflict: 'id' });
+    if (upsertError) {
+      console.error('[productService.updateProduct] Error upserting image records:', upsertError.message);
+    }
   }
 
   // Refetch the product to get all latest data in one consistent object
@@ -365,7 +350,7 @@ export async function deleteProduct(
   storeId: string,
 ): Promise<{ error: Error | null }> {
   console.log(`[productService.deleteProduct] Soft deleting product ${productId} from store ${storeId}`);
-  
+
   const { error: updateError } = await supabase
     .from('products')
     .update({ status: 'Archived', updated_at: new Date().toISOString() })
@@ -411,155 +396,205 @@ export async function getStoreTopSellingProductsRPC(
 export async function getProductsByIds(
   productIds: string[]
 ): Promise<{ data: ProductFromSupabase[] | null, error: Error | null }> {
-    if (!productIds || productIds.length === 0) {
-        return { data: [], error: null };
-    }
-
-    const { data, error } = await supabase
-        .from('products')
-        .select(COMMON_PRODUCT_SELECT)
-        .in('id', productIds);
-
-    if (error) {
-        console.error(`[productService.getProductsByIds] Error fetching products:`, error);
-        return { data: null, error };
-    }
-
-    return { data: data as ProductFromSupabase[], error: null };
-}
-
-// --- Variant and Option Functions ---
-
-export async function getStoreOptionTypes(storeId: string): Promise<{ data: OptionTypeFromSupabase[] | null, error: Error | null }> {
-  if (!storeId) return { data: null, error: new Error("Store ID is required.") };
-  const { data, error } = await supabase
-    .from('option_types')
-    .select('*')
-    .eq('store_id', storeId);
-  return { data, error: error ? new Error(error.message) : null };
-}
-
-export async function getOptionValues(optionTypeId: string): Promise<{ data: OptionValueFromSupabase[] | null, error: Error | null }> {
-  if (!optionTypeId) return { data: null, error: new Error("Option Type ID is required.") };
-  const { data, error } = await supabase
-    .from('option_values')
-    .select('*')
-    .eq('option_type_id', optionTypeId);
-  return { data, error: error ? new Error(error.message) : null };
-}
-
-export async function findOrCreateOptionType(storeId: string, name: string): Promise<OptionTypeFromSupabase> {
-    const { data: existing, error } = await supabase
-        .from('option_types')
-        .select('id, name')
-        .eq('store_id', storeId)
-        .eq('name', name)
-        .single();
-    
-    if (existing) return existing as OptionTypeFromSupabase;
-
-    if (error && error.code !== 'PGRST116') throw new Error(error.message); // throw if error is not 'not found'
-
-    const { data: newType, error: createError } = await supabase
-        .from('option_types')
-        .insert({ store_id: storeId, name: name })
-        .select('id, name')
-        .single();
-
-    if (createError || !newType) throw new Error(createError?.message || "Could not create option type.");
-    return newType as OptionTypeFromSupabase;
-}
-
-
-export async function findOrCreateOptionValue(optionTypeId: string, value: string): Promise<OptionValueFromSupabase> {
-    const { data: existing, error } = await supabase
-        .from('option_values')
-        .select('id, value')
-        .eq('option_type_id', optionTypeId)
-        .eq('value', value)
-        .single();
-        
-    if (existing) return existing as OptionValueFromSupabase;
-
-    if (error && error.code !== 'PGRST116') throw new Error(error.message);
-
-    const { data: newValue, error: createError } = await supabase
-        .from('option_values')
-        .insert({ option_type_id: optionTypeId, value: value })
-        .select('id, value')
-        .single();
-
-    if (createError || !newValue) throw new Error(createError?.message || "Could not create option value.");
-    return newValue as OptionValueFromSupabase;
-}
-
-interface VariantPayload {
-  product_id: string;
-  price: number;
-  order_price?: number | null;
-  stock: number;
-  sku?: string | null;
-  is_default: boolean;
-  optionValueIds: string[];
-}
-
-export async function createProductVariant(payload: VariantPayload): Promise<{ data: ProductVariantFromSupabase | null, error: Error | null }> {
-  const { product_id, price, order_price, stock, sku, is_default, optionValueIds } = payload;
-  
-  // Step 1: Create the product_variant record
-  const { data: newVariant, error: variantError } = await supabase
-    .from('product_variants')
-    .insert({
-      product_id,
-      price,
-      order_price,
-      stock,
-      sku,
-      is_default
-    })
-    .select('id')
-    .single();
-
-  if (variantError || !newVariant) {
-    return { data: null, error: new Error(variantError?.message || "Failed to create variant record.") };
+  if (!productIds || productIds.length === 0) {
+    return { data: [], error: null };
   }
 
-  // Step 2: Create the links in the join table product_variant_options
-  if (optionValueIds.length > 0) {
-    const linksToInsert = optionValueIds.map(optionId => ({
-      variant_id: newVariant.id,
-      option_value_id: optionId,
-    }));
-    const { error: linkError } = await supabase
-      .from('product_variant_options')
-      .insert(linksToInsert);
+  const { data, error } = await supabase
+    .from('products')
+    .select(COMMON_PRODUCT_SELECT)
+    .in('id', productIds);
 
-    if (linkError) {
-      // If linking fails, we should ideally roll back the variant creation.
-      // For now, we'll delete the orphaned variant and return the error.
-      await supabase.from('product_variants').delete().eq('id', newVariant.id);
-      return { data: null, error: new Error(`Failed to link variant options: ${linkError.message}`) };
-    }
+  if (error) {
+    console.error(`[productService.getProductsByIds] Error fetching products:`, error);
+    return { data: null, error };
   }
-  
-  // Step 3: Refetch the complete variant data to return to the client
-  const { data: completeVariant, error: fetchError } = await supabase
-    .from('product_variants')
+
+  return { data: data as unknown as ProductFromSupabase[], error: null };
+}
+
+
+
+// --- Market Service ---
+
+export async function getDropshippableProducts(currentUserStoreId?: string): Promise<{ data: ProductFromSupabase[] | null, error: Error | null }> {
+  let query = supabase
+    .from('products')
     .select(`
       *,
-      product_variant_options (
-        option_value:option_values (
-          *,
-          option_type:option_types (*)
-        )
-      )
+      product_images(*),
+      store:stores(name, logo_url)
     `)
-    .eq('id', newVariant.id)
-    .single();
+    .eq('is_dropshippable', true)
+    .eq('status', 'Active');
 
-  if (fetchError) {
-    return { data: null, error: new Error(`Variant created but failed to refetch details: ${fetchError.message}`)};
+  if (currentUserStoreId) {
+    query = query.neq('store_id', currentUserStoreId);
   }
 
-  return { data: completeVariant, error: null };
+  const { data, error } = await query;
+  if (error) {
+    console.error("[productService.getDropshippableProducts] Error:", error);
+    return { data: null, error: new Error(error.message) };
+  }
+  return { data: data as unknown as ProductFromSupabase[], error: null };
+}
+
+export async function getMarketProductById(productId: string): Promise<{ data: ProductFromSupabase | null, error: Error | null }> {
+  const { data, error } = await supabase
+    .from('products')
+    .select(`
+      *,
+      product_images(*),
+      store:stores(name, logo_url)
+    `)
+    .eq('id', productId)
+    .single();
+
+  if (error) {
+    console.error(`[productService.getMarketProductById] Error fetching product ${productId}:`, error);
+    return { data: null, error: new Error(error.message) };
+  }
+
+  // Sort images if present
+  if (data && data.product_images) {
+    data.product_images.sort((a: any, b: any) => a.order - b.order);
+  }
+
+  return { data: data as unknown as ProductFromSupabase, error: null };
+}
+
+
+// --- Import Logic ---
+
+export async function importDropshipProduct(
+  vendorId: string,
+  storeId: string,
+  supplierProductId: string
+): Promise<{ data: ProductFromSupabase | null, error: Error | null }> {
+  console.log(`[productService.importDropshipProduct] Importing product ${supplierProductId} for store ${storeId}`);
+
+  // 1. Fetch original product with all nested variant info
+  const { data: originalProduct, error: fetchError } = await supabase
+    .from('products')
+    .select(`
+            *,
+            product_images(*)
+        `)
+    .eq('id', supplierProductId)
+    .single();
+
+  if (fetchError || !originalProduct) {
+    return { data: null, error: new Error("Original product not found.") };
+  }
+
+  // 2. Prepare cloned data
+  const wholesalePrice = originalProduct.supplier_price || originalProduct.price;
+  const taxMargin = 1.2;
+  const newPrice = wholesalePrice * taxMargin;
+
+  const productData: ProductPayload = {
+    name: originalProduct.name,
+    category: originalProduct.category,
+    price: newPrice,
+    order_price: wholesalePrice,
+    stock: originalProduct.stock,
+    status: 'Draft',
+    description: originalProduct.description,
+    full_description: originalProduct.full_description,
+    sku: originalProduct.sku, // Keep SKU or Append something? Usually keep for tracking.
+    tags: originalProduct.tags,
+    weight_kg: originalProduct.weight_kg,
+    dimensions_cm: originalProduct.dimensions_cm,
+    attributes: originalProduct.attributes,
+    is_dropshippable: false,
+    supplier_product_id: originalProduct.id,
+    supplier_price: originalProduct.price
+  };
+
+  // 3. Create the product
+  const { data: newProduct, error: createError } = await createProduct(vendorId, storeId, productData, []);
+
+  if (createError || !newProduct) {
+    return { data: null, error: createError };
+  }
+
+  // 4. Handle Images - Reuse URLs
+  if (originalProduct.product_images && originalProduct.product_images.length > 0) {
+    const imagesToInsert = originalProduct.product_images.map((img: any) => ({
+      product_id: newProduct.id,
+      image_url: img.image_url,
+      order: img.order
+    }));
+
+    const { error: imgError } = await supabase.from('product_images').insert(imagesToInsert);
+    if (imgError) {
+      console.warn("Failed to copy images for imported product", imgError);
+    }
+  }
+
+  // 5. Handle Variants - Deep Copy
+
+
+  return getProductById(newProduct.id);
+}
+
+export interface InventoryStats {
+  totalProducts: number;
+  activeProducts: number;
+  lowStockProducts: number;
+  totalMarketValue: number;
+}
+
+export async function getStoreInventoryStats(storeId: string): Promise<{ data: InventoryStats | null; error: Error | null }> {
+  console.log(`[productService.getStoreInventoryStats] Fetching inventory stats for store ${storeId}`);
+
+  // Fetch all products for the store to calculate stats
+  // Note: For very large stores, we might want to do this via RPC or improved separate queries
+  const { data, error } = await supabase
+    .from('products')
+    .select('id, status, stock, price, product_variants(stock, price)')
+    .eq('store_id', storeId)
+    .neq('status', 'Archived');
+
+  if (error) {
+    console.error(`[productService.getStoreInventoryStats] Error:`, error);
+    return { data: null, error: new Error(error.message) };
+  }
+
+  const stats: InventoryStats = {
+    totalProducts: 0,
+    activeProducts: 0,
+    lowStockProducts: 0,
+    totalMarketValue: 0,
+  };
+
+  if (data) {
+    stats.totalProducts = data.length;
+
+    data.forEach(p => {
+      if (p.status === 'Active') stats.activeProducts++;
+
+      // Calculate compiled stock/price including variants if any
+      let stock = p.stock;
+      let price = p.price;
+
+      if (p.product_variants && p.product_variants.length > 0) {
+        // If variants exist, stock is sum of variants
+        stock = p.product_variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+        // Price is tricky with variants, maybe take average or lowest? 
+        // For valuation, ideally we sum (variant_stock * variant_price)
+        // For simple valuation here, let's do variant level calculation
+        const variantValuation = p.product_variants.reduce((sum: number, v: any) => sum + ((v.stock || 0) * (v.price || 0)), 0);
+        stats.totalMarketValue += variantValuation;
+      } else {
+        // Simple product
+        stats.totalMarketValue += (stock * price);
+      }
+
+      if (stock < 10) stats.lowStockProducts++;
+    });
+  }
+
+  return { data: stats, error: null };
 }

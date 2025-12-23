@@ -1,71 +1,195 @@
-
-
 "use client";
 
 import * as React from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import NextImage from "next/image";
 import type { User as AuthUser } from '@supabase/supabase-js';
+import { useTheme } from "next-themes";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import type { SocialLink as MockSocialLinkType } from "@/lib/mockData"; // Using MockStoreType for status temporarily
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { Instagram, Facebook, Twitter, Link as LinkIcon, Palette, User, Shield, CreditCard, Building, UploadCloud, LocateFixed, Copy, Banknote, Phone, Pencil } from "lucide-react";
+import {
+  Instagram, Facebook, Twitter, Link as LinkIcon, Palette, User, Shield,
+  Building, UploadCloud, Banknote, Phone, MapPin, Loader2, Check,
+  Store, LayoutDashboard, Eye, Image as ImageIcon
+} from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
-import { getCurrentVendorProfile, updateCurrentVendorProfile, uploadAvatar, type VendorProfile, type VendorProfileUpdatePayload } from "@/services/userService";
+import { getCurrentVendorProfile, updateCurrentVendorProfile, uploadAvatar } from "@/services/userService";
 import { getStoreById, updateStore, type StoreFromSupabase, type SocialLinkPayload, type StorePayload } from "@/services/storeService";
-import { Skeleton } from "@/components/ui/skeleton";
+import dynamic from 'next/dynamic';
 
-const socialIconMap: Record<string, React.ElementType> = {
-  Instagram: Instagram,
-  Facebook: Facebook,
-  Twitter: Twitter,
-  TikTok: () => <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-2.47.02-4.8-.73-6.66-2.48-1.85-1.75-2.95-4.02-2.95-6.42 0-2.55 1.28-4.91 3.22-6.49L8.63 9.9c.02-.42.02-.85.02-1.28.02-2.21.02-4.41.02-6.62l2.48-.01c.01.83.01 1.66.01 2.49.01 1.07.01 2.13.01 3.2 0 .39-.03.79-.03 1.18.2-.02.4-.04.6-.05.02-.36.01-.72.02-1.08.01-1.22.01-2.43.01-3.65z"></path></svg>,
-  LinkedIn: () => <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"></path></svg>,
-  Other: LinkIcon,
-};
+const StoreMapPicker = dynamic(() => import('@/components/StoreMapPicker'), {
+  ssr: false,
+  loading: () => <div className="h-[200px] w-full flex items-center justify-center bg-muted/50 rounded-lg border border-dashed animate-pulse">Loading Map...</div>
+});
 
-const fileToDataUri = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-};
+// --- Constants & Types ---
+const SETTINGS_SECTIONS = [
+  { id: "profile", label: "Profile", icon: User, description: "Personal Info" },
+  { id: "store", label: "Store", icon: Store, description: "Shop Branding" },
+  { id: "billing", label: "Payouts", icon: Banknote, description: "Payment Methods" },
+  { id: "appearance", label: "Look", icon: Palette, description: "Theme" },
+  { id: "account", label: "Security", icon: Shield, description: "Password" },
+];
+
+const SOCIAL_PLATFORMS = ["Instagram", "Facebook", "Twitter", "TikTok", "LinkedIn", "Other"] as const;
+
+// --- Helper Components ---
+
+// 1. Mobile-First Navigation Item
+const NavItem = ({
+  item,
+  isActive,
+  onClick
+}: {
+  item: typeof SETTINGS_SECTIONS[0];
+  isActive: boolean;
+  onClick: () => void
+}) => (
+  <button
+    onClick={onClick}
+    className={cn(
+      "flex flex-col lg:flex-row items-center justify-center lg:justify-start gap-1 lg:gap-3 px-3 py-2 lg:px-4 lg:py-3 rounded-xl transition-all duration-300 relative shrink-0",
+      isActive
+        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25"
+        : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+    )}
+  >
+    <item.icon className={cn("h-5 w-5 lg:h-5 lg:w-5 transition-transform", isActive ? "scale-110" : "scale-100")} />
+    <div className="flex flex-col items-center lg:items-start leading-none">
+      <span className="text-xs lg:text-sm font-medium">{item.label}</span>
+      <span className="hidden lg:block text-[10px] font-normal opacity-80 mt-0.5">{item.description}</span>
+    </div>
+  </button>
+);
+
+// 2. Premium "Credit Card" for Payouts
+const PayoutCard = ({
+  type,
+  title,
+  subtitle,
+  details,
+  icon: Icon,
+  colorClass
+}: {
+  type: string;
+  title: string;
+  subtitle: string;
+  details: Record<string, string>;
+  icon: any;
+  colorClass: string
+}) => (
+  <div className={cn("relative overflow-hidden rounded-2xl p-5 sm:p-6 text-white shadow-xl transition-transform hover:scale-[1.01] active:scale-[0.99]", colorClass)}>
+    <div className="absolute top-0 right-0 p-32 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
+    <div className="absolute bottom-0 left-0 p-24 bg-black/10 rounded-full blur-2xl -ml-10 -mb-10 pointer-events-none" />
+
+    <div className="relative z-10 flex justify-between items-start mb-6">
+      <div>
+        <h4 className="text-lg font-bold tracking-tight opacity-90 line-clamp-1">{title}</h4>
+        <p className="text-xs sm:text-sm opacity-75 font-medium">{subtitle}</p>
+      </div>
+      <div className="p-2 bg-white/20 backdrop-blur-md rounded-xl shrink-0">
+        <Icon className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+      </div>
+    </div>
+
+    <div className="relative z-10 space-y-3">
+      {Object.entries(details).map(([label, value]) => (
+        <div key={label} className="flex justify-between items-baseline border-b border-white/10 pb-1 last:border-0">
+          <span className="text-[10px] sm:text-xs uppercase tracking-wider opacity-60 font-semibold">{label}</span>
+          <span className="text-xs sm:text-sm font-medium tracking-wide truncate max-w-[60%]">{value || "—"}</span>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+// 3. Store Preview Component (Reusable)
+const StorePreview = ({ logoPreview, bannerPreview, storeName, storeDescription, storeCategory, storeStatus, storeLocation }: any) => (
+  <div className="bg-background rounded-3xl overflow-hidden border shadow-2xl h-full flex flex-col group">
+    <div className="bg-muted h-32 sm:h-40 w-full relative shrink-0 overflow-hidden">
+      {bannerPreview ? (
+        <img src={bannerPreview} alt="Banner" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+      ) : (
+        <div className="w-full h-full relative">
+          <div className="absolute inset-0 bg-gradient-to-r from-primary/20 via-purple-500/20 to-pink-500/20 animate-pulse-slow" />
+        </div>
+      )}
+      <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-background to-transparent" />
+    </div>
+    <div className="px-6 pb-6 relative flex-1">
+      <div className="absolute -top-10 sm:-top-12 left-6">
+        <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl border-4 border-background bg-white shadow-lg overflow-hidden flex items-center justify-center">
+          {logoPreview ? (
+            <img src={logoPreview} alt="Logo" className="h-full w-full object-cover" />
+          ) : (
+            <Store className="h-8 w-8 text-muted-foreground/30" />
+          )}
+        </div>
+      </div>
+      <div className="mt-12 sm:mt-14 space-y-2">
+        <h3 className="font-bold text-xl sm:text-2xl leading-none tracking-tight">{storeName || "Your Store Name"}</h3>
+        <p className="text-sm text-muted-foreground line-clamp-3">{storeDescription || "Your store description will appear here. make it catchy!"}</p>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {(storeCategory || "Category").split(',').map((c: string, i: number) => (
+          <span key={i} className="px-2.5 py-1 rounded-full bg-secondary text-secondary-foreground text-[10px] font-bold uppercase tracking-wider">
+            {c.trim()}
+          </span>
+        ))}
+      </div>
+      <div className="mt-6 pt-6 border-t flex justify-between items-center text-sm">
+        <div className={cn("px-3 py-1 rounded-full text-[10px] font-bold border flex items-center gap-1.5",
+          storeStatus === 'Active' ? 'bg-green-500/10 text-green-600 border-green-200' : 'bg-yellow-500/10 text-yellow-600 border-yellow-200')}>
+          <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse",
+            storeStatus === 'Active' ? 'bg-green-600' : 'bg-yellow-600')} />
+          {storeStatus?.toUpperCase() || "INACTIVE"}
+        </div>
+        <div className="text-muted-foreground text-xs flex items-center gap-1">
+          <MapPin className="h-3 w-3" /> {storeLocation ? "Location Set" : "No Location"}
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 
 export default function SettingsPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const router = useRouter();
+  const authId = searchParams.get("id"); // unused but kept for ref
   const storeIdFromUrl = searchParams.get("storeId");
   const supabase = createClient();
 
+  // --- State ---
+  const tabFromUrl = searchParams.get("tab");
+  const [activeTab, setActiveTab] = React.useState(tabFromUrl || "profile");
   const [authUser, setAuthUser] = React.useState<AuthUser | null>(null);
+
+  // Loading States
   const [isLoadingProfile, setIsLoadingProfile] = React.useState(true);
   const [isLoadingStore, setIsLoadingStore] = React.useState(false);
-  const [isUpdatingPayout, setIsUpdatingPayout] = React.useState(false);
+  const [isSaving, setIsSaving] = React.useState(false);
 
-  // User profile state
+  // Profile Data
   const [userName, setUserName] = React.useState("");
   const [userEmail, setUserEmail] = React.useState("");
-  const [userAvatar, setUserAvatar] = React.useState<string | null>(null); 
-  const [avatarFile, setAvatarFile] = React.useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = React.useState<string | null>(null); 
+  const [userAvatar, setUserAvatar] = React.useState<string | null>(null);
+  const [avatarPreview, setAvatarPreview] = React.useState<string | null>(null);
 
-  // Payout state
+  // Payout Data
   const [bankName, setBankName] = React.useState('');
   const [accountName, setAccountName] = React.useState('');
   const [accountNumber, setAccountNumber] = React.useState('');
@@ -74,7 +198,7 @@ export default function SettingsPage() {
   const [momoNumber, setMomoNumber] = React.useState('');
   const [momoName, setMomoName] = React.useState('');
 
-  // Store settings state
+  // Store Data
   const [selectedStore, setSelectedStore] = React.useState<StoreFromSupabase | null>(null);
   const [storeName, setStoreName] = React.useState("");
   const [storeDescription, setStoreDescription] = React.useState("");
@@ -83,46 +207,42 @@ export default function SettingsPage() {
   const [storeContactPhone, setStoreContactPhone] = React.useState("");
   const [storeStatus, setStoreStatus] = React.useState<StoreFromSupabase["status"]>("Inactive");
   const [storeSocialLinks, setStoreSocialLinks] = React.useState<SocialLinkPayload[]>([]);
-  
-  const [storeLogo, setStoreLogo] = React.useState<string | null>(null); 
-  const [logoFile, setLogoFile] = React.useState<File | null>(null);
+
+  const [storeLogo, setStoreLogo] = React.useState<string | null>(null);
   const [logoPreview, setLogoPreview] = React.useState<string | null>(null);
 
-  // Location state
+  const [storeBanner, setStoreBanner] = React.useState<string | null>(null);
+  const [bannerPreview, setBannerPreview] = React.useState<string | null>(null);
+
   const [storePickupLat, setStorePickupLat] = React.useState<number | string>("");
   const [storePickupLng, setStorePickupLng] = React.useState<number | string>("");
-  const [isFetchingLocation, setIsFetchingLocation] = React.useState(false);
 
-  // Theme state
-  const [currentTheme, setCurrentTheme] = React.useState("system");
-
-  // Password state
+  // Appearance & Account
+  const { theme, setTheme } = useTheme();
   const [newPassword, setNewPassword] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
-  const [isUpdatingPassword, setIsUpdatingPassword] = React.useState(false);
 
+  // Files
+  const [avatarFile, setAvatarFile] = React.useState<File | null>(null);
+  const [logoFile, setLogoFile] = React.useState<File | null>(null);
+  const [bannerFile, setBannerFile] = React.useState<File | null>(null);
+
+  // --- Effects ---
 
   React.useEffect(() => {
-    const storedTheme = localStorage.getItem('theme') || 'system';
-    setCurrentTheme(storedTheme);
-    applyTheme(storedTheme, false); 
-  }, []);
-
-  // Fetch Auth User and Vendor Profile
-  React.useEffect(() => {
-    const fetchUserAndProfile = async () => {
+    const fetchUser = async () => {
       setIsLoadingProfile(true);
       const { data: { user } } = await supabase.auth.getUser();
       setAuthUser(user);
 
       if (user) {
-        const { profile, error } = await getCurrentVendorProfile(user.id);
+        const { profile } = await getCurrentVendorProfile(user.id);
         if (profile) {
-          setUserName(profile.display_name || user.user_metadata?.display_name || user.email || "");
+          setUserName(profile.display_name || user.user_metadata?.display_name || "");
           setUserEmail(profile.email || user.email || "");
           setUserAvatar(profile.avatar_url || user.user_metadata?.avatar_url || null);
           setAvatarPreview(profile.avatar_url || user.user_metadata?.avatar_url || null);
-          // Set payout info
+
           setBankName(profile.bank_name || '');
           setAccountName(profile.bank_account_name || '');
           setAccountNumber(profile.bank_account_number || '');
@@ -130,711 +250,677 @@ export default function SettingsPage() {
           setMomoProvider(profile.mobile_money_provider || '');
           setMomoNumber(profile.mobile_money_number || '');
           setMomoName(profile.mobile_money_name || '');
-
-        } else {
-          setUserName(user.user_metadata?.display_name || user.email || "");
-          setUserEmail(user.email || "");
-          setUserAvatar(user.user_metadata?.avatar_url || null);
-          setAvatarPreview(user.user_metadata?.avatar_url || null);
-          if (error) console.warn("Error fetching vendor profile, using auth data as fallback:", error.message);
         }
-      } else {
-        setUserName(""); setUserEmail(""); setUserAvatar(null); setAvatarPreview(null);
       }
       setIsLoadingProfile(false);
     };
-    fetchUserAndProfile();
+    fetchUser();
   }, [supabase]);
-  
-  // Fetch Selected Store Details
+
   React.useEffect(() => {
-    const fetchStoreDetails = async () => {
+    const fetchStore = async () => {
       if (storeIdFromUrl && authUser) {
         setIsLoadingStore(true);
-        const { data: storeDetails, error } = await getStoreById(storeIdFromUrl, authUser.id);
-        if (error) {
-          toast({ variant: "destructive", title: "Error Fetching Store", description: error.message });
-          setSelectedStore(null);
-          // Reset form fields if store not found or error
-          setStoreName(""); setStoreDescription(""); setStoreCategory(""); setStoreLocation("");
-          setStoreContactPhone(""); 
-          setStorePickupLat(""); setStorePickupLng("");
-          setStoreStatus("Inactive"); setStoreSocialLinks([]); setStoreLogo(null); 
-          setLogoPreview(null);
-        } else if (storeDetails) {
-          setSelectedStore(storeDetails);
-          setStoreName(storeDetails.name);
-          setStoreDescription(storeDetails.description);
-          setStoreCategory(storeDetails.category);
-          setStoreLocation(storeDetails.location || "");
-          setStoreContactPhone(storeDetails.contact_phone || "");
-          setStorePickupLat(storeDetails.pickup_latitude || "");
-          setStorePickupLng(storeDetails.pickup_longitude || "");
-          setStoreStatus(storeDetails.status);
-          setStoreSocialLinks(storeDetails.social_links || []);
-          setStoreLogo(storeDetails.logo_url);
-          setLogoPreview(storeDetails.logo_url);
+        const { data: store } = await getStoreById(storeIdFromUrl, authUser.id);
+        if (store) {
+          setSelectedStore(store);
+          setStoreName(store.name);
+          setStoreDescription(store.description);
+          setStoreCategory((store.categories || []).join(', '));
+          setStoreLocation(store.location || "");
+          setStoreContactPhone(store.contact_phone || "");
+          setStorePickupLat(store.pickup_latitude || "");
+          setStorePickupLng(store.pickup_longitude || "");
+          setStoreStatus(store.status);
+          setStoreSocialLinks(store.social_links || []);
+
+          setStoreLogo(store.logo_url);
+          setLogoPreview(store.logo_url);
+
+          setStoreBanner(store.banner_url);
+          setBannerPreview(store.banner_url);
         }
         setIsLoadingStore(false);
-      } else {
-        setSelectedStore(null); 
-         // Reset form fields if no storeId or no authUser
-         setStoreName(""); setStoreDescription(""); setStoreCategory(""); setStoreLocation("");
-         setStoreContactPhone(""); 
-         setStorePickupLat(""); setStorePickupLng("");
-         setStoreStatus("Inactive"); setStoreSocialLinks([]); setStoreLogo(null); 
-         setLogoPreview(null);
       }
     };
-    fetchStoreDetails();
-  }, [storeIdFromUrl, authUser, toast]);
+    fetchStore();
+  }, [storeIdFromUrl, authUser]);
+
+  // Clean up blob URLs
+  React.useEffect(() => {
+    return () => {
+      if (avatarPreview && avatarPreview.startsWith('blob:')) URL.revokeObjectURL(avatarPreview);
+      if (logoPreview && logoPreview.startsWith('blob:')) URL.revokeObjectURL(logoPreview);
+      if (bannerPreview && bannerPreview.startsWith('blob:')) URL.revokeObjectURL(bannerPreview);
+    };
+  }, [avatarPreview, logoPreview, bannerPreview]);
 
 
-  const applyTheme = (themeValue: string, showToast: boolean = true) => {
-    localStorage.setItem('theme', themeValue);
-    let newClassName = '';
-    if (themeValue === 'system') {
-      newClassName = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    } else {
-      newClassName = themeValue;
-    }
-    document.documentElement.className = newClassName;
-    if (showToast) {
-      toast({ title: "Theme Updated", description: `Theme set to ${themeValue}.` });
-    }
+  // --- Handlers ---
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) { setAvatarFile(file); setAvatarPreview(URL.createObjectURL(file)); }
   };
 
-  const handleThemeChange = (value: string) => {
-    setCurrentTheme(value);
-    applyTheme(value);
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) { setLogoFile(file); setLogoPreview(URL.createObjectURL(file)); }
   };
 
-  const handleAvatarFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setAvatarFile(file);
-      if (avatarPreview && (avatarPreview.startsWith('blob:') || avatarFile)) {
-         URL.revokeObjectURL(avatarPreview);
-      }
-      setAvatarPreview(URL.createObjectURL(file));
-    } else {
-      setAvatarFile(null);
-      if (avatarPreview && (avatarPreview.startsWith('blob:') || avatarFile)) {
-        URL.revokeObjectURL(avatarPreview);
-      }
-      setAvatarPreview(userAvatar); 
-    }
+  const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) { setBannerFile(file); setBannerPreview(URL.createObjectURL(file)); }
   };
 
-  const handleProfileUpdate = async (e: React.FormEvent) => {
+  const handleProfileSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!authUser) {
-      toast({ variant: "destructive", title: "Not Authenticated", description: "You must be logged in to update your profile." });
-      return;
-    }
-    setIsLoadingProfile(true);
-    let newAvatarUrl = userAvatar; 
+    if (!authUser) return;
+    setIsSaving(true);
 
+    let newAvatarUrl = userAvatar;
     if (avatarFile) {
-      const { publicUrl, error: uploadError } = await uploadAvatar(authUser.id, avatarFile);
-      if (uploadError) {
-        toast({ variant: "destructive", title: "Avatar Upload Failed", description: uploadError.message || "Could not process the image." });
-        setIsLoadingProfile(false);
-        return;
-      }
+      const { publicUrl } = await uploadAvatar(authUser.id, avatarFile);
       if (publicUrl) newAvatarUrl = publicUrl;
     }
 
-    const { profile, error: updateError } = await updateCurrentVendorProfile(authUser.id, {
+    const { error } = await updateCurrentVendorProfile(authUser.id, {
       display_name: userName,
-      email: userEmail, 
-      avatar_url: newAvatarUrl,
+      email: userEmail,
+      avatar_url: newAvatarUrl || undefined,
     });
 
-    if (updateError) {
-      toast({ variant: "destructive", title: "Profile Update Failed", description: updateError.message || "Could not save profile changes." });
-    } else {
-      toast({ title: "Profile Updated", description: "Your profile information has been saved." });
-      if (profile) {
-        setUserName(profile.display_name || "");
-        setUserEmail(profile.email || "");
-        setUserAvatar(profile.avatar_url || null);
-        setAvatarPreview(profile.avatar_url || null); 
-      }
-      setAvatarFile(null); 
-    }
-    setIsLoadingProfile(false);
-  };
-  
-  const handleLogoFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setLogoFile(file);
-      if (logoPreview && (logoPreview.startsWith('blob:') || logoFile)) URL.revokeObjectURL(logoPreview);
-      setLogoPreview(URL.createObjectURL(file));
-    } else {
-      setLogoFile(null);
-      if (logoPreview && (logoPreview.startsWith('blob:') || logoFile)) URL.revokeObjectURL(logoPreview);
-      setLogoPreview(storeLogo); 
-    }
+    setIsSaving(false);
+    if (!error) toast({ title: "Profile Saved", description: "Your details have been updated." });
+    else toast({ variant: "destructive", title: "Error", description: error.message });
   };
 
-  const handleStoreSettingsUpdate = async (e: React.FormEvent) => {
+  const handleStoreSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedStore || !authUser) {
-        toast({ variant: "destructive", title: "Error", description: "No store selected or user not authenticated." });
-        return;
-    }
-    setIsLoadingStore(true);
+    if (!selectedStore || !authUser) return;
+    setIsSaving(true);
 
     const payload: StorePayload = {
-        name: storeName,
-        description: storeDescription,
-        category: storeCategory,
-        location: storeLocation || null,
-        contact_phone: storeContactPhone || null,
-        pickup_latitude: storePickupLat ? parseFloat(String(storePickupLat)) : null,
-        pickup_longitude: storePickupLng ? parseFloat(String(storePickupLng)) : null,
-        status: storeStatus,
-        social_links: storeSocialLinks.filter(link => link.url.trim() !== ''),
-        logo_url: logoPreview, // Pass current preview; service handles if it's old or new data URI
+      name: storeName,
+      description: storeDescription,
+      categories: storeCategory.split(',').map(c => c.trim()).filter(Boolean),
+      location: storeLocation || null,
+      contact_phone: storeContactPhone || null,
+      pickup_latitude: storePickupLat ? parseFloat(String(storePickupLat)) : null,
+      pickup_longitude: storePickupLng ? parseFloat(String(storePickupLng)) : null,
+      status: storeStatus,
+      social_links: storeSocialLinks.filter(l => l.url.trim() !== ''),
+      logo_url: logoPreview,
+      banner_url: bannerPreview,
     };
-    
-    const { data: updatedStore, error } = await updateStore(selectedStore.id, authUser.id, payload, logoFile);
-    
-    if (error) {
-        toast({ variant: "destructive", title: "Store Update Failed", description: error.message });
-    } else if (updatedStore) {
-        toast({ title: "Store Settings Updated", description: `${updatedStore.name} settings have been saved.` });
-        setSelectedStore(updatedStore);
-        setStoreLogo(updatedStore.logo_url);
-        setLogoPreview(updatedStore.logo_url);
-        setLogoFile(null); 
+
+    const { data, error } = await updateStore(selectedStore.id, authUser.id, payload, logoFile, bannerFile);
+    setIsSaving(false);
+
+    if (data) {
+      toast({ title: "Store Updated", description: "Your store settings are live." });
+      setSelectedStore(data);
+    } else {
+      toast({ variant: "destructive", title: "Update Failed", description: error?.message });
     }
-    setIsLoadingStore(false);
   };
 
-  const handleSocialLinkChange = (platform: SocialLinkPayload["platform"], url: string) => {
-    setStoreSocialLinks(prevLinks => {
-        const existingLinkIndex = prevLinks.findIndex(link => link.platform === platform);
-        if (existingLinkIndex > -1) {
-            if (url.trim() === "") { 
-                return prevLinks.filter(link => link.platform !== platform);
-            }
-            const updatedLinks = [...prevLinks];
-            updatedLinks[existingLinkIndex] = { ...updatedLinks[existingLinkIndex], url };
-            return updatedLinks;
-        } else if (url.trim() !== "") { 
-            return [...prevLinks, { platform, url }];
-        }
-        return prevLinks; 
+  const handleSocialLinkChange = (platform: string, url: string) => {
+    setStoreSocialLinks(prev => {
+      const exists = prev.find(p => p.platform === platform);
+      if (exists) {
+        if (!url) return prev.filter(p => p.platform !== platform);
+        return prev.map(p => p.platform === platform ? { ...p, url } : p);
+      }
+      if (url) return [...prev, { platform: platform as any, url }];
+      return prev;
     });
   };
-  
-  const getSocialUrl = (platform: SocialLinkPayload["platform"]) => storeSocialLinks.find(link => link.platform === platform)?.url || "";
 
-  const handlePasswordChange = async (e: React.FormEvent) => {
+  const handlePayoutSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPassword || !confirmPassword) {
-      toast({ variant: "destructive", title: "Missing Fields", description: "Please enter and confirm your new password." });
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      toast({ variant: "destructive", title: "Passwords Do Not Match", description: "Please re-enter your new password." });
-      return;
-    }
-    if (newPassword.length < 6) {
-      toast({ variant: "destructive", title: "Password Too Short", description: "Password must be at least 6 characters long." });
-      return;
-    }
-
-    setIsUpdatingPassword(true);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setIsUpdatingPassword(false);
-    
-    if (error) {
-        toast({ variant: "destructive", title: "Password Update Failed", description: error.message });
-    } else {
-        toast({ title: "Password Updated", description: "Your password has been successfully updated." });
-        setNewPassword("");
-        setConfirmPassword("");
-    }
-  };
-
-  const handleUseCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      toast({ variant: "destructive", title: "Geolocation Not Supported" });
-      return;
-    }
-    setIsFetchingLocation(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        setStorePickupLat(latitude);
-        setStorePickupLng(longitude);
-        setIsFetchingLocation(false);
-        toast({ title: "Location Captured", description: `Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}` });
-      },
-      (error) => {
-        let errorMessage = "Could not get location.";
-        if (error.code === error.PERMISSION_DENIED) {
-            errorMessage = "Location access was denied. Please enable location permissions for this site in your browser settings.";
-        } else if (error.message) {
-            errorMessage = error.message;
-        }
-        toast({ variant: "destructive", title: "Geolocation Failed", description: errorMessage });
-        setIsFetchingLocation(false);
-      }
-    );
-  };
-
-  const handleSavePayoutDetails = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!authUser) {
-      toast({ variant: "destructive", title: "Not Authenticated" });
-      return;
-    }
-    setIsUpdatingPayout(true);
-
-    const payload: VendorProfileUpdatePayload = {
+    if (!authUser) return;
+    setIsSaving(true);
+    const { error } = await updateCurrentVendorProfile(authUser.id, {
       bank_name: bankName,
       bank_account_name: accountName,
       bank_account_number: accountNumber,
       bank_branch_name: branchName,
       mobile_money_provider: momoProvider,
       mobile_money_number: momoNumber,
-      mobile_money_name: momoName,
-    };
-    
-    const { error } = await updateCurrentVendorProfile(authUser.id, payload);
-    
-    if (error) {
-      toast({ variant: "destructive", title: "Update Failed", description: error.message || "Could not save payout details." });
-    } else {
-      toast({ title: "Payout Details Saved", description: "Your payout information has been successfully updated." });
-    }
-    setIsUpdatingPayout(false);
+      mobile_money_name: momoName
+    });
+    setIsSaving(false);
+    if (!error) toast({ title: "Payout Details Saved" });
+    else toast({ variant: "destructive", title: "Error", description: error.message });
   };
 
-  React.useEffect(() => {
-    return () => { 
-      if (avatarPreview && (avatarPreview.startsWith('blob:') || avatarFile)) URL.revokeObjectURL(avatarPreview);
-      if (logoPreview && (logoPreview.startsWith('blob:') || logoFile)) URL.revokeObjectURL(logoPreview);
-    };
-  }, [avatarPreview, avatarFile, logoPreview, logoFile]);
+  const handlePasswordUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) return toast({ variant: "destructive", title: "Passwords do not match" });
+    setIsSaving(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setIsSaving(false);
+    if (!error) {
+      toast({ title: "Password Updated" });
+      setNewPassword(""); setConfirmPassword("");
+    } else {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    }
+  };
 
+  // --- Render Sections ---
 
-  return (
-    <div className="container mx-auto py-8">
-      <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="flex flex-wrap w-full gap-1 mb-6 h-auto justify-start md:gap-0 md:grid md:grid-cols-5">
-          <TabsTrigger value="profile"><User className="mr-2 h-4 w-4 inline-block md:hidden lg:inline-block"/>Profile</TabsTrigger>
-          <TabsTrigger value="store"><Building className="mr-2 h-4 w-4 inline-block md:hidden lg:inline-block"/>Store</TabsTrigger>
-          <TabsTrigger value="appearance"><Palette className="mr-2 h-4 w-4 inline-block md:hidden lg:inline-block"/>Appearance</TabsTrigger>
-          <TabsTrigger value="account"><Shield className="mr-2 h-4 w-4 inline-block md:hidden lg:inline-block"/>Account</TabsTrigger>
-          <TabsTrigger value="billing"><CreditCard className="mr-2 h-4 w-4 inline-block md:hidden lg:inline-block"/>Billing</TabsTrigger>
-        </TabsList>
-
-        {/* Profile Tab */}
-        <TabsContent value="profile">
-          <Card>
-            <CardHeader>
-              <CardTitle>Profile Settings</CardTitle>
-              <CardDescription>Manage your personal information.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoadingProfile ? (
-                <div className="space-y-6">
-                  <div className="flex flex-col items-center space-y-4">
-                    <Skeleton className="h-32 w-32 rounded-full" />
-                    <Skeleton className="h-8 w-40" />
-                  </div>
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                  <Button disabled className="mt-4"> <Skeleton className="h-5 w-20" /> </Button>
-                </div>
-              ) : (
-                <form onSubmit={handleProfileUpdate} className="space-y-6">
-                  <div className="flex flex-col items-center space-y-4">
-                    <Avatar className="h-32 w-32">
-                      <AvatarImage src={avatarPreview || undefined} alt={userName || "User"} />
-                      <AvatarFallback>{userName ? userName.substring(0, 2).toUpperCase() : "U"}</AvatarFallback>
+  const renderContent = () => {
+    switch (activeTab) {
+      case "profile":
+        return (
+          <div className="space-y-6 pb-20 animate-in fade-in zoom-in-95 duration-300">
+            <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-start">
+              {/* Avatar Card */}
+              <Card className="w-full md:w-80 shadow-sm border-border/60">
+                <CardHeader className="text-center pb-2">
+                  <CardTitle className="text-lg">Profile Photo</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center gap-6">
+                  <div className="relative group cursor-pointer">
+                    <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-10 text-white font-medium">
+                      <UploadCloud className="w-8 h-8 mb-1" />
+                    </div>
+                    <Avatar className="h-32 w-32 md:h-40 md:w-40 border-4 border-muted shadow-xl">
+                      <AvatarImage src={avatarPreview || ""} className="object-cover" />
+                      <AvatarFallback className="text-4xl bg-muted">{userName ? userName[0]?.toUpperCase() : "U"}</AvatarFallback>
                     </Avatar>
-                     <div className="grid w-full max-w-sm items-center gap-1.5">
-                      <Label htmlFor="avatarFile">Upload Avatar</Label>
-                      <Input id="avatarFile" type="file" accept="image/*" onChange={handleAvatarFileChange} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90" />
-                    </div>
+                    <Input
+                      type="file"
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                      accept="image/*"
+                      onChange={handleAvatarChange}
+                    />
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="name">Display Name</Label>
-                    <Input id="name" value={userName || ''} onChange={(e) => setUserName(e.target.value)} />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input id="email" type="email" value={userEmail || ''} onChange={(e) => setUserEmail(e.target.value)} />
-                  </div>
-                  <Button type="submit" disabled={isLoadingProfile}> {isLoadingProfile ? "Updating..." : "Update Profile"} </Button>
-                </form>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                  <Button variant="outline" size="sm" className="w-full relative">
+                    Change Photo
+                    <Input type="file" className="absolute inset-0 opacity-0" accept="image/*" onChange={handleAvatarChange} />
+                  </Button>
+                </CardContent>
+              </Card>
 
-        {/* Store Settings Tab */}
-        <TabsContent value="store">
-          <Card>
-            <CardHeader>
-              <CardTitle>Store Settings</CardTitle>
-              <CardDescription>
-                {selectedStore ? `Manage settings for ${selectedStore.name}.` : "Select a store from the sidebar to manage its settings."}
-              </CardDescription>
-            </CardHeader>
-            {isLoadingStore ? (
-                 <CardContent>
-                    <div className="space-y-6">
-                        <Skeleton className="h-32 w-32 rounded-md mx-auto" />
-                        <Skeleton className="h-10 w-full" />
-                        <Skeleton className="h-20 w-full" />
-                        <Skeleton className="h-10 w-1/2" />
-                        <Button disabled className="mt-4"> <Skeleton className="h-5 w-20" /> </Button>
-                    </div>
-                 </CardContent>
-            ) : selectedStore ? (
-              <CardContent>
-                <form onSubmit={handleStoreSettingsUpdate} className="space-y-6">
-                  <div className="flex flex-col items-center space-y-4">
-                     {logoPreview ? (
-                        <NextImage src={logoPreview} alt={`${storeName} logo preview`} width={128} height={128} className="rounded-md object-contain h-32 w-32 border" unoptimized={logoPreview?.startsWith('blob:')} />
-                      ) : (
-                        <div className="h-32 w-32 rounded-md border bg-muted flex items-center justify-center">
-                          <UploadCloud className="h-12 w-12 text-muted-foreground" />
-                        </div>
-                      )}
-                    <div className="grid w-full max-w-sm items-center gap-1.5">
-                        <Label htmlFor="storeLogoFile">Upload Store Logo</Label>
-                        <Input id="storeLogoFile" type="file" accept="image/*" onChange={handleLogoFileChange} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"/>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="storeName">Store Name</Label>
-                    <Input id="storeName" value={storeName || ''} onChange={(e) => setStoreName(e.target.value)} />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="storeDescription">Description</Label>
-                    <Textarea id="storeDescription" value={storeDescription || ''} onChange={(e) => setStoreDescription(e.target.value)} />
-                  </div>
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Info Form */}
+              <Card className="flex-1 w-full shadow-sm border-border/60">
+                <CardHeader>
+                  <CardTitle>Personal Information</CardTitle>
+                  <CardDescription>Update your public display name.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form id="profile-form" onSubmit={handleProfileSave} className="space-y-5">
                     <div className="grid gap-2">
-                        <Label htmlFor="storeCategory">Category</Label>
-                        <Input id="storeCategory" value={storeCategory || ''} onChange={(e) => setStoreCategory(e.target.value)} />
-                    </div>
-                     <div className="grid gap-2">
-                        <Label htmlFor="storeLocation">Store Location / Address</Label>
-                        <Input id="storeLocation" value={storeLocation || ''} onChange={(e) => setStoreLocation(e.target.value)} />
+                      <Label htmlFor="display_name" className="text-base">Display Name</Label>
+                      <Input id="display_name" value={userName} onChange={e => setUserName(e.target.value)} className="h-11 bg-muted/30" />
                     </div>
                     <div className="grid gap-2">
-                        <Label htmlFor="storeContactPhone">Contact Phone</Label>
-                        <Input id="storeContactPhone" type="tel" value={storeContactPhone || ''} onChange={(e) => setStoreContactPhone(e.target.value)} />
+                      <Label htmlFor="email" className="text-base">Email Address</Label>
+                      <Input id="email" value={userEmail} onChange={e => setUserEmail(e.target.value)} className="h-11 bg-muted/30" />
                     </div>
-                   </div>
-                   
-                    <Separator />
-                    <h4 className="text-md font-medium">Default Pickup Coordinates</h4>
-                    <p className="text-sm text-muted-foreground -mt-2">Provide precise coordinates for map links during order processing.</p>
-                    
-                    <Button variant="outline" className="w-full" type="button" onClick={handleUseCurrentLocation} disabled={isFetchingLocation}>
-                        <LocateFixed className="mr-2 h-4 w-4"/> {isFetchingLocation ? "Fetching..." : "Use Current GPS Location"}
-                    </Button>
+                  </form>
+                </CardContent>
+                <CardFooter className="bg-muted/20 border-t py-4">
+                  <Button type="submit" form="profile-form" disabled={isSaving} className="w-full md:w-auto ml-auto">
+                    {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                    Save Changes
+                  </Button>
+                </CardFooter>
+              </Card>
+            </div>
+          </div>
+        );
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="pickupCoords">Coordinates (Lat, Lng)</Label>
-                        <Input
-                            id="pickupCoords"
-                            value={storePickupLat && storePickupLng ? `${storePickupLat}, ${storePickupLng}` : ""}
-                            onChange={(e) => {
-                                const [latStr, lngStr] = e.target.value.split(',').map(s => s.trim());
-                                const lat = parseFloat(latStr);
-                                const lng = parseFloat(lngStr);
-                                setStorePickupLat(!isNaN(lat) ? lat : "");
-                                setStorePickupLng(!isNaN(lng) ? lng : "");
-                            }}
-                            placeholder="e.g., -15.4167, 28.2833"
+      case "store":
+        return (
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 pb-20 animate-in fade-in zoom-in-95 duration-300">
+            {/* Left Col: Settings Forms */}
+            <div className="xl:col-span-2 space-y-6">
+              {!selectedStore ? (
+                <Card className="border-dashed border-2 p-8 md:p-12 text-center text-muted-foreground">
+                  <Store className="mx-auto h-12 w-12 mb-4 opacity-50" />
+                  <h3 className="text-lg font-semibold">No Store Selected</h3>
+                  <p>Please select a store to manage its settings.</p>
+                </Card>
+              ) : (
+                <>
+                  {/* Mobile Preview Trigger */}
+                  <div className="xl:hidden">
+                    <Sheet>
+                      <SheetTrigger asChild>
+                        <Button variant="outline" className="w-full gap-2 border-primary/20 text-primary">
+                          <Eye className="h-4 w-4" /> Preview Store Live
+                        </Button>
+                      </SheetTrigger>
+                      <SheetContent side="bottom" className="h-[85vh] rounded-t-3xl pt-8 px-4">
+                        <SheetHeader className="mb-6">
+                          <SheetTitle>Live Store Preview</SheetTitle>
+                        </SheetHeader>
+                        <StorePreview
+                          logoPreview={logoPreview}
+                          bannerPreview={bannerPreview}
+                          storeName={storeName}
+                          storeDescription={storeDescription}
+                          storeCategory={storeCategory}
+                          storeStatus={storeStatus}
+                          storeLocation={storeLocation}
                         />
-                    </div>
-                    {storePickupLat && storePickupLng ? (
-                        <div className="space-y-2 rounded-md border p-3">
-                            <p className="text-sm font-medium">Map Links</p>
-                            <p className="text-xs text-muted-foreground">Click to open, or copy coordinates.</p>
-                            <div className="flex items-center gap-2">
-                                <a href={`https://www.google.com/maps/search/?api=1&query=${storePickupLat},${storePickupLng}`} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3"/>Google Maps</a>
-                                <span>|</span>
-                                <a href={`http://maps.apple.com/?q=${storePickupLat},${storePickupLng}`} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3"/>Apple Maps</a>
-                                <Button size="icon" variant="ghost" type="button" className="h-6 w-6 ml-auto" onClick={() => {
-                                    navigator.clipboard.writeText(`${storePickupLat}, ${storePickupLng}`);
-                                    toast({title: "Copied to clipboard"});
-                                }}>
-                                    <Copy className="h-4 w-4"/>
-                                </Button>
-                            </div>
-                        </div>
-                    ) : null}
+                      </SheetContent>
+                    </Sheet>
+                  </div>
 
-                   <div className="grid gap-2">
-                        <Label htmlFor="storeStatus">Status</Label>
-                        <Select value={storeStatus} onValueChange={(value: StoreFromSupabase["status"]) => setStoreStatus(value)}>
-                            <SelectTrigger id="storeStatus">
-                                <SelectValue placeholder="Select status" />
+                  <form id="store-form" onSubmit={handleStoreSave} className="space-y-6">
+                    {/* General */}
+                    <Card className="shadow-sm border-border/60">
+                      <CardHeader>
+                        <CardTitle>Branding</CardTitle>
+                        <CardDescription>Logo and Cover Image</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-6">
+                        {/* Logo Input */}
+                        <div className="flex items-center gap-4">
+                          <div className="relative h-20 w-20 rounded-lg border bg-muted flex items-center justify-center overflow-hidden shrink-0">
+                            {logoPreview && <img src={logoPreview} className="w-full h-full object-cover" />}
+                            {!logoPreview && <UploadCloud className="h-6 w-6 text-muted-foreground" />}
+                            <Input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" onChange={handleLogoChange} />
+                          </div>
+                          <div className="space-y-1">
+                            <p className="font-medium text-sm">Store Logo</p>
+                            <p className="text-xs text-muted-foreground">Tap to upload a new logo.</p>
+                          </div>
+                        </div>
+
+                        {/* Banner Input */}
+                        <div className="space-y-3">
+                          <Label className="text-base">Store Banner</Label>
+                          <div className="relative h-32 w-full rounded-xl border-2 border-dashed bg-muted/30 hover:bg-muted/50 transition-colors flex flex-col items-center justify-center overflow-hidden cursor-pointer group">
+                            {bannerPreview ? (
+                              <>
+                                <img src={bannerPreview} className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:opacity-60 transition-opacity" />
+                                <div className="z-10 bg-black/40 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <ImageIcon className="h-4 w-4" /> Change Banner
+                                </div>
+                              </>
+                            ) : (
+                              <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                                <ImageIcon className="h-8 w-8 opacity-50" />
+                                <span className="text-sm">Tap to upload banner image</span>
+                              </div>
+                            )}
+                            <Input type="file" className="absolute inset-0 opacity-0 cursor-pointer z-20" accept="image/*" onChange={handleBannerChange} />
+                          </div>
+                          <p className="text-xs text-muted-foreground">Recommended size: 1200x400px. Max size 3MB.</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="shadow-sm border-border/60">
+                      <CardHeader>
+                        <CardTitle>Details</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-5">
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <div className="grid gap-2">
+                            <Label className="text-base">Store Name</Label>
+                            <Input value={storeName} onChange={e => setStoreName(e.target.value)} className="h-11" />
+                          </div>
+                          <div className="grid gap-2">
+                            <Label className="text-base">Categories</Label>
+                            <Input value={storeCategory} onChange={e => setStoreCategory(e.target.value)} className="h-11" placeholder="Fashion, tech..." />
+                          </div>
+                        </div>
+                        <div className="grid gap-2">
+                          <Label className="text-base">Description</Label>
+                          <Textarea rows={3} value={storeDescription} onChange={e => setStoreDescription(e.target.value)} className="resize-none" />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label className="text-base">Status</Label>
+                          <Select value={storeStatus} onValueChange={(v: any) => setStoreStatus(v)}>
+                            <SelectTrigger className="h-11">
+                              <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="Active">Active</SelectItem>
-                                <SelectItem value="Inactive">Inactive</SelectItem>
-                                <SelectItem value="Maintenance">Maintenance</SelectItem>
+                              <SelectItem value="Active">Active -- Visible</SelectItem>
+                              <SelectItem value="Inactive">Inactive -- Hidden</SelectItem>
+                              <SelectItem value="Maintenance">Maintenance</SelectItem>
                             </SelectContent>
-                        </Select>
-                    </div>
-
-                    <Separator />
-                    <h4 className="text-md font-medium">Social Links</h4>
-                    {(["Instagram", "Facebook", "Twitter", "TikTok", "LinkedIn", "Other"] as const).map((platform) => {
-                       const IconComp = socialIconMap[platform as MockSocialLinkType["platform"]] || LinkIcon;
-                       return (
-                        <div key={platform} className="grid gap-2">
-                            <Label htmlFor={`social${platform}`} className="flex items-center"><IconComp className="mr-2 h-4 w-4 text-muted-foreground"/> {platform} URL</Label>
-                            <Input 
-                                id={`social${platform}`} 
-                                value={getSocialUrl(platform)} 
-                                onChange={(e) => handleSocialLinkChange(platform, e.target.value)}
-                                placeholder={`https://${platform.toLowerCase().replace(/\s+/g, '')}.com/yourstore`}
-                            />
+                          </Select>
                         </div>
-                       );
-                    })}
-                  <Button type="submit" disabled={isLoadingStore}> {isLoadingStore ? "Saving..." : "Update Store Settings"} </Button>
+                      </CardContent>
+                    </Card>
+
+                    {/* Contact & Location */}
+                    <Card className="shadow-sm border-border/60">
+                      <CardHeader>
+                        <CardTitle>Contact</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-6">
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <div className="grid gap-2">
+                            <Label className="text-base">Phone Number</Label>
+                            <Input type="tel" value={storeContactPhone} onChange={e => setStoreContactPhone(e.target.value)} className="h-11" />
+                          </div>
+                          <div className="grid gap-2">
+                            <Label className="text-base">Physical Address</Label>
+                            <Input value={storeLocation} onChange={e => setStoreLocation(e.target.value)} className="h-11" />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-2 text-base"><MapPin className="h-4 w-4" /> Pin Location</Label>
+                          <div className="rounded-lg overflow-hidden border h-[250px] md:h-[300px]">
+                            <StoreMapPicker
+                              latitude={storePickupLat ? parseFloat(String(storePickupLat)) : undefined}
+                              longitude={storePickupLng ? parseFloat(String(storePickupLng)) : undefined}
+                              onLocationSelect={(lat, lng) => { setStorePickupLat(lat); setStorePickupLng(lng); }}
+                            />
+                          </div>
+                          <div className="flex gap-4 pt-2">
+                            <div className="grid gap-1.5 flex-1">
+                              <Label className="text-xs text-muted-foreground">Latitude</Label>
+                              <Input
+                                value={storePickupLat || ''}
+                                readOnly
+                                className="h-9 bg-muted/50 text-xs font-mono"
+                                placeholder="Select on map"
+                              />
+                            </div>
+                            <div className="grid gap-1.5 flex-1">
+                              <Label className="text-xs text-muted-foreground">Longitude</Label>
+                              <Input
+                                value={storePickupLng || ''}
+                                readOnly
+                                className="h-9 bg-muted/50 text-xs font-mono"
+                                placeholder="Select on map"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Socials */}
+                    <Card className="shadow-sm border-border/60">
+                      <CardHeader>
+                        <CardTitle>Socials</CardTitle>
+                      </CardHeader>
+                      <CardContent className="grid md:grid-cols-2 gap-4">
+                        {SOCIAL_PLATFORMS.map(platform => (
+                          <div key={platform} className="grid gap-2">
+                            <Label className="text-xs uppercase text-muted-foreground">{platform}</Label>
+                            <Input
+                              placeholder={`https://${platform.toLowerCase()}.com/...`}
+                              value={storeSocialLinks.find(l => l.platform === platform)?.url || ''}
+                              onChange={e => handleSocialLinkChange(platform, e.target.value)}
+                              className="bg-muted/20 h-10"
+                            />
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+
+                    {/* Floating Save Bar for Mobile/Desktop */}
+                    <div className="sticky bottom-4 md:bottom-6 z-10 mx-auto max-w-4xl">
+                      <div className="bg-background/90 backdrop-blur-xl border rounded-2xl p-4 flex items-center justify-between shadow-2xl ring-1 ring-black/5">
+                        <div className="text-sm text-muted-foreground hidden md:block pl-2">
+                          Changes pending...
+                        </div>
+                        <Button type="submit" size="lg" disabled={isSaving} className="w-full md:w-auto shadow-lg shadow-primary/20 h-11 rounded-xl font-semibold">
+                          {isSaving ? "Saving..." : "Save Store Settings"}
+                        </Button>
+                      </div>
+                    </div>
+                  </form>
+                </>
+              )}
+            </div>
+
+            {/* Right Col: Live Preview (Desktop Only) */}
+            <div className="hidden xl:block">
+              <div className="sticky top-6 space-y-6">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-2">
+                  <LayoutDashboard className="h-4 w-4" /> Live Preview
+                </div>
+                <StorePreview
+                  logoPreview={logoPreview}
+                  bannerPreview={bannerPreview}
+                  storeName={storeName}
+                  storeDescription={storeDescription}
+                  storeCategory={storeCategory}
+                  storeStatus={storeStatus}
+                  storeLocation={storeLocation}
+                />
+                <div className="bg-blue-50 dark:bg-blue-950/30 p-4 rounded-xl border border-blue-100 dark:border-blue-900 text-sm text-blue-800 dark:text-blue-300">
+                  <p className="font-semibold mb-1">Top Tip</p>
+                  <p className="opacity-90">Store logos with white backgrounds look best in the preview.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case "billing":
+        return (
+          <div className="space-y-8 pb-20 animate-in fade-in zoom-in-95 duration-300">
+            {/* Cards Visualization */}
+            <div className="grid md:grid-cols-2 gap-6">
+              <PayoutCard
+                type="bank"
+                title={bankName || "Bank Account"}
+                subtitle="Primary Payout Method"
+                icon={Building}
+                colorClass="bg-gradient-to-br from-slate-900 to-slate-800 dark:from-slate-800 dark:to-slate-950"
+                details={{
+                  "Account": accountName,
+                  "Number": accountNumber ? `**** ${accountNumber.slice(-4)}` : "",
+                  "Bank": bankName || "Not Connected"
+                }}
+              />
+              <PayoutCard
+                type="momo"
+                title={momoProvider || "Mobile Money"}
+                subtitle="Alternative Method"
+                icon={Phone}
+                colorClass="bg-gradient-to-br from-orange-500 to-red-600 shadow-orange-500/20"
+                details={{
+                  "Name": momoName,
+                  "Number": momoNumber || "Not Connected",
+                  "Provider": momoProvider
+                }}
+              />
+            </div>
+
+            <Card className="border-border/60 shadow-md">
+              <CardHeader>
+                <CardTitle>Edit Payout Details</CardTitle>
+                <CardDescription>Securely manage where you receive your funds.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form id="payout-form" onSubmit={handlePayoutSave} className="space-y-8">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-primary font-semibold border-b pb-2">
+                      <Building className="h-5 w-5" /> Bank Details
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="grid gap-2"><Label>Bank Name</Label><Input value={bankName} onChange={e => setBankName(e.target.value)} placeholder="e.g. Absa" className="h-11" /></div>
+                      <div className="grid gap-2"><Label>Account Name</Label><Input value={accountName} onChange={e => setAccountName(e.target.value)} className="h-11" /></div>
+                      <div className="grid gap-2"><Label>Account Number</Label><Input value={accountNumber} onChange={e => setAccountNumber(e.target.value)} className="h-11" /></div>
+                      <div className="grid gap-2"><Label>Branch Code/Name</Label><Input value={branchName} onChange={e => setBranchName(e.target.value)} className="h-11" /></div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-primary font-semibold border-b pb-2">
+                      <Phone className="h-5 w-5" /> Mobile Money
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label>Provider</Label>
+                        <Select value={momoProvider} onValueChange={setMomoProvider}>
+                          <SelectTrigger className="h-11"><SelectValue placeholder="Select Provider" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Airtel">Airtel Money</SelectItem>
+                            <SelectItem value="MTN">MTN Mobile Money</SelectItem>
+                            <SelectItem value="Zamtel">Zamtel Kwacha</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-2"><Label>Phone Number</Label><Input value={momoNumber} onChange={e => setMomoNumber(e.target.value)} placeholder="+260..." className="h-11" /></div>
+                      <div className="grid gap-2 md:col-span-2"><Label>Registered Name</Label><Input value={momoName} onChange={e => setMomoName(e.target.value)} className="h-11" /></div>
+                    </div>
+                  </div>
                 </form>
               </CardContent>
-            ) : (
-                <CardContent>
-                    <p className="text-muted-foreground">No store selected or found. Please select a store from the sidebar, or ensure the store ID in the URL is correct and you have access to it.</p>
-                    <Button onClick={() => router.push('/stores')} className="mt-4">Go to Stores Page</Button>
-                </CardContent>
-            )}
-          </Card>
-        </TabsContent>
+              <CardFooter className="bg-muted/20 border-t py-4">
+                <Button type="submit" form="payout-form" disabled={isSaving} className="w-full md:w-auto ml-auto h-11">
+                  {isSaving ? "Processing..." : "Update Payout Info"}
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
+        );
 
-        {/* Appearance Tab */}
-        <TabsContent value="appearance">
-          <Card>
-            <CardHeader>
-              <CardTitle>Appearance</CardTitle>
-              <CardDescription>Customize the look and feel of the application.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div>
-                <Label className="text-base font-semibold">Theme</Label>
-                <p className="text-sm text-muted-foreground mb-3">Select your preferred color scheme.</p>
-                <RadioGroup value={currentTheme} onValueChange={handleThemeChange} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {(['light', 'dark', 'system'] as const).map((themeOption) => (
-                    <div key={themeOption}>
-                      <RadioGroupItem value={themeOption} id={themeOption} className="peer sr-only" />
+      case "appearance":
+        return (
+          <div className="max-w-xl space-y-6 pb-20 animate-in fade-in zoom-in-95 duration-300">
+            <Card>
+              <CardHeader>
+                <CardTitle>Theme</CardTitle>
+                <CardDescription>Choose how E-Ntemba looks to you.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RadioGroup value={theme} onValueChange={(v) => setTheme(v)} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {['light', 'dark', 'system'].map((t) => (
+                    <div key={t}>
+                      <RadioGroupItem value={t} id={t} className="peer sr-only" />
                       <Label
-                        htmlFor={themeOption}
-                        className={cn(
-                          "flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 py-3 hover:bg-accent hover:text-accent-foreground cursor-pointer",
-                          "peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                        )}
+                        htmlFor={t}
+                        className="flex sm:flex-col items-center justify-between sm:justify-center rounded-xl border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5 cursor-pointer transition-all gap-4"
                       >
-                        <span className="capitalize font-medium">{themeOption}</span>
-                        <div className={cn("h-16 w-full rounded-md mt-2 border flex items-center justify-center text-xs", 
-                          themeOption === 'light' && 'bg-white border-slate-200 text-slate-800',
-                          themeOption === 'dark' && 'bg-slate-900 border-slate-700 text-slate-100',
-                          themeOption === 'system' && 'bg-gradient-to-br from-white via-slate-200 to-slate-900 border-slate-400 text-slate-600'
+                        <span className="capitalize font-medium">{t}</span>
+                        <div className={cn(
+                          "h-12 w-20 sm:h-20 sm:w-full rounded-lg border shadow-sm flex items-center justify-center text-[10px] font-mono",
+                          t === 'light' && "bg-white text-slate-800",
+                          t === 'dark' && "bg-slate-950 text-slate-200",
+                          t === 'system' && "bg-gradient-to-br from-white to-slate-900 text-slate-500"
                         )}>
-                           {themeOption === 'light' ? 'Light Mode' : themeOption === 'dark' ? 'Dark Mode' : 'System Default'}
+                          Aa
                         </div>
                       </Label>
                     </div>
                   ))}
                 </RadioGroup>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+              </CardContent>
+            </Card>
+          </div>
+        );
 
-        {/* Account Tab */}
-        <TabsContent value="account">
-          <div className="space-y-6">
+      case "account":
+        return (
+          <div className="max-w-2xl space-y-6 pb-20 animate-in fade-in zoom-in-95 duration-300">
             <Card>
               <CardHeader>
                 <CardTitle>Change Password</CardTitle>
-                <CardDescription>Update your account password.</CardDescription>
+                <CardDescription>Ensure your account is using a strong password.</CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handlePasswordChange} className="space-y-4">
+                <form onSubmit={handlePasswordUpdate} className="grid gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="newPassword">New Password</Label>
-                    <Input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} disabled={isUpdatingPassword} />
+                    <Label>New Password</Label>
+                    <Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="h-11" />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                    <Input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} disabled={isUpdatingPassword}/>
+                    <Label>Confirm Password</Label>
+                    <Input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="h-11" />
                   </div>
-                  <Button type="submit" disabled={isUpdatingPassword}>{isUpdatingPassword ? 'Updating...' : 'Change Password'}</Button>
+                  <Button type="submit" disabled={isSaving} variant="outline" className="w-full sm:w-fit h-11">
+                    Update Password
+                  </Button>
                 </form>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Notification Preferences</CardTitle>
-                <CardDescription>Manage how you receive notifications.</CardDescription>
+            <Card className="opacity-75">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <div className="space-y-1">
+                  <CardTitle>Notifications</CardTitle>
+                  <CardDescription>Manage your alert preferences.</CardDescription>
+                </div>
+                <div className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-muted text-muted-foreground uppercase tracking-wider border">
+                  Coming Soon
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="emailNotifications" className="flex flex-col space-y-1">
-                    <span>Email Notifications</span>
-                    <span className="font-normal leading-snug text-muted-foreground">
-                      Receive important updates and alerts via email.
-                    </span>
-                  </Label>
-                  <Switch id="emailNotifications" defaultChecked onCheckedChange={(checked) => toast({title: `Email notifications ${checked ? 'enabled' : 'disabled'}`})}/>
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="lowStockAlerts" className="flex flex-col space-y-1">
-                    <span>Low Stock Alerts</span>
-                    <span className="font-normal leading-snug text-muted-foreground">
-                      Get notified when product stock is running low.
-                    </span>
-                  </Label>
-                  <Switch id="lowStockAlerts" onCheckedChange={(checked) => toast({title: `Low stock alerts ${checked ? 'enabled' : 'disabled'}`})}/>
-                </div>
-                <Separator />
-                 <div className="flex items-center justify-between">
-                  <Label htmlFor="newOrderAlerts" className="flex flex-col space-y-1">
-                    <span>New Order Alerts</span>
-                    <span className="font-normal leading-snug text-muted-foreground">
-                      Receive a notification for every new order.
-                    </span>
-                  </Label>
-                  <Switch id="newOrderAlerts" defaultChecked onCheckedChange={(checked) => toast({title: `New order alerts ${checked ? 'enabled' : 'disabled'}`})}/>
-                </div>
+                {[
+                  { id: "email_notifs", label: "Email Notifications", desc: "Weekly summaries." },
+                  { id: "order_notifs", label: "New Orders", desc: "Alerted immediately." },
+                  { id: "stock_notifs", label: "Low Stock", desc: "Inventory alerts." },
+                ].map(item => (
+                  <div key={item.id} className="flex items-center justify-between p-3 rounded-xl border bg-muted/20 grayscale opacity-60 cursor-not-allowed">
+                    <div className="space-y-0.5">
+                      <Label className="text-base cursor-not-allowed">{item.label}</Label>
+                      <p className="text-xs text-muted-foreground">{item.desc}</p>
+                    </div>
+                    <Switch disabled checked={false} />
+                  </div>
+                ))}
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
+        );
 
-        {/* Billing Tab */}
-        <TabsContent value="billing">
-          <div className="space-y-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Current Payout Methods</CardTitle>
-                    <CardDescription>This is the information on file for your payouts.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                     {isLoadingProfile ? (
-                        <Skeleton className="h-24 w-full" />
-                    ) : (bankName || momoNumber) ? (
-                        <>
-                            {bankName && (
-                                <div className="space-y-2 rounded-lg border p-4">
-                                    <h4 className="font-medium flex items-center"><Banknote className="mr-2 h-5 w-5 text-primary" /> Bank Account</h4>
-                                    <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                                        <dt className="text-muted-foreground">Bank:</dt><dd>{bankName}</dd>
-                                        <dt className="text-muted-foreground">Account Name:</dt><dd>{accountName}</dd>
-                                        <dt className="text-muted-foreground">Account Number:</dt><dd>{accountNumber}</dd>
-                                        <dt className="text-muted-foreground">Branch:</dt><dd>{branchName}</dd>
-                                    </dl>
-                                </div>
-                            )}
-                            {momoNumber && (
-                                <div className="space-y-2 rounded-lg border p-4">
-                                    <h4 className="font-medium flex items-center"><Phone className="mr-2 h-5 w-5 text-primary" /> Mobile Money</h4>
-                                    <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                                        <dt className="text-muted-foreground">Provider:</dt><dd className="capitalize">{momoProvider}</dd>
-                                        <dt className="text-muted-foreground">Number:</dt><dd>{momoNumber}</dd>
-                                        <dt className="text-muted-foreground">Registered Name:</dt><dd>{momoName}</dd>
-                                    </dl>
-                                </div>
-                            )}
-                        </>
-                    ) : (
-                        <p className="text-sm text-muted-foreground text-center py-4">You have not set up any payout methods. Please add your details below.</p>
-                    )}
-                </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Pencil className="h-5 w-5"/> Edit Payout Information</CardTitle>
-                <CardDescription>Manage where you receive your money. Fill in at least one method.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSavePayoutDetails} className="space-y-8">
-                  {/* Bank Account Section */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-medium flex items-center gap-2"><Banknote className="h-5 w-5 text-primary"/>Bank Account Details</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="bankName">Bank Name</Label>
-                        <Input id="bankName" value={bankName || ''} onChange={(e) => setBankName(e.target.value)} placeholder="e.g., Zanaco" />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="accountName">Account Holder Name</Label>
-                        <Input id="accountName" value={accountName || ''} onChange={(e) => setAccountName(e.target.value)} placeholder="e.g., John Doe" />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="accountNumber">Account Number</Label>
-                        <Input id="accountNumber" value={accountNumber || ''} onChange={(e) => setAccountNumber(e.target.value)} placeholder="e.g., 1234567890" />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="branchName">Branch Name</Label>
-                        <Input id="branchName" value={branchName || ''} onChange={(e) => setBranchName(e.target.value)} placeholder="e.g., Manda Hill" />
-                      </div>
-                    </div>
-                  </div>
+      default:
+        return null;
+    }
+  };
 
-                  <Separator />
+  if (isLoadingProfile) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <p className="text-muted-foreground animate-pulse">Loading settings...</p>
+        </div>
+      </div>
+    );
+  }
 
-                  {/* Mobile Money Section */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-medium flex items-center gap-2"><Phone className="h-5 w-5 text-primary"/>Mobile Money Details</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="momoProvider">Provider</Label>
-                        <Select value={momoProvider || ''} onValueChange={setMomoProvider}>
-                          <SelectTrigger id="momoProvider">
-                            <SelectValue placeholder="Select a provider" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="mtn">MTN Mobile Money</SelectItem>
-                            <SelectItem value="airtel">Airtel Money</SelectItem>
-                            <SelectItem value="zamtel">Zamtel Kwacha</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="momoNumber">Mobile Number</Label>
-                        <Input id="momoNumber" value={momoNumber || ''} onChange={(e) => setMomoNumber(e.target.value)} placeholder="e.g., 0966123456" />
-                      </div>
-                    </div>
-                    <div className="grid gap-2">
-                        <Label htmlFor="momoName">Registered Name</Label>
-                        <Input id="momoName" value={momoName || ''} onChange={(e) => setMomoName(e.target.value)} placeholder="e.g., John Doe" />
-                      </div>
-                  </div>
-                  
-                  <div className="pt-4">
-                    <Button type="submit" disabled={isUpdatingPayout}>{isUpdatingPayout ? 'Saving...' : 'Save Payout Details'}</Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
+  return (
+    <div className="flex flex-col lg:flex-row min-h-[calc(100vh-4rem)] bg-muted/10">
+      {/* Sidebar Navigation */}
+      <aside className="w-full lg:w-72 bg-background border-b lg:border-b-0 lg:border-r p-3 lg:p-6 sticky top-0 z-20 shadow-sm lg:shadow-none">
+        <div className="mb-8 hidden lg:block">
+          <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+          <p className="text-muted-foreground text-sm">Manage your empire.</p>
+        </div>
+
+        <nav className="flex lg:flex-col gap-2 overflow-x-auto pb-2 lg:pb-0 scrollbar-hide">
+          {SETTINGS_SECTIONS.map(item => (
+            <NavItem
+              key={item.id}
+              item={item}
+              isActive={activeTab === item.id}
+              onClick={() => setActiveTab(item.id)}
+            />
+          ))}
+        </nav>
+      </aside>
+
+      {/* Main Content Area */}
+      <main className="flex-1 p-4 lg:p-10 w-full max-w-7xl mx-auto">
+        <div className="mb-6 lg:mb-8">
+          <h2 className="text-2xl lg:text-3xl font-bold tracking-tight mb-1">
+            {SETTINGS_SECTIONS.find(s => s.id === activeTab)?.label}
+          </h2>
+          <p className="text-muted-foreground text-sm lg:text-lg">
+            {SETTINGS_SECTIONS.find(s => s.id === activeTab)?.description}
+          </p>
+        </div>
+
+        {renderContent()}
+      </main>
     </div>
   );
 }

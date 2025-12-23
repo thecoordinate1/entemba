@@ -1,17 +1,47 @@
-
 import { createClient } from '@/lib/supabase/client';
 
 const supabase = createClient();
 
-export async function signUpWithEmail(email: string, password: string, displayName: string) {
+export interface VendorSignUpData {
+  bank_name?: string | null;
+  bank_account_name?: string | null;
+  bank_account_number?: string | null;
+  bank_branch_name?: string | null;
+  mobile_money_provider?: string | null;
+  mobile_money_number?: string | null;
+  mobile_money_name?: string | null;
+}
+
+const getRedirectUrl = (path: string = '/auth/callback') => {
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL
+    ? process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "")
+    : typeof window !== 'undefined' ? window.location.origin : '';
+
+  return `${baseUrl}${path}`;
+};
+
+/**
+ * Sign up a new user and simultaneously create a vendor profile.
+ * Optional vendor details are stored in the `vendors` table.
+ */
+export async function signUpWithEmail(
+  email: string,
+  password: string,
+  displayName: string,
+  vendorDetails?: VendorSignUpData
+) {
+  // combine displayName and optional vendor details into metadata
+  const metaData = {
+    display_name: displayName,
+    ...vendorDetails,
+  };
+
   const { data: authData, error: signUpError } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      emailRedirectTo: `${window.location.origin}/auth/callback`,
-      data: {
-        display_name: displayName,
-      }
+      emailRedirectTo: getRedirectUrl(),
+      data: metaData, // Pass all details here for the Trigger to pick up
     },
   });
 
@@ -19,41 +49,38 @@ export async function signUpWithEmail(email: string, password: string, displayNa
     return { data: authData, error: signUpError };
   }
 
-  // If signUp is successful but user is null (e.g., email confirmation required), handle it.
-  if (!authData.user) {
-    // This case happens when email confirmation is enabled. The user object is in authData.user
-    // but the session is null. We can proceed to create the vendor profile.
-    // If authData.user is truly null, something is wrong, but Supabase usually returns the user object here.
-    if(authData.user === null) {
-      return { data: authData, error: new Error("Sign up succeeded but no user object was returned.") };
-    }
-  }
-  
-  // Create a corresponding public vendor profile
-  const { error: profileError } = await supabase
-    .from('vendors')
-    .insert({
-      id: authData.user.id,
-      display_name: displayName,
-      email: email,
-    });
-  
-  if (profileError) {
-    // This is a tricky situation. The auth user exists, but their public profile failed.
-    // For now, we'll log it and return the original sign-up error if any, or this new one.
-    console.error("Error creating vendor profile after sign up:", profileError);
-    // You might want to have a cleanup process for auth users without profiles
-    return { data: authData, error: profileError };
-  }
+  // The database trigger 'on_auth_user_created' now handles the creation 
+  // of the 'vendors' profile row using the metadata provided above.
 
-
-  return { data: authData, error: signUpError };
+  return { data: authData, error: null };
 }
 
 export async function signInWithEmail(email: string, password: string) {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) {
+      console.error("Supabase signInWithPassword error:", error);
+    }
+    return { data, error };
+  } catch (err) {
+    console.error("Unexpected error in signInWithEmail:", err);
+    return { data: { user: null, session: null }, error: err as any };
+  }
+}
+
+export async function signInWithGoogle() {
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: getRedirectUrl(),
+      queryParams: {
+        access_type: 'offline',
+        prompt: 'consent',
+      },
+    },
   });
   return { data, error };
 }
@@ -67,24 +94,24 @@ export async function getCurrentUser() {
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();
   if (sessionError) return { user: null, error: sessionError };
   if (!session) return { user: null, error: null };
-  
+
   const { data: { user }, error } = await supabase.auth.getUser();
   return { user, error };
 }
 
 export async function resetPasswordForEmail(email: string) {
   const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/update-password`,
+    redirectTo: getRedirectUrl('/update-password'),
   });
   return { data, error };
 }
 
 export async function resendConfirmationEmail(email: string) {
   const { data, error } = await supabase.auth.resend({
-    type: 'signup', 
+    type: 'signup',
     email: email,
     options: {
-      emailRedirectTo: `${window.location.origin}/auth/callback`,
+      emailRedirectTo: getRedirectUrl(),
     }
   });
   return { data, error };

@@ -10,10 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, User as UserIcon, Users, ShieldCheck, ShieldX, Phone, MapPin, CalendarDays, ShoppingCart, DollarSign, Tag, AlertCircle, Eye } from "lucide-react";
+import { ArrowLeft, Edit, User as UserIcon, Users, ShieldCheck, ShieldX, Phone, MapPin, CalendarDays, ShoppingCart, DollarSign, Tag, AlertCircle, Eye, TrendingUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { CustomerStatus, Customer as CustomerUIType, OrderStatus as OrderStatusUIType, Order as OrderUIType } from "@/lib/types"; 
-import { customerStatusColors, orderStatusColors, orderStatusIcons } from "@/lib/types"; 
+import type { CustomerStatus, Customer as CustomerUIType, OrderStatus as OrderStatusUIType, Order as OrderUIType } from "@/lib/types";
+import { customerStatusColors, orderStatusColors, orderStatusIcons } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -29,7 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"; 
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { createClient } from '@/lib/supabase/client';
 import type { User as AuthUser } from '@supabase/supabase-js';
 import {
@@ -38,8 +38,9 @@ import {
   type CustomerFromSupabase,
   type CustomerPayload,
 } from "@/services/customerService";
-import { getOrdersByCustomerAndStore, type OrderFromSupabase } from "@/services/orderService"; 
+import { getOrdersByCustomerAndStore, type OrderFromSupabase } from "@/services/orderService";
 import { mapOrderFromSupabaseToUI } from "@/lib/order-mapper";
+import { MetricCard } from "@/components/MetricCard";
 
 
 // Form data type for Edit dialog
@@ -93,11 +94,11 @@ export default function CustomerDetailPage() {
   const [customer, setCustomer] = React.useState<CustomerUIType | null>(null);
   const [isLoadingCustomer, setIsLoadingCustomer] = React.useState(true);
   const [errorLoadingCustomer, setErrorLoadingCustomer] = React.useState<string | null>(null);
-  
+
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [formData, setFormData] = React.useState<CustomerFormData | null>(null);
-  
+
   const [customerOrders, setCustomerOrders] = React.useState<OrderUIType[]>([]);
   const [isLoadingCustomerOrders, setIsLoadingCustomerOrders] = React.useState(false);
 
@@ -150,14 +151,14 @@ export default function CustomerDetailPage() {
           if (storeId) {
             setIsLoadingCustomerOrders(true);
             try {
-                const { data: ordersData, error: ordersError } = await getOrdersByCustomerAndStore(fetchedCustomerData.id, storeId);
-                if (ordersError) throw ordersError;
-                setCustomerOrders(ordersData?.map(mapOrderFromSupabaseToUI) || []);
+              const { data: ordersData, error: ordersError } = await getOrdersByCustomerAndStore(fetchedCustomerData.id, storeId);
+              if (ordersError) throw ordersError;
+              setCustomerOrders(ordersData?.map(mapOrderFromSupabaseToUI) || []);
             } catch (ordersErr: any) {
-                toast({ variant: "destructive", title: "Error Fetching Orders", description: ordersErr.message });
-                setCustomerOrders([]);
+              toast({ variant: "destructive", title: "Error Fetching Orders", description: ordersErr.message });
+              setCustomerOrders([]);
             } finally {
-                setIsLoadingCustomerOrders(false);
+              setIsLoadingCustomerOrders(false);
             }
           } else {
             // If no storeId, maybe show all orders globally or a message
@@ -216,7 +217,7 @@ export default function CustomerDetailPage() {
       toast({ variant: "destructive", title: "Error Updating Customer", description: error?.message || "Could not update customer." });
     } else {
       const updatedCustomerUI = mapCustomerFromSupabaseToUI(updatedCustomerData);
-      setCustomer(updatedCustomerUI); 
+      setCustomer(updatedCustomerUI);
       setIsEditDialogOpen(false);
       toast({ title: "Customer Updated", description: `${updatedCustomerUI.name} has been successfully updated.` });
     }
@@ -225,73 +226,73 @@ export default function CustomerDetailPage() {
   const renderCustomerFormFields = () => {
     if (!formData) return null;
     return (
-        <>
+      <>
+        <div className="grid gap-2">
+          <Label htmlFor="name">Full Name</Label>
+          <Input id="name" name="name" value={formData.name} onChange={handleInputChange} required />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="email">Email Address</Label>
+          <Input id="email" name="email" type="email" value={formData.email} onChange={handleInputChange} required />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="phone">Phone Number (Optional)</Label>
+          <Input id="phone" name="phone" type="tel" value={formData.phone || ""} onChange={handleInputChange} />
+        </div>
+
+        <Separator className="my-4" />
+        <h4 className="font-medium text-md col-span-full">Address Details (Optional)</h4>
+        <div className="grid gap-2">
+          <Label htmlFor="street_address">Street Address</Label>
+          <Input id="street_address" name="street_address" value={formData.street_address || ""} onChange={handleInputChange} />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="grid gap-2">
-            <Label htmlFor="name">Full Name</Label>
-            <Input id="name" name="name" value={formData.name} onChange={handleInputChange} required />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="email">Email Address</Label>
-            <Input id="email" name="email" type="email" value={formData.email} onChange={handleInputChange} required />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="phone">Phone Number (Optional)</Label>
-            <Input id="phone" name="phone" type="tel" value={formData.phone || ""} onChange={handleInputChange} />
-          </div>
-    
-          <Separator className="my-4" />
-          <h4 className="font-medium text-md col-span-full">Address Details (Optional)</h4>
-          <div className="grid gap-2">
-            <Label htmlFor="street_address">Street Address</Label>
-            <Input id="street_address" name="street_address" value={formData.street_address || ""} onChange={handleInputChange} />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="city">City</Label>
-              <Input id="city" name="city" value={formData.city || ""} onChange={handleInputChange} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="state_province">State/Province</Label>
-              <Input id="state_province" name="state_province" value={formData.state_province || ""} onChange={handleInputChange} />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="zip_postal_code">ZIP/Postal Code</Label>
-              <Input id="zip_postal_code" name="zip_postal_code" value={formData.zip_postal_code || ""} onChange={handleInputChange} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="country">Country</Label>
-              <Input id="country" name="country" value={formData.country || ""} onChange={handleInputChange} />
-            </div>
-          </div>
-    
-          <Separator className="my-4" />
-          <div className="grid gap-2">
-            <Label htmlFor="status">Status</Label>
-            <Select name="status" value={formData.status} onValueChange={handleStatusChange}>
-              <SelectTrigger id="status">
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Active">Active</SelectItem>
-                <SelectItem value="Inactive">Inactive</SelectItem>
-                <SelectItem value="Blocked">Blocked</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label htmlFor="city">City</Label>
+            <Input id="city" name="city" value={formData.city || ""} onChange={handleInputChange} />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="tags">Tags (Optional, comma-separated)</Label>
-            <Input
-              id="tags"
-              name="tags"
-              value={formData.tags?.join(", ") || ""}
-              onChange={(e) => setFormData(prev => prev ? { ...prev, tags: e.target.value.split(",").map(tag => tag.trim()).filter(tag => tag) } : null)}
-              placeholder="e.g., VIP, Local, Wholesale"
-            />
+            <Label htmlFor="state_province">State/Province</Label>
+            <Input id="state_province" name="state_province" value={formData.state_province || ""} onChange={handleInputChange} />
           </div>
-        </>
-      );
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="zip_postal_code">ZIP/Postal Code</Label>
+            <Input id="zip_postal_code" name="zip_postal_code" value={formData.zip_postal_code || ""} onChange={handleInputChange} />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="country">Country</Label>
+            <Input id="country" name="country" value={formData.country || ""} onChange={handleInputChange} />
+          </div>
+        </div>
+
+        <Separator className="my-4" />
+        <div className="grid gap-2">
+          <Label htmlFor="status">Status</Label>
+          <Select name="status" value={formData.status} onValueChange={handleStatusChange}>
+            <SelectTrigger id="status">
+              <SelectValue placeholder="Select status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Active">Active</SelectItem>
+              <SelectItem value="Inactive">Inactive</SelectItem>
+              <SelectItem value="Blocked">Blocked</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="tags">Tags (Optional, comma-separated)</Label>
+          <Input
+            id="tags"
+            name="tags"
+            value={formData.tags?.join(", ") || ""}
+            onChange={(e) => setFormData(prev => prev ? { ...prev, tags: e.target.value.split(",").map(tag => tag.trim()).filter(tag => tag) } : null)}
+            placeholder="e.g., VIP, Local, Wholesale"
+          />
+        </div>
+      </>
+    );
   }
 
 
@@ -304,9 +305,9 @@ export default function CustomerDetailPage() {
             <Skeleton className="h-24 w-24 rounded-full" />
             <div className="space-y-2 flex-1"> <Skeleton className="h-8 w-3/4" /> <Skeleton className="h-4 w-1/2" /> </div>
           </CardHeader>
-          <CardContent className="space-y-4"> <Skeleton className="h-4 w-full" /> <Skeleton className="h-4 w-2/3" /> <Separator/> <Skeleton className="h-20 w-full" /> </CardContent>
+          <CardContent className="space-y-4"> <Skeleton className="h-4 w-full" /> <Skeleton className="h-4 w-2/3" /> <Separator /> <Skeleton className="h-20 w-full" /> </CardContent>
         </Card>
-         <Card><CardHeader><Skeleton className="h-8 w-1/3" /></CardHeader><CardContent><Skeleton className="h-20 w-full" /></CardContent></Card>
+        <Card><CardHeader><Skeleton className="h-8 w-1/3" /></CardHeader><CardContent><Skeleton className="h-20 w-full" /></CardContent></Card>
       </div>
     );
   }
@@ -328,6 +329,28 @@ export default function CustomerDetailPage() {
 
   const StatusIcon = customer.status === 'Active' ? ShieldCheck : customer.status === 'Blocked' ? ShieldX : UserIcon;
 
+
+  /* 
+    Calculate Metrics based on Store Context 
+    If storeId is present, we calculate totals from the fetched orders for this store.
+    Otherwise, we use the global totals from the customer profile.
+  */
+  const calculatedTotalSpent = storeId
+    ? customerOrders.reduce((sum, order) => {
+      // Exclude cancelled/refunded if necessary, but typically Total Spent includes valid orders
+      // Here we assume 'Cancelled' orders don't count towards spend
+      return (order.status !== 'Cancelled') ? sum + order.total : sum;
+    }, 0)
+    : (customer?.totalSpent ?? 0);
+
+  const calculatedTotalOrders = storeId
+    ? customerOrders.filter(o => o.status !== 'Cancelled').length
+    : (customer?.totalOrders ?? 0);
+
+  const calculatedAvgOrderValue = calculatedTotalOrders > 0
+    ? calculatedTotalSpent / calculatedTotalOrders
+    : 0;
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -335,158 +358,204 @@ export default function CustomerDetailPage() {
           <ArrowLeft className="h-4 w-4" />
           Back to Customers
         </Button>
-        <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => { setIsEditDialogOpen(isOpen); if (!isOpen && customer) { 
-             setFormData({
-                name: customer.name, email: customer.email, status: customer.status, phone: customer.phone || "",
-                street_address: customer.address?.street || "", city: customer.address?.city || "",
-                state_province: customer.address?.state || "", zip_postal_code: customer.address?.zip || "",
-                country: customer.address?.country || "", tags: customer.tags || [],
-                avatar_url: customer.avatar,
+        <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {
+          setIsEditDialogOpen(isOpen); if (!isOpen && customer) {
+            setFormData({
+              name: customer.name, email: customer.email, status: customer.status, phone: customer.phone || "",
+              street_address: customer.address?.street || "", city: customer.address?.city || "",
+              state_province: customer.address?.state || "", zip_postal_code: customer.address?.zip || "",
+              country: customer.address?.country || "", tags: customer.tags || [],
+              avatar_url: customer.avatar,
             });
-        }}}>
-            <DialogTrigger asChild>
-                <Button variant="outline" onClick={() => setIsEditDialogOpen(true)} disabled={!authUser}>
-                    <Edit className="mr-2 h-4 w-4" /> Edit Customer
-                </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Edit {customer.name}</DialogTitle>
-                <DialogDescription>Update the customer's details.</DialogDescription>
-              </DialogHeader>
-              {formData && (
-                <form onSubmit={handleEditCustomer}>
-                  <ScrollArea className="h-[70vh] pr-6">
-                    <div className="grid gap-4 py-4">{renderCustomerFormFields()}</div>
-                  </ScrollArea>
-                  <DialogFooter className="pt-4 border-t">
-                    <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSubmitting}>Cancel</Button>
-                    <Button type="submit" disabled={isSubmitting || !authUser}>{isSubmitting ? "Saving..." : "Save Changes"}</Button>
-                  </DialogFooter>
-                </form>
-              )}
-            </DialogContent>
+          }
+        }}>
+          <DialogTrigger asChild>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(true)} disabled={!authUser}>
+              <Edit className="mr-2 h-4 w-4" /> Edit Customer
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Edit {customer.name}</DialogTitle>
+              <DialogDescription>Update the customer's details.</DialogDescription>
+            </DialogHeader>
+            {formData && (
+              <form onSubmit={handleEditCustomer}>
+                <ScrollArea className="h-[70vh] pr-6">
+                  <div className="grid gap-4 py-4">{renderCustomerFormFields()}</div>
+                </ScrollArea>
+                <DialogFooter className="pt-4 border-t">
+                  <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSubmitting}>Cancel</Button>
+                  <Button type="submit" disabled={isSubmitting || !authUser}>{isSubmitting ? "Saving..." : "Save Changes"}</Button>
+                </DialogFooter>
+              </form>
+            )}
+          </DialogContent>
         </Dialog>
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-col md:flex-row items-center gap-6">
-          <Avatar className="h-24 w-24">
-            <AvatarImage src={customer.avatar} alt={customer.name} />
-            <AvatarFallback>{customer.name.substring(0, 2).toUpperCase()}</AvatarFallback>
-          </Avatar>
-          <div className="flex-1">
-            <CardTitle className="text-3xl">{customer.name}</CardTitle>
-            <CardDescription className="text-md mt-1">{customer.email}</CardDescription>
-            {customer.phone && <p className="text-sm text-muted-foreground flex items-center gap-2 mt-1"><Phone className="h-4 w-4"/>{customer.phone}</p>}
-            <div className="mt-2">
-                <Badge variant="outline" className={cn(customerStatusColors[customer.status], "flex items-center gap-1.5 text-sm px-3 py-1 w-fit")}>
-                    <StatusIcon className="h-4 w-4" /> {customer.status}
-                </Badge>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="mt-4">
-          <Separator className="my-6" />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h4 className="font-semibold text-lg mb-3 flex items-center"><MapPin className="mr-2 h-5 w-5 text-primary"/>Address</h4>
-              {(customer.address?.street || customer.address?.city || customer.address?.country) ? (
-                <div className="space-y-1 text-sm text-muted-foreground">
-                  <p>{customer.address.street}</p>
-                  <p>{customer.address.city}{customer.address.state && `, ${customer.address.state}`} {customer.address.zip}</p>
-                  <p>{customer.address.country}</p>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No address on file.</p>
-              )}
-            </div>
-            <div>
-              <h4 className="font-semibold text-lg mb-3 flex items-center"><CalendarDays className="mr-2 h-5 w-5 text-primary"/>Activity</h4>
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                <dt className="text-muted-foreground">Joined:</dt>
-                <dd>{new Date(customer.joinedDate).toLocaleDateString()}</dd>
-                <dt className="text-muted-foreground">Last Order:</dt>
-                <dd>{customer.lastOrderDate ? new Date(customer.lastOrderDate).toLocaleDateString() : "N/A"}</dd>
-                <dt className="text-muted-foreground flex items-center gap-1"><ShoppingCart className="h-4 w-4"/>Total Orders:</dt>
-                <dd>{customer.totalOrders}</dd>
-                <dt className="text-muted-foreground flex items-center gap-1"><DollarSign className="h-4 w-4"/>Total Spent:</dt>
-                <dd>ZMW {customer.totalSpent.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</dd>
-              </dl>
-            </div>
-          </div>
-          {customer.tags && customer.tags.length > 0 && (
-            <>
-              <Separator className="my-6" />
-              <div>
-                <h4 className="font-semibold text-lg mb-3 flex items-center"><Tag className="mr-2 h-5 w-5 text-primary"/>Tags</h4>
-                <div className="flex flex-wrap gap-2">
-                  {customer.tags.map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}
+      {/* Metrics Row */}
+      <div className="grid gap-3 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        <MetricCard
+          title="Total Spent"
+          value={`ZMW ${calculatedTotalSpent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          icon={DollarSign}
+          description={storeId ? "Value in this store" : "Lifetime value"}
+        />
+        <MetricCard
+          title="Total Orders"
+          value={calculatedTotalOrders.toString()}
+          icon={ShoppingCart}
+          description="Confirmed orders count"
+        />
+        <MetricCard
+          title="Avg. Order Value"
+          value={`ZMW ${calculatedAvgOrderValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          icon={TrendingUp}
+          description="Average spend per order"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Customer Profile Card */}
+        <div className="lg:col-span-1 space-y-6">
+          <Card className="h-full">
+            <CardHeader>
+              <div className="flex items-center gap-4">
+                <Avatar className="h-16 w-16">
+                  <AvatarImage src={customer.avatar} alt={customer.name} />
+                  <AvatarFallback>{customer.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <CardTitle className="text-lg md:text-xl">{customer.name}</CardTitle>
+                  <CardDescription className="text-sm mt-1">{customer.email}</CardDescription>
                 </div>
               </div>
-            </>
-          )}
-        </CardContent>
-        <CardFooter className="text-xs text-muted-foreground border-t pt-4 mt-6">
-          Customer ID: {customer.id}
-        </CardFooter>
-      </Card>
+              <div className="flex flex-wrap gap-2 mt-4">
+                <Badge variant="outline" className={cn(customerStatusColors[customer.status], "flex items-center gap-1.5 text-xs px-2 py-0.5 w-fit")}>
+                  <StatusIcon className="h-3 w-3" /> {customer.status}
+                </Badge>
+                {customer.phone && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1 bg-muted px-2 py-0.5 rounded-full border border-border">
+                    <Phone className="h-3 w-3" />{customer.phone}
+                  </span>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Order History {storeId ? `from this Store` : `(All Stores)`}</CardTitle>
-          <CardDescription>Recent orders placed by {customer.name}. {storeId ? "" : "Select a store from the sidebar to see store-specific orders."}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoadingCustomerOrders && <p className="text-muted-foreground">Loading order history...</p>}
-          {!isLoadingCustomerOrders && customerOrders.length === 0 && storeId && (
-            <p className="text-muted-foreground">
-              No orders found for this customer in the current store.
-            </p>
-          )}
-           {!isLoadingCustomerOrders && customerOrders.length === 0 && !storeId && (
-            <p className="text-muted-foreground">
-              Select a store from the sidebar to view order history for this customer.
-            </p>
-          )}
-          {!isLoadingCustomerOrders && customerOrders.length > 0 && (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Order ID</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {customerOrders.map((order) => {
-                   const OrderStatusIcon = orderStatusIcons[order.status];
-                   return (
-                    <TableRow key={order.id} className="cursor-pointer" onClick={() => router.push(`/orders/${order.id}?${searchParamsHook.toString()}`)}>
-                      <TableCell className="font-medium">{order.id.substring(0,8)}...</TableCell>
-                      <TableCell>{new Date(order.date).toLocaleDateString()}</TableCell>
-                      <TableCell className="text-right">ZMW {order.total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={cn(orderStatusColors[order.status], "flex items-center gap-1.5 whitespace-nowrap text-xs")}>
-                          <OrderStatusIcon className="h-3.5 w-3.5" />
-                          {order.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); router.push(`/orders/${order.id}?${searchParamsHook.toString()}`); }}>
-                            <Eye className="mr-1 h-4 w-4" /> View
-                        </Button>
-                      </TableCell>
+              <div>
+                <h4 className="font-medium text-xs uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                  <MapPin className="h-3.5 w-3.5" /> Address
+                </h4>
+                {(customer.address?.street || customer.address?.city || customer.address?.country) ? (
+                  <div className="text-sm space-y-1 bg-muted/30 p-3 rounded-md border border-border/50">
+                    <p>{customer.address.street}</p>
+                    <p>{customer.address.city}{customer.address.state && `, ${customer.address.state}`} {customer.address.zip}</p>
+                    <p>{customer.address.country}</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic pl-1">No address provided.</p>
+                )}
+              </div>
+
+              <Separator />
+
+              <div>
+                <h4 className="font-medium text-xs uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                  <CalendarDays className="h-3.5 w-3.5" /> Activity
+                </h4>
+                <div className="grid grid-cols-2 gap-y-2 text-sm">
+                  <div className="text-muted-foreground">Joined</div>
+                  <div className="text-right font-medium">{new Date(customer.joinedDate).toLocaleDateString()}</div>
+                  <div className="text-muted-foreground">Last Order</div>
+                  <div className="text-right font-medium">{customer.lastOrderDate ? new Date(customer.lastOrderDate).toLocaleDateString() : "Never"}</div>
+                </div>
+              </div>
+
+              {customer.tags && customer.tags.length > 0 && (
+                <>
+                  <Separator />
+                  <div>
+                    <h4 className="font-medium text-xs uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                      <Tag className="h-3.5 w-3.5" /> Tags
+                    </h4>
+                    <div className="flex flex-wrap gap-1.5">
+                      {customer.tags.map(tag => <Badge key={tag} variant="secondary" className="text-[10px] px-2">{tag}</Badge>)}
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+            <CardFooter className="text-[10px] text-muted-foreground border-t pt-3">
+              ID: <span className="font-mono ml-1">{customer.id}</span>
+            </CardFooter>
+          </Card>
+        </div>
+
+        {/* Order History */}
+        <div className="lg:col-span-2">
+          <Card className="h-full flex flex-col">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Order History</CardTitle>
+              <CardDescription>
+                {storeId ? "Recent orders from this store." : "Recent orders from all stores (select a store to filter)."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex-1">
+              {isLoadingCustomerOrders && (
+                <div className="space-y-3">
+                  {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+                </div>
+              )}
+
+              {!isLoadingCustomerOrders && customerOrders.length === 0 && (
+                <div className="h-40 flex flex-col items-center justify-center text-muted-foreground text-sm border-2 border-dashed rounded-lg bg-muted/10">
+                  <ShoppingCart className="h-8 w-8 mb-2 opacity-20" />
+                  <p>{storeId ? "No orders found in this store." : "Select a store to view orders."}</p>
+                </div>
+              )}
+
+              {!isLoadingCustomerOrders && customerOrders.length > 0 && (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Order #</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
                     </TableRow>
-                   );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {customerOrders.map((order) => {
+                      const OrderStatusIcon = orderStatusIcons[order.status];
+                      return (
+                        <TableRow key={order.id} className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => router.push(`/orders/${order.id}?${searchParamsHook.toString()}`)}>
+                          <TableCell className="font-medium font-mono text-xs">{order.id.slice(0, 8)}</TableCell>
+                          <TableCell className="text-xs">{new Date(order.date).toLocaleDateString()}</TableCell>
+                          <TableCell className="text-right font-medium">ZMW {order.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="outline" className={cn(orderStatusColors[order.status], "inline-flex items-center gap-1 whitespace-nowrap text-[10px] px-2 py-0.5")}>
+                              <OrderStatusIcon className="h-3 w-3" />
+                              {order.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 rounded-full" onClick={(e) => { e.stopPropagation(); router.push(`/orders/${order.id}?${searchParamsHook.toString()}`); }}>
+                              <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

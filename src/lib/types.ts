@@ -9,15 +9,16 @@ export interface OrderItem {
   productId: string;
   name: string;
   quantity: number;
-  price: number; 
+  price: number;
   image: string;
 }
 
 export interface Order {
   id: string;
+  storeId: string;
   customerName: string;
   customerEmail: string;
-  customerPhone?: string; 
+  customerPhone?: string;
   date: string;
   total: number;
   status: OrderStatus;
@@ -25,9 +26,9 @@ export interface Order {
   detailedItems: OrderItem[];
   shippingAddress: string;
   billingAddress: string;
-  shippingMethod?: string;
+  deliveryTier?: string;
   paymentMethod?: string;
-  trackingNumber?: string;
+  deliveryCode?: string;
   shippingLatitude?: number;
   shippingLongitude?: number;
   deliveryType?: 'self_delivery' | 'courier' | null;
@@ -36,6 +37,9 @@ export interface Order {
   pickupLongitude?: number;
   customerSpecification?: string;
   deliveryCost?: number | null;
+  driverId?: string | null;
+  notes?: Record<string, any> | null;
+  serviceFees?: number | null;
 }
 
 export interface SocialLink {
@@ -48,14 +52,22 @@ export interface Store {
   name: string;
   description: string;
   logo: string;
+  banner?: string;
   status: StoreStatus;
   categories: string[];
   socialLinks?: SocialLink[];
   location?: string;
   contactPhone?: string;
+  contactEmail?: string;
+  contactWebsite?: string;
+  slug?: string;
   pickupLatitude?: number;
   pickupLongitude?: number;
   createdAt: string;
+  isVerified: boolean;
+  commissionRate?: number;
+  averageRating: number;
+  reviewCount: number;
 }
 
 export interface Customer {
@@ -79,19 +91,6 @@ export interface Customer {
   };
 }
 
-export interface ProductVariant {
-    id: string;
-    price: number;
-    orderPrice?: number | null;
-    stock: number;
-    sku?: string | null;
-    isDefault: boolean;
-    options: {
-        type: string;
-        value: string;
-    }[];
-}
-
 export interface Product {
   id: string;
   name: string;
@@ -108,7 +107,32 @@ export interface Product {
   tags?: string[];
   weight?: number; // in kg
   dimensions?: { length: number; width: number; height: number }; // in cm
-  variants: ProductVariant[];
+  attributes?: Record<string, any>;
+  is_dropshippable?: boolean;
+  supplier_product_id?: string | null;
+  supplier_price?: number | null;
+}
+
+/**
+ * Vendor interface mirrors the public.vendors table. All fields are optional except `id`
+ * because they are filled after sign‑up. This type is used throughout the app for
+ * type‑safe profile handling.
+ */
+export interface Vendor {
+  id: string;
+  display_name: string;
+  email?: string | null;
+  avatar_url?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  bank_name?: string | null;
+  bank_account_name?: string | null;
+  bank_account_number?: string | null;
+  bank_branch_name?: string | null;
+  mobile_money_provider?: string | null;
+  mobile_money_number?: string | null;
+  mobile_money_name?: string | null;
+  is_supplier?: boolean;
 }
 
 export const orderStatusIcons: Record<OrderStatus, LucideIcon> = {

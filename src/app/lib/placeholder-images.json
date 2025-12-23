@@ -1,9 +1,0 @@
-{
-  "landing": {
-    "hero": {
-      "src": "https://noympgnaetcrtpdlkkry.supabase.co/storage/v1/object/public/placeholder_images/ehero%20.png",
-      "alt": "E-Ntemba Platform Showcase",
-      "hint": "app dashboard"
-    }
-  }
-}

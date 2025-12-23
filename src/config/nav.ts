@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { LayoutDashboard, Package, ShoppingCart, Store, Users, Truck } from "lucide-react"; 
+import { LayoutDashboard, Package, ShoppingCart, Store, Users, Truck, Globe, Factory, Tag, LifeBuoy, MessageSquare, Bell } from "lucide-react";
 
 export interface NavItem {
   title: string;
@@ -40,5 +40,35 @@ export const navItems: NavItem[] = [
     title: "Customers",
     href: "/customers",
     icon: Users,
+  },
+  {
+    title: "Marketing",
+    href: "/marketing",
+    icon: Tag,
+  },
+  {
+    title: "Marketplace",
+    href: "/market",
+    icon: Globe,
+  },
+  {
+    title: "Supplier",
+    href: "/supplier",
+    icon: Factory,
+  },
+  {
+    title: "Reviews",
+    href: "/reviews",
+    icon: MessageSquare,
+  },
+  {
+    title: "Notifications",
+    href: "/notifications",
+    icon: Bell,
+  },
+  {
+    title: "Support",
+    href: "/support",
+    icon: LifeBuoy,
   },
 ];

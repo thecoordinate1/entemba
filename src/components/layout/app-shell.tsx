@@ -37,6 +37,7 @@ import { getStoresByUserId, type StoreFromSupabase } from "@/services/storeServi
 import { useToast } from "@/hooks/use-toast";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { NotificationsMenu } from "@/components/NotificationsMenu";
 
 
 const UserDisplay: React.FC<{
@@ -119,25 +120,25 @@ const StoreSelector = ({
   }
 
   return (
-     <DropdownMenu>
+    <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" className="w-full my-2 h-11 text-sm bg-sidebar-background border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus:ring-sidebar-ring justify-start">
-            <div className="flex items-center gap-2 truncate">
-                <StoreIcon className="h-5 w-5 text-sidebar-primary flex-shrink-0" />
-                <span className="truncate">{selectedStoreName}</span>
-            </div>
+          <div className="flex items-center gap-2 truncate">
+            <StoreIcon className="h-5 w-5 text-sidebar-primary flex-shrink-0" />
+            <span className="truncate">{selectedStoreName}</span>
+          </div>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56">
         <DropdownMenuRadioGroup value={selectedStoreId || ""} onValueChange={onStoreChange}>
-            {stores.map((store) => (
-                <DropdownMenuRadioItem key={store.id} value={store.id}>{store.name}</DropdownMenuRadioItem>
-            ))}
+          {stores.map((store) => (
+            <DropdownMenuRadioItem key={store.id} value={store.id}>{store.name}</DropdownMenuRadioItem>
+          ))}
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => router.push('/stores')}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            <span>Create New Store</span>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          <span>Create New Store</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -153,22 +154,23 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
-  
+
   const [selectedStoreId, setSelectedStoreId] = React.useState<string | null>(null);
   const [availableStores, setAvailableStores] = React.useState<StoreFromSupabase[]>([]);
   const [isLoadingStores, setIsLoadingStores] = React.useState(true);
-  
+
   const [authUser, setAuthUser] = React.useState<AuthUser | null>(null);
   const [vendorDisplayName, setVendorDisplayName] = React.useState<string | null>(null);
   const [vendorEmail, setVendorEmail] = React.useState<string | null>(null);
   const [vendorAvatarUrl, setVendorAvatarUrl] = React.useState<string | null>(null);
+  const [isSupplier, setIsSupplier] = React.useState(false);
   const [isLoadingProfile, setIsLoadingProfile] = React.useState(true);
   const [pageTitle, setPageTitle] = React.useState("Loading...");
 
   const [installPrompt, setInstallPrompt] = React.useState<any>(null);
 
   const supabase = createClient();
-  
+
   const fetchInitialUserData = React.useCallback(async (user: AuthUser) => {
     setIsLoadingProfile(true);
     setIsLoadingStores(true);
@@ -182,9 +184,11 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
       const { profile, error } = profileResult.value;
       if (profile) {
         setVendorDisplayName(profile.display_name); setVendorEmail(profile.email); setVendorAvatarUrl(profile.avatar_url);
+        setIsSupplier(!!profile.is_supplier);
       } else {
-        setVendorDisplayName(user.user_metadata?.display_name || user.email);
-        setVendorEmail(user.email); setVendorAvatarUrl(user.user_metadata?.avatar_url);
+        setVendorDisplayName(user.user_metadata?.display_name || user.email || null);
+        setVendorEmail(user.email || null); setVendorAvatarUrl(user.user_metadata?.avatar_url || null);
+        setIsSupplier(false);
         if (error) console.warn("Error fetching vendor profile:", (error as Error).message);
       }
     } else {
@@ -201,7 +205,7 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
     }
     setIsLoadingStores(false);
   }, [toast]);
-  
+
   React.useEffect(() => {
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
@@ -214,7 +218,7 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
   }, []);
-  
+
   // Effect for Auth changes
   React.useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -226,9 +230,11 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
         setVendorDisplayName(null); setVendorEmail(null); setVendorAvatarUrl(null);
         setAvailableStores([]); setSelectedStoreId(null);
         setIsLoadingProfile(false); setIsLoadingStores(false);
+        setIsSupplier(false);
       } else if (event === 'USER_UPDATED' && currentUser) {
         setVendorDisplayName(currentUser.user_metadata.display_name || currentUser.email);
         setVendorAvatarUrl(currentUser.user_metadata.avatar_url);
+        // We might want to re-fetch profile here if is_supplier depends on metadata, but it's in DB
       }
     });
 
@@ -240,16 +246,16 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
         setIsLoadingProfile(false); setIsLoadingStores(false);
       }
     });
-    
+
     return () => authListener.subscription.unsubscribe();
   }, [supabase, fetchInitialUserData]);
-  
+
   React.useEffect(() => {
     // Only run this logic if we have finished loading stores.
     if (isLoadingStores) {
       return;
     }
-    
+
     const storeIdFromUrl = searchParams.get("storeId");
 
     if (availableStores.length > 0) {
@@ -284,7 +290,7 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
     const baseTitle = currentNavItem?.title || "E-Ntemba";
     const store = availableStores.find(s => s.id === selectedStoreId);
     const newTitle = store ? `${store.name} - ${baseTitle}` : baseTitle;
-    
+
     setPageTitle(newTitle);
     if (typeof window !== 'undefined') {
       document.title = `${newTitle} | E-Ntemba`;
@@ -340,15 +346,15 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
             <PanelLeft />
           </Button>
         </div>
-        
+
         <Separator className="my-0 bg-sidebar-border flex-shrink-0" />
-        
+
         {authUser && (
           <div className="px-2 pt-2 flex-shrink-0">
-             <StoreSelector stores={availableStores} selectedStoreId={selectedStoreId} onStoreChange={handleStoreChange} isLoading={isLoadingStores} isCollapsed={isSidebarCollapsed} />
+            <StoreSelector stores={availableStores} selectedStoreId={selectedStoreId} onStoreChange={handleStoreChange} isLoading={isLoadingStores} isCollapsed={isSidebarCollapsed} />
           </div>
         )}
-        
+
         <ScrollArea className="flex-1">
           <nav className="grid gap-1 px-2">
             {navItems.map((item) => {
@@ -385,26 +391,26 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
             })}
           </nav>
         </ScrollArea>
-        
+
         <div className="mt-auto p-2 space-y-2 flex-shrink-0">
           {authUser && (
             <>
               <UserDisplay displayName={vendorDisplayName} email={vendorEmail} avatarUrl={vendorAvatarUrl} isLoading={isLoadingProfile} isCollapsed={isSidebarCollapsed} />
-              <Link href={getHrefWithStoreId('/settings')} className={cn("flex items-center justify-start gap-2 rounded-md p-3 text-base font-medium transition-colors", {'bg-sidebar-accent text-sidebar-accent-foreground': pathname.startsWith('/settings'), 'text-sidebar-foreground hover:bg-sidebar-accent/50': !pathname.startsWith('/settings'), 'justify-center': isSidebarCollapsed })}>
+              <Link href={getHrefWithStoreId('/settings')} className={cn("flex items-center justify-start gap-2 rounded-md p-3 text-base font-medium transition-colors", { 'bg-sidebar-accent text-sidebar-accent-foreground': pathname.startsWith('/settings'), 'text-sidebar-foreground hover:bg-sidebar-accent/50': !pathname.startsWith('/settings'), 'justify-center': isSidebarCollapsed })}>
                 <Settings className="h-5 w-5" /><span className={cn(isSidebarCollapsed && "hidden")}>Settings</span>
               </Link>
-               {installPrompt && (
-                <Button variant="ghost" className={cn("w-full flex items-center justify-start gap-2 rounded-md p-3 text-base font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/50", {'justify-center': isSidebarCollapsed})} onClick={handleInstallClick}>
-                    <Download className="h-5 w-5" /><span className={cn(isSidebarCollapsed && "hidden")}>Install App</span>
+              {installPrompt && (
+                <Button variant="ghost" className={cn("w-full flex items-center justify-start gap-2 rounded-md p-3 text-base font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/50", { 'justify-center': isSidebarCollapsed })} onClick={handleInstallClick}>
+                  <Download className="h-5 w-5" /><span className={cn(isSidebarCollapsed && "hidden")}>Install App</span>
                 </Button>
-               )}
-              <Button variant="ghost" className={cn("w-full flex items-center justify-start gap-2 rounded-md p-3 text-base font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/50", {'justify-center': isSidebarCollapsed})} onClick={handleLogout}>
+              )}
+              <Button variant="ghost" className={cn("w-full flex items-center justify-start gap-2 rounded-md p-3 text-base font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/50", { 'justify-center': isSidebarCollapsed })} onClick={handleLogout}>
                 <LogOut className="h-5 w-5" /><span className={cn(isSidebarCollapsed && "hidden")}>Logout</span>
               </Button>
             </>
           )}
           {!authUser && !isLoadingProfile && (
-            <Link href="/login" className={cn("flex items-center justify-start gap-2 rounded-md p-3 text-base font-medium transition-colors", {'justify-center': isSidebarCollapsed })}>
+            <Link href="/login" className={cn("flex items-center justify-start gap-2 rounded-md p-3 text-base font-medium transition-colors", { 'justify-center': isSidebarCollapsed })}>
               <LogOut className="h-5 w-5" /><span className={cn(isSidebarCollapsed && "hidden")}>Login</span>
             </Link>
           )}
@@ -420,28 +426,49 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
       </aside>
       <div className={cn("flex flex-col flex-1 transition-all duration-300", isSidebarCollapsed ? "md:pl-20" : "md:pl-64")}>
         <div className="relative flex h-full max-h-screen flex-col">
-            <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm sm:h-20 sm:px-6">
-                <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-                    <SheetTrigger asChild>
-                    <Button size="icon" variant="outline" className="md:hidden">
-                        <Menu className="h-5 w-5" />
-                        <span className="sr-only">Toggle Menu</span>
+          <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm sm:h-20 sm:px-6">
+            <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button size="icon" variant="outline" className="md:hidden">
+                  <Menu className="h-5 w-5" />
+                  <span className="sr-only">Toggle Menu</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="p-0 w-[85vw] max-w-xs bg-sidebar text-sidebar-foreground border-r-sidebar-border">
+                <SheetHeader>
+                  <SheetTitle className="sr-only">Main Menu</SheetTitle>
+                </SheetHeader>
+                {React.cloneElement(sidebarContent, { isCollapsed: false })}
+              </SheetContent>
+            </Sheet>
+            <h1 className="text-lg sm:text-xl font-semibold truncate flex-1">
+              {isLoadingOverall ? "Loading..." : pageTitle}
+            </h1>
+            <div className="flex items-center gap-2">
+              <NotificationsMenu />
+              {selectedStoreId && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" className="hidden sm:flex gap-1 h-9 rounded-full px-3 shadow-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-all hover:scale-105 active:scale-95">
+                      <PlusCircle className="h-4 w-4" />
+                      <span>Create</span>
                     </Button>
-                    </SheetTrigger>
-                    <SheetContent side="left" className="p-0 w-72 bg-sidebar text-sidebar-foreground border-r-sidebar-border">
-                      <SheetHeader>
-                          <SheetTitle className="sr-only">Main Menu</SheetTitle>
-                      </SheetHeader>
-                      {React.cloneElement(sidebarContent, { isCollapsed: false })}
-                    </SheetContent>
-                </Sheet>
-                <h1 className="text-xl font-semibold sm:text-2xl truncate">
-                    {isLoadingOverall ? "Loading..." : pageTitle}
-                </h1>
-            </header>
-            <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-                {children}
-            </main>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem onClick={() => router.push(`/orders?storeId=${selectedStoreId}&action=new`)}>
+                      <Menu className="mr-2 h-4 w-4" /> New Order
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => router.push(`/products/new?storeId=${selectedStoreId}`)}>
+                      <PlusCircle className="mr-2 h-4 w-4" /> New Product
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+          </header>
+          <main className={cn("flex-1 w-full max-w-full overflow-x-hidden p-4 sm:p-6", isSupplier ? "theme-supplier" : "")}>
+            {children}
+          </main>
         </div>
       </div>
     </div>
@@ -450,19 +477,19 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
 
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-    const [hasMounted, setHasMounted] = React.useState(false);
-    
-    React.useEffect(() => {
-        setHasMounted(true);
-    }, []);
+  const [hasMounted, setHasMounted] = React.useState(false);
 
-    if (!hasMounted) {
-        return (
-            <div className="flex min-h-screen w-full items-center justify-center bg-background">
-                <KioskIcon className="h-10 w-10 text-primary animate-pulse" />
-            </div>
-        );
-    }
+  React.useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
-    return <AppShellLayout>{children}</AppShellLayout>;
+  if (!hasMounted) {
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center bg-background">
+        <KioskIcon className="h-10 w-10 text-primary animate-pulse" />
+      </div>
+    );
+  }
+
+  return <AppShellLayout>{children}</AppShellLayout>;
 }

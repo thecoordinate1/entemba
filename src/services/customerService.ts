@@ -40,8 +40,8 @@ export interface CustomerFromSupabase {
   state_province: string | null;
   zip_postal_code: string | null;
   country: string | null;
-  joined_date: string; 
-  last_order_date: string | null; 
+  joined_date: string;
+  last_order_date: string | null;
   total_spent: number;
   total_orders: number;
   created_at: string;
@@ -84,7 +84,7 @@ export async function getCustomers(
       storeIds = stores.map(s => s.id);
     }
   }
-  
+
   if (storeIds.length === 0) {
     console.log('[customerService.getCustomers] No stores found for this vendor, returning empty customer list.');
     return { data: [], count: 0, error: null };
@@ -98,10 +98,10 @@ export async function getCustomers(
     .not('customer_id', 'is', null);
 
   if (ordersError) {
-     console.error('[customerService.getCustomers] Error fetching customer links from orders:', ordersError.message);
-     return { data: null, count: 0, error: new Error("Could not fetch customer list from orders.") };
+    console.error('[customerService.getCustomers] Error fetching customer links from orders:', ordersError.message);
+    return { data: null, count: 0, error: new Error("Could not fetch customer list from orders.") };
   }
-  
+
   const customerIds = [...new Set(customerLinks.map(o => o.customer_id))].filter(id => id !== null) as string[];
 
   if (customerIds.length === 0) {
@@ -117,7 +117,7 @@ export async function getCustomers(
     .from('customers')
     .select(COMMON_CUSTOMER_SELECT, { count: 'exact' })
     .in('id', customerIds)
-    .order('last_order_date', { ascending: false, nulls: 'last' })
+    .order('last_order_date', { ascending: false, nullsFirst: false })
     .range(from, to);
 
   if (error) {
@@ -144,10 +144,10 @@ export async function getCustomerById(customerId: string): Promise<{ data: Custo
 
   if (error) {
     let message = error.message || `Failed to fetch customer ${customerId}.`;
-    if (error.code === 'PGRST116') { 
-        message = `Customer with ID ${customerId} not found or access denied.`;
+    if (error.code === 'PGRST116') {
+      message = `Customer with ID ${customerId} not found or access denied.`;
     } else if (Object.keys(error).length === 0 || !error.message) {
-        message = `Failed to fetch customer ${customerId}. This often indicates an RLS policy issue preventing access.`;
+      message = `Failed to fetch customer ${customerId}. This often indicates an RLS policy issue preventing access.`;
     }
     console.error('[customerService.getCustomerById] Supabase fetch error:', message, 'Original Supabase Error:', JSON.stringify(error, null, 2));
     return { data: null, error: new Error(message) };
@@ -170,9 +170,9 @@ export async function getCustomerByEmail(email: string): Promise<{ data: Custome
     .from('customers')
     .select(COMMON_CUSTOMER_SELECT)
     .eq('email', email)
-    .maybeSingle(); 
+    .maybeSingle();
 
-  if (error && error.code !== 'PGRST116') { 
+  if (error && error.code !== 'PGRST116') {
     console.error('[customerService.getCustomerByEmail] Supabase fetch error:', error);
     return { data: null, error: new Error(error.message || 'Failed to fetch customer by email.') };
   }

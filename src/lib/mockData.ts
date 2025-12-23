@@ -28,6 +28,9 @@ export const initialStores: Store[] = [
     pickupLatitude: 40.7128,
     pickupLongitude: -74.0060,
     createdAt: "2022-11-10",
+    isVerified: true,
+    averageRating: 4.8,
+    reviewCount: 124,
   },
   {
     id: "store_2",
@@ -44,6 +47,9 @@ export const initialStores: Store[] = [
     pickupLatitude: 37.7749,
     pickupLongitude: -122.4194,
     createdAt: "2023-01-25",
+    isVerified: false,
+    averageRating: 4.2,
+    reviewCount: 45,
   },
   // Other mock stores can remain if needed for initial UI testing without a backend connection,
   // but the AppShell already fetches actual stores.

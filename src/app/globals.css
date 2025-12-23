@@ -4,78 +4,93 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47.4% 11.2%; /* slate-900 */
-    --card: 0 0% 100%;
-    --card-foreground: 222 47.4% 11.2%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47.4% 11.2%;
-    --primary: 158 64% 45%; /* Emerald Green (adjusted for light bg) */
-    --primary-foreground: 210 40% 98%; /* slate-50 */
-    --secondary: 210 40% 96.1%; /* slate-100 */
-    --secondary-foreground: 222 47.4% 11.2%;
-    --muted: 210 40% 90.2%; /* slate-200 */
-    --muted-foreground: 210 40% 58.8%; /* slate-500 */
-    --accent: 158 64% 45%; /* Emerald Green */
-    --accent-foreground: 210 40% 98%; /* slate-50 */
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 210 40% 85%; /* slate-300 */
-    --input: 210 40% 85%; /* slate-300 */
-    --ring: 158 64% 45%; /* Emerald Green */
+    /* Default to Dark Theme */
+    --background: 222 47% 4%;
+    /* Very dark slate/black */
+    --foreground: 210 40% 98%;
+    /* White */
+
+    --card: 222 47% 6%;
+    /* Slightly lighter than background */
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 6%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 158 80% 50%;
+    /* Vibrant Emerald */
+    --primary-foreground: 222 47.4% 4%;
+    /* Dark text on primary */
+
+    --secondary: 217 33% 17%;
+    /* Dark Slate */
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 158 80% 50%;
+    --accent-foreground: 222 47.4% 4%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 33% 15%;
+    --input: 217 33% 15%;
+    --ring: 158 80% 50%;
+
     --radius: 0.5rem;
 
-    --chart-1: 158 64% 45%;
-    --chart-2: 158 50% 35%;
-    --chart-3: 158 70% 55%;
+    --chart-1: 158 80% 50%;
+    --chart-2: 158 60% 40%;
+    --chart-3: 158 70% 60%;
     --chart-4: 222 47% 50%;
     --chart-5: 222 47% 65%;
 
-    --sidebar-background: 210 40% 98%; /* slate-50 */
-    --sidebar-foreground: 222 47.4% 11.2%; /* slate-900 */
-    --sidebar-primary: 158 64% 45%; /* Emerald Green */
-    --sidebar-primary-foreground: 0 0% 100%; /* white */
-    --sidebar-accent: 210 40% 90.2%; /* slate-200 (hover background) */
-    --sidebar-accent-foreground: 222 47.4% 11.2%; /* slate-900 (hover text) */
-    --sidebar-border: 210 40% 85%; /* slate-300 */
-    --sidebar-ring: 158 64% 45%;
+    --sidebar-background: 222 47% 4%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 158 80% 50%;
+    --sidebar-primary-foreground: 222 47.4% 4%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 15%;
+    --sidebar-ring: 158 80% 50%;
   }
 
   .dark {
-    --background: 222 47.4% 11.2%; /* slate-900 */
-    --foreground: 210 40% 98%; /* slate-50 */
-    --card: 222 47.4% 14.2%; /* Slightly lighter than slate-900, derived from slate-800/900 mid */
+    /* Keep .dark same as root for consistency */
+    --background: 222 47% 4%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 6%;
     --card-foreground: 210 40% 98%;
-    --popover: 222 47.4% 14.2%;
+    --popover: 222 47% 6%;
     --popover-foreground: 210 40% 98%;
-    --primary: 158 64% 52%; /* Emerald Green (#34D399) */
-    --primary-foreground: 222 47.4% 8.2%; /* slate-950 (text on emerald buttons) */
-    --secondary: 215 27.9% 26.5%; /* slate-800 */
+    --primary: 158 80% 50%;
+    --primary-foreground: 222 47.4% 4%;
+    --secondary: 217 33% 17%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 215 27.9% 38.6%; /* slate-700 */
-    --muted-foreground: 210 40% 69.5%; /* slate-400 */
-    --accent: 158 64% 52%; /* Emerald Green */
-    --accent-foreground: 222 47.4% 8.2%; /* slate-950 (text on emerald highlights) */
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 158 80% 50%;
+    --accent-foreground: 222 47.4% 4%;
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 215 27.9% 26.5%; /* slate-800 */
-    --input: 215 27.9% 30.5%; /* between slate-700 and slate-800 */
-    --ring: 158 64% 52%; /* Emerald Green */
-    
-    --chart-1: 158 64% 52%;
-    --chart-2: 158 50% 40%;
-    --chart-3: 158 70% 65%;
-    --chart-4: 210 40% 60%;
-    --chart-5: 210 40% 75%;
-
-    --sidebar-background: 222 47.4% 8.2%; /* slate-950 */
-    --sidebar-foreground: 210 40% 80.4%; /* slate-300 */
-    --sidebar-primary: 158 64% 52%; /* Emerald Green (active item background) */
-    --sidebar-primary-foreground: 222 47.4% 8.2%; /* slate-950 (active item text on emerald bg) */
-    --sidebar-accent: 215 27.9% 17.5%; /* darker slate for hover (between slate-800 and 900) */
-    --sidebar-accent-foreground: 210 40% 98%; /* slate-50 (hover text) */
-    --sidebar-border: 215 27.9% 26.5%; /* slate-800 */
-    --sidebar-ring: 158 64% 52%; /* Emerald Green */
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 15%;
+    --input: 217 33% 15%;
+    --ring: 158 80% 50%;
+    --chart-1: 158 80% 50%;
+    --chart-2: 158 60% 40%;
+    --chart-3: 158 70% 60%;
+    --chart-4: 222 47% 50%;
+    --chart-5: 222 47% 65%;
+    --sidebar-background: 222 47% 4%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 158 80% 50%;
+    --sidebar-primary-foreground: 222 47.4% 4%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 15%;
+    --sidebar-ring: 158 80% 50%;
   }
 }
 
@@ -83,13 +98,23 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
-    /* font-family is set by RootLayout using CSS variables */
   }
+
   /* Hide scrollbar for the body when a sticky element is present */
   html:has(aside[data-state="sticky"]) {
     overflow-y: hidden;
+  }
+
+  .theme-supplier {
+    --primary: 36 100% 50%;
+    /* Vibrant Orange for Suppliers */
+    --primary-foreground: 222 47.4% 4%;
+    --ring: 36 100% 50%;
+    --sidebar-primary: 36 100% 50%;
+    --sidebar-ring: 36 100% 50%;
   }
 }
 
@@ -97,5 +122,21 @@
   .animate-fade-in-scroll {
     animation: fade-in-scroll;
     animation-timeline: view();
+  }
+
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+
+  .rotate-x-12 {
+    transform: rotateX(12deg);
+  }
+
+  .rotate-x-0 {
+    transform: rotateX(0deg);
+  }
+
+  .bg-size-200 {
+    background-size: 200% 200%;
   }
 }
