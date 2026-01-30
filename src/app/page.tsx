@@ -36,6 +36,11 @@ export default function HomePage() {
                   </Link>
                 </Button>
                 <Button variant="outline" size="lg" className="h-12 px-8 text-lg rounded-full border-muted-foreground/20 hover:bg-muted/50 backdrop-blur-sm" asChild>
+                  <Link href="/shop">
+                    View Shop
+                  </Link>
+                </Button>
+                <Button variant="ghost" size="lg" className="h-12 px-8 text-lg rounded-full hover:bg-muted/30" asChild>
                   <Link href="/about">
                     Learn More
                   </Link>

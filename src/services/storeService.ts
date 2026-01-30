@@ -238,6 +238,45 @@ export async function getStoreById(storeId: string, userId: string): Promise<{ d
   return { data: { ...storeData, categories: categoriesArray, social_links: socialLinksData || [] } as StoreFromSupabase, error: null };
 }
 
+export async function getStoreByEmail(email: string): Promise<{ data: StoreFromSupabase | null, error: Error | null }> {
+  console.log('[storeService.getStoreByEmail] Fetching store for email:', email);
+  
+  // We search by contact_email. Note: This assumes contact_email is unique enough or we take the first one.
+  const { data: storeData, error: storeError } = await supabase
+    .from('stores')
+    .select(STORE_COLUMNS_TO_SELECT)
+    .eq('contact_email', email)
+    .limit(1)
+    .single();
+
+  if (storeError) {
+    console.error(`[storeService.getStoreByEmail] Error fetching store for email ${email}:`, storeError);
+    return { data: null, error: new Error(storeError.message) };
+  }
+
+  if (!storeData) {
+     return { data: null, error: null };
+  }
+
+  // Fetch social links (reusing logic from getStoreById roughly, but keeping it simple)
+  // Categories are now natively arrays
+  const categoriesArray = storeData.categories || [];
+
+  const { data: socialLinksData } = await supabase
+    .from('social_links')
+    .select('platform, url')
+    .eq('store_id', storeData.id);
+
+  return { 
+    data: { 
+      ...storeData, 
+      categories: categoriesArray, 
+      social_links: socialLinksData || [] 
+    } as StoreFromSupabase, 
+    error: null 
+  };
+}
+
 
 export async function createStore(
   userId: string,
