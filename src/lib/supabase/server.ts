@@ -9,7 +9,11 @@ export const createClient = (cookieStore: ReturnType<typeof cookies>) => {
     {
       cookies: {
         async get(name: string) {
-          return (await cookieStore).get(name)?.value;
+          const store = await cookieStore;
+          if (!store || typeof store.get !== 'function') {
+            return undefined;
+          }
+          return store.get(name)?.value;
         },
         async set(name: string, value: string, options: CookieOptions) {
           try {

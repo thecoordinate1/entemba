@@ -5,6 +5,15 @@ export const createClient = () => {
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
+    if (typeof window === 'undefined') {
+      console.warn("Supabase environment variables are missing during build/SSR. Returning a dummy client to avoid crashes.");
+      // Return a dummy object that won't throw on common accesses
+      return {
+        auth: { getUser: async () => ({ data: { user: null }, error: null }), getSession: async () => ({ data: { session: null }, error: null }) },
+        from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: null, error: null }), limit: () => ({ single: async () => ({ data: null, error: null }) }) }) }) }),
+        storage: { from: () => ({ upload: async () => ({ error: null }), getPublicUrl: () => ({ data: { publicUrl: null } }) }) }
+      } as any;
+    }
     console.error("Supabase environment variables are missing!");
     throw new Error("Missing Supabase environment variables. Please check your .env file and ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set.");
   }
